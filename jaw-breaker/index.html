@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jaw Breaker</title>
+<style>
+  html, body { margin:0; height:100%; background:#0d0824; overflow:hidden; font-family:system-ui, sans-serif; }
+  canvas { display:block; width:100vw; height:100vh; touch-action:none; cursor:none; }
+  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; z-index:1; }
+  #pause { position:fixed; bottom:16px; right:16px; z-index:1; width:56px; height:56px; border-radius:50%;
+           border:3px solid #a99ee0; background:#1e1450; color:#f4f1ff; font-size:24px; cursor:pointer; }
+  #pause:hover { border-color:#3ee6c1; }
+</style>
+</head>
+<body>
+<a href="../">← Arcade</a>
+<button id="pause" title="Pause (P or Esc)">⏸</button>
+<canvas id="c"></canvas>
+<script>
+// Jaw Breaker: smash every candy brick with the ball.
+// Move: mouse, touch, or ← →.  Launch: click, tap, or space.
+// Power-ups fall from some bricks: W = wide paddle, M = multiball, S = slow ball, + = extra life,
+// F = fireball (the ball burns straight through bricks without bouncing).
+
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = 800, H = 600;           // the playfield; it gets scaled to fit the window
+let scale = 1, offX = 0, offY = 0;
+function resize() {
+  c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
+  scale = Math.min(c.width / W, c.height / H);
+  offX = (c.width - W * scale) / 2; offY = (c.height - H * scale) / 2;
+}
+addEventListener('resize', resize); resize();
+
+// ---------- sound (little beeps made in code) ----------
+let audio;
+function beep(freq, len = 0.06, type = 'square', vol = 0.06) {
+  if (!audio) return;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, audio.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + len);
+  o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime + len);
+}
+
+// ---------- levels: each number is how many hits a brick takes ----------
+const LEVELS = [
+  ['1111111111',
+   '1111111111',
+   '2222222222',
+   '1111111111'],
+  ['..222222..',
+   '.21111112.',
+   '2113333112',
+   '.21111112.',
+   '..222222..'],
+  ['3.3.3.3.3.',
+   '.2.2.2.2.2',
+   '1111111111',
+   '2.2.2.2.2.',
+   '.3.3.3.3.3',
+   '1111111111'],
+];
+const COLS = 10, BW = 70, BH = 24, GAP = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
+const COLORS = { 1: '#3ee6c1', 2: '#ffd23f', 3: '#ff5d8f' };
+const POWERUPS = ['W', 'M', 'S', '+', 'F'];
+const DROP_COLORS = { W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
+
+let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer;
+let tick = 0;   // counts up every update; used to animate rainbow colors
+function rainbow(offset = 0) { return `hsl(${(tick * 4 + offset) % 360}, 95%, 62%)`; }
+
+function newGame() { score = 0; lives = 3; level = 0; loadLevel(); }
+function loadLevel() {
+  const pattern = LEVELS[level % LEVELS.length];
+  bricks = [];
+  pattern.forEach((row, r) => [...row].forEach((ch, col) => {
+    if (ch === '.') return;
+    bricks.push({ x: LEFT + col * (BW + GAP), y: TOP + r * (BH + GAP), hp: +ch, max: +ch });
+  }));
+  // one brick per level is the RAINBOW brick, and it's HARD to get:
+  //  - it's always in the top row (the farthest away)
+  //  - it takes 6 hits, and fireballs can't burn through it (they only chip it)
+  //  - the power-up it drops falls fast and wiggles side to side
+  const topY = Math.min(...bricks.map(b => b.y));
+  const topRow = bricks.filter(b => b.y === topY);
+  const special = topRow[Math.floor(Math.random() * topRow.length)];
+  special.rainbow = true; special.hp = 6; special.max = 6;
+  paddle = { x: W / 2, y: H - 40, w: 110, h: 14 };
+  drops = []; sparks = []; wideTimer = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; brokenThisLevel = 0;
+  resetBall();
+  state = 'ready';
+}
+// Starts slow and speeds up a little with every brick you break.
+// Each new level starts a bit faster than the last one did.
+let brokenThisLevel = 0;
+function speed() { return Math.min(9, 3.5 + level * 0.5 + brokenThisLevel * 0.06); }
+function resetBall() { balls = [{ x: paddle.x, y: paddle.y - 10, vx: 0, vy: 0, r: 8, stuck: true }]; }
+
+function launch() {
+  if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  if (state === 'over') { newGame(); return; }
+  if (state === 'clear') { level++; loadLevel(); return; }
+  if (state === 'ready') {
+    state = 'play';
+    for (const b of balls) if (b.stuck) { b.stuck = false; const a = (Math.random() - 0.5) * 0.6; b.vx = Math.sin(a) * speed(); b.vy = -Math.cos(a) * speed(); }
+    beep(520);
+  }
+}
+
+// ---------- pause ----------
+let paused = false;
+const pauseBtn = document.getElementById('pause');
+function setPaused(p) {
+  // nothing to pause on the game over / level clear screens
+  if (p && (state === 'over' || state === 'clear')) return;
+  paused = p;
+  pauseBtn.textContent = paused ? '▶' : '⏸';
+}
+pauseBtn.addEventListener('pointerdown', e => e.stopPropagation());   // don't also launch the ball
+pauseBtn.addEventListener('click', () => { setPaused(!paused); pauseBtn.blur(); });
+// pause by itself if you switch tabs or click away to another window
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
+addEventListener('blur', () => setPaused(true));
+
+// ---------- input ----------
+function toField(clientX) { return (clientX * devicePixelRatio - offX) / scale; }
+addEventListener('pointermove', e => { if (!paused) paddle.x = toField(e.clientX); });
+addEventListener('pointerdown', e => {
+  if (paused) { setPaused(false); return; }   // click anywhere to keep playing
+  paddle.x = toField(e.clientX); launch();
+});
+addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === 'p' || e.key === 'Escape') { setPaused(!paused); return; }
+  if (paused) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setPaused(false); } return; }
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); launch(); }
+  if (e.key === 'f') { fireTimer = 60 * 8; beep(140, 0.4, 'sawtooth', 0.07); }   // cheat key for testing the fireball
+  if (e.key === 'r') startRainbow();                                               // cheat key for testing the rainbow fireball
+});
+addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ---------- game logic ----------
+function burst(x, y, color, n = 12) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 4;
+    sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 30 + Math.random() * 20, color, g: 0.15 });
+  }
+}
+
+// flames that float up off a fireball (rainbow-colored during the Rainbow Fireball)
+function flame(x, y) {
+  const color = rainbowTimer > 0 ? `hsl(${Math.random() * 360}, 95%, 62%)`
+                                 : ['#ff3b1a', '#ff7a1a', '#ffd23f'][Math.floor(Math.random() * 3)];
+  sparks.push({ x: x + (Math.random() - 0.5) * 8, y: y + (Math.random() - 0.5) * 8,
+                vx: (Math.random() - 0.5) * 0.8, vy: -0.5 - Math.random(), life: 15 + Math.random() * 15, color, g: -0.03 });
+}
+
+// a brick is destroyed: points, sparkles, and maybe a power-up
+function breakBrick(br, color) {
+  br.hp = 0;
+  score += 10 * br.max;
+  brokenThisLevel++;
+  burst(br.x + BW / 2, br.y + BH / 2, color, br.rainbow ? 40 : 14);
+  const x = br.x + BW / 2, y = br.y + BH / 2;
+  if (br.rainbow) drops.push({ x, y, kind: 'R' });                        // the rainbow brick always drops it
+  else if (Math.random() < 0.15) drops.push({ x, y, kind: POWERUPS[Math.floor(Math.random() * POWERUPS.length)] });
+}
+
+function startRainbow() {
+  rainbowTimer = fireTimer = 60 * 12;
+  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'sine', 0.08), i * 90));
+}
+
+function hitBrick(br, ball) {
+  // bounce off the side of the brick we went into the least
+  const cx = Math.max(br.x, Math.min(ball.x, br.x + BW)), cy = Math.max(br.y, Math.min(ball.y, br.y + BH));
+  const dx = ball.x - cx, dy = ball.y - cy;
+  if (dx * dx + dy * dy > ball.r * ball.r) return false;
+
+  // FIREBALL: burn straight through. No bounce, and any brick breaks in one hit.
+  if (fireTimer > 0 && !br.rainbow) {
+    breakBrick(br, '#ff7a1a');
+    beep(180 + Math.random() * 80, 0.1, 'sawtooth', 0.05);
+    // RAINBOW FIREBALL: also blows up every brick touching the one it hit
+    if (rainbowTimer > 0) {
+      for (const n of bricks) {
+        if (n.hp > 0 && !n.rainbow && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAP) breakBrick(n, rainbow(n.x));
+      }
+    }
+    return false;   // keep going: it can hit more bricks right away
+  }
+
+  const overlapX = Math.min(ball.x + ball.r - br.x, br.x + BW - (ball.x - ball.r));
+  const overlapY = Math.min(ball.y + ball.r - br.y, br.y + BH - (ball.y - ball.r));
+  if (overlapX < overlapY) ball.vx = -ball.vx; else ball.vy = -ball.vy;
+  br.hp--;
+  if (br.hp <= 0) {
+    breakBrick(br, br.rainbow ? rainbow() : COLORS[br.max]);
+    // nudge the ball up to the new speed, keeping its direction
+    const len = Math.hypot(ball.vx, ball.vy) || 1;
+    ball.vx = ball.vx / len * speed(); ball.vy = ball.vy / len * speed();
+    beep(300 + br.max * 140, 0.08);
+  } else {
+    score += 5; beep(220, 0.05, 'triangle');
+  }
+  return true;
+}
+
+function update() {
+  if (keys.ArrowLeft) paddle.x -= 10;
+  if (keys.ArrowRight) paddle.x += 10;
+  paddle.w = wideTimer > 0 ? 170 : 110;
+  paddle.x = Math.max(paddle.w / 2, Math.min(W - paddle.w / 2, paddle.x));
+  if (wideTimer > 0) wideTimer--;
+  if (slowTimer > 0) slowTimer--;
+  tick++;
+  if (rainbowTimer > 0) rainbowTimer--;
+  if (fireTimer > 0) { fireTimer--; for (const b of balls) { flame(b.x, b.y); flame(b.x, b.y); if (rainbowTimer > 0) flame(b.x, b.y); } }
+
+  for (const s of sparks) { s.x += s.vx; s.y += s.vy; s.vy += s.g; s.life--; }
+  sparks = sparks.filter(s => s.life > 0);
+
+  if (state !== 'play' && state !== 'ready') return;
+
+  for (const b of balls) {
+    if (b.stuck) { b.x = paddle.x; b.y = paddle.y - b.r - 2; continue; }
+    const steps = 4, slow = slowTimer > 0 ? 0.6 : 1;   // small steps so the ball can't skip through bricks
+    for (let i = 0; i < steps; i++) {
+      b.x += b.vx * slow / steps; b.y += b.vy * slow / steps;
+      if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx); beep(660, 0.03); }
+      if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx); beep(660, 0.03); }
+      if (b.y < b.r) { b.y = b.r; b.vy = Math.abs(b.vy); beep(660, 0.03); }
+      // paddle: where you hit it decides the bounce angle
+      if (b.vy > 0 && b.y + b.r >= paddle.y && b.y < paddle.y + paddle.h && Math.abs(b.x - paddle.x) <= paddle.w / 2 + b.r) {
+        const hit = (b.x - paddle.x) / (paddle.w / 2);           // -1 (left edge) .. 1 (right edge)
+        const a = Math.max(-1, Math.min(1, hit)) * 1.05;          // up to ~60° from straight up
+        b.vx = Math.sin(a) * speed(); b.vy = -Math.cos(a) * speed();
+        b.y = paddle.y - b.r; beep(440, 0.04);
+      }
+      for (const br of bricks) if (br.hp > 0 && hitBrick(br, b)) break;
+    }
+  }
+  bricks = bricks.filter(br => br.hp > 0);
+
+  const before = balls.length;
+  balls = balls.filter(b => b.y - b.r < H);
+  if (before && !balls.length) {
+    lives--; beep(110, 0.4, 'sawtooth', 0.08);
+    if (lives <= 0) { state = 'over'; } else { resetBall(); state = 'ready'; wideTimer = slowTimer = fireTimer = rainbowTimer = 0; }
+  }
+
+  for (const d of drops) {
+    if (d.kind === 'R') { d.y += 4.5; d.x += Math.sin(tick / 9) * 3.5; d.x = Math.max(20, Math.min(W - 20, d.x)); }
+    else d.y += 2.5;
+    if (d.y > paddle.y && d.y < paddle.y + paddle.h + 10 && Math.abs(d.x - paddle.x) < paddle.w / 2 + 12) {
+      d.got = true; beep(880, 0.12, 'sine', 0.08);
+      if (d.kind === 'W') wideTimer = 60 * 12;
+      if (d.kind === 'S') slowTimer = 60 * 10;
+      if (d.kind === '+') lives = Math.min(lives + 1, 6);
+      if (d.kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
+      if (d.kind === 'R') startRainbow();
+      if (d.kind === 'M') {
+        const extra = [];
+        for (const b of balls) if (!b.stuck) for (const t of [-0.5, 0.5]) {
+          const a = Math.atan2(b.vx, -b.vy) + t;
+          extra.push({ x: b.x, y: b.y, r: b.r, vx: Math.sin(a) * speed(), vy: -Math.cos(a) * speed() });
+        }
+        balls.push(...extra);
+      }
+    }
+  }
+  drops = drops.filter(d => !d.got && d.y < H + 20);
+
+  if (state === 'play' && !bricks.length) { state = 'clear'; score += 100; beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
+}
+
+// ---------- drawing ----------
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+function text(str, x, y, size, color, align = 'center') {
+  ctx.font = `800 ${size}px system-ui`; ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(str, x, y);
+}
+
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#0d0824'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.setTransform(scale, 0, 0, scale, offX, offY);
+  ctx.fillStyle = '#160f3a'; ctx.fillRect(0, 0, W, H);
+
+  for (const br of bricks) {
+    if (br.rainbow) {
+      // shimmering rainbow stripes that slide across the brick
+      const g = ctx.createLinearGradient(br.x, 0, br.x + BW, 0);
+      for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rainbow(i * 70));
+      ctx.fillStyle = g;
+    } else ctx.fillStyle = COLORS[br.hp];
+    roundRect(br.x, br.y, BW, BH, 8);
+    if (br.rainbow) text(br.hp, br.x + BW / 2, br.y + BH / 2 + 6, 16, '#160f3a');   // hits left
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; roundRect(br.x + 6, br.y + 4, BW - 12, 5, 3);   // candy shine
+  }
+  for (const d of drops) {
+    if (d.kind === 'R') {
+      ctx.shadowColor = rainbow(); ctx.shadowBlur = 18;
+      ctx.fillStyle = rainbow(); roundRect(d.x - 18, d.y - 12, 36, 24, 12);
+      ctx.shadowBlur = 0;
+      text('🌈', d.x, d.y + 7, 18, '#fff');
+      continue;
+    }
+    ctx.fillStyle = DROP_COLORS[d.kind];
+    roundRect(d.x - 14, d.y - 10, 28, 20, 10);
+    text(d.kind, d.x, d.y + 6, 14, '#160f3a');
+  }
+  for (const s of sparks) { ctx.globalAlpha = Math.max(0, s.life / 50); ctx.fillStyle = s.color; ctx.fillRect(s.x - 2, s.y - 2, 4, 4); }
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = wideTimer > 0 ? '#3ee6c1' : '#f4f1ff';
+  roundRect(paddle.x - paddle.w / 2, paddle.y, paddle.w, paddle.h, 7);
+  for (const b of balls) {
+    if (fireTimer > 0) {
+      // glowing fireball; it flickers in its last 2 seconds so you know it's ending
+      const ending = fireTimer < 120 && Math.floor(fireTimer / 8) % 2;
+      const rb = rainbowTimer > 0;
+      ctx.shadowColor = rb ? rainbow() : '#ff7a1a'; ctx.shadowBlur = rb ? 30 : 20;
+      ctx.fillStyle = ending ? '#fff' : (rb ? rainbow() : '#ff7a1a');
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r + (rb ? 4 : 2), 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rb ? rainbow(180) : '#ffd23f'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 3, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.fillStyle = slowTimer > 0 ? '#8ab4ff' : '#fff';
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  text('SCORE ' + score, 20, 40, 20, '#f4f1ff', 'left');
+  text('LEVEL ' + (level + 1), W / 2, 40, 20, '#a99ee0');
+  text('❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
+
+  if (paused) {
+    ctx.fillStyle = 'rgba(13, 8, 36, 0.7)'; ctx.fillRect(0, 0, W, H);
+    text('PAUSED', W / 2, H / 2, 56, '#3ee6c1');
+    text('Click, or press P, Esc, or space to keep playing', W / 2, H / 2 + 44, 22, '#f4f1ff');
+    return;
+  }
+  if (state === 'ready') text('Click, tap, or press space to launch!', W / 2, H / 2 + 60, 22, '#f4f1ff');
+  if (state === 'clear') { text('LEVEL CLEAR!', W / 2, H / 2, 52, '#ffd23f'); text('Click for the next level', W / 2, H / 2 + 44, 22, '#f4f1ff'); }
+  if (state === 'over') { text('GAME OVER', W / 2, H / 2, 56, '#ff5d8f'); text('Score: ' + score + '  ·  Click to play again', W / 2, H / 2 + 44, 22, '#f4f1ff'); }
+}
+
+newGame();
+// Run the game logic exactly 60 times a second, no matter how fast the screen refreshes
+// (a 120Hz screen would otherwise make everything twice as fast).
+const STEP = 1000 / 60;
+let last = performance.now(), acc = 0;
+(function loop(now = performance.now()) {
+  acc += Math.min(now - last, 250); last = now;
+  if (paused) acc = 0;
+  while (acc >= STEP) { update(); acc -= STEP; }
+  draw();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
