@@ -84,7 +84,11 @@ const LEVEL_COUNT = 100;
 function isBoss(n = level) { return n % 10 === 9; }
 function bossHP(n) { return 3 + Math.floor((Math.floor(n / 10) + 1) / 4); }   // bosses 1-3: 3 hits, 4-7: 4 hits, 8-10: 5 hits
 function makeLevel(n) {
-  if (isBoss(n)) return Array.from({ length: Math.min(10, 5 + Math.floor(n / 10) + 1) }, () => String(bossHP(n)).repeat(10));
+  if (isBoss(n)) {
+    const wall = Array.from({ length: Math.min(10, 5 + Math.floor(n / 10) + 1) }, () => String(bossHP(n)).repeat(10));
+    if (n >= 49) wall[wall.length - 1] = 'BXBXBXBXBX'.replace(/X/g, bossHP(n));   // from boss 5 on, black bricks guard the bottom row
+    return wall;
+  }
   let seed = n * 7919 + 13;                        // same random numbers every time, so a level is always the same
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   const rows = Math.min(10, 5 + Math.floor(n / 12)), h = n / (LEVEL_COUNT - 1);
@@ -107,6 +111,7 @@ function makeLevel(n) {
     let row = '';
     for (let c = 0; c < 10; c++) {
       if (!shape(r, c) || rnd() < holes) { row += '.'; continue; }
+      if (n >= 20 && r > 0 && rnd() < Math.min(0.2, (h - 0.15) * 0.22)) { row += 'B'; continue; }   // black bricks start at level 21
       row += 1 + (rnd() < h * 0.9 ? 1 : 0) + (rnd() < h * h * 0.8 ? 1 : 0) + (n >= 50 && rnd() < (h - 0.5) * 0.6 ? 1 : 0);   // tougher and tougher
     }
     pattern.push(row);
@@ -141,7 +146,8 @@ function loadLevel() {
     const row = [...row0].map(ch => ch.repeat(COLS / row0.length)).join('');
     [...row].forEach((ch, col) => {
       if (ch === '.') return;
-      bricks.push({ x: LEFT + col * (BW + GAP), y: TOP + r * (BH + GAPY), hp: +ch, max: +ch });
+      const black = ch === 'B', hp = black ? 5 : +ch;   // B = black brick: 5 hits, and the spike ball can't break it
+      bricks.push({ x: LEFT + col * (BW + GAP), y: TOP + r * (BH + GAPY), hp, max: hp, black });
     });
   });
   // one brick per level is the RAINBOW brick, and it's HARD to get:
@@ -149,11 +155,11 @@ function loadLevel() {
   //  - it takes 6 hits, and fireballs can't burn through it (they only chip it)
   //  - the power-up it drops falls fast and wiggles side to side
   const topY = Math.min(...bricks.map(b => b.y));
-  const topRow = bricks.filter(b => b.y === topY);
+  const topRow = bricks.filter(b => b.y === topY && !b.black);
   const special = topRow[Math.floor(Math.random() * topRow.length)];
   special.rainbow = true; special.hp = 6; special.max = 6;
   paddle = { x: W / 2, y: H - 40, w: paddleBase(), h: 14 };
-  nukeMissile = null; drops = []; sparks = []; wideTimer = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
+  nukeMissile = null; updateStore(); drops = []; sparks = []; wideTimer = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
   resetBall();
   state = 'ready';
 }
@@ -225,8 +231,10 @@ function givePower(kind) {
 // NUKE: every single brick goes boom
 let nukeFlash = 0;
 let nukeMissile = null;
+const NUKE_LAST_LEVEL = 75;   // after this level the nuke stops working
+function nukeAllowed() { return level < NUKE_LAST_LEVEL; }   // level counts from 0, so levels 1-75
 function nuke() {   // launch a missile from the paddle; it explodes up high (see update)
-  if (nukeMissile) return;
+  if (nukeMissile || !nukeAllowed()) return;
   nukeMissile = { x: paddle.x, y: paddle.y - 10, vy: -4 };
   beep(200, 0.5, 'sawtooth', 0.08);
 }
@@ -279,40 +287,54 @@ function startRainbow() {
   [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'sine', 0.08), i * 90));
 }
 
+function bounceOff(br, ball) {
+  const overlapX = Math.min(ball.x + ball.r - br.x, br.x + BW - (ball.x - ball.r));
+  const overlapY = Math.min(ball.y + ball.r - br.y, br.y + BH - (ball.y - ball.r));
+  if (overlapX < overlapY) ball.vx = -ball.vx; else ball.vy = -ball.vy;
+}
+
 function hitBrick(br, ball) {
   // bounce off the side of the brick we went into the least
   const cx = Math.max(br.x, Math.min(ball.x, br.x + BW)), cy = Math.max(br.y, Math.min(ball.y, br.y + BH));
   const dx = ball.x - cx, dy = ball.y - cy;
   if (dx * dx + dy * dy > ball.r * ball.r) return false;
 
-  // SPIKE BALL (OP!): it plows straight through and EXPLODES every brick around it, even the rainbow one
+  // SPIKE BALL (OP!): it plows straight through and EXPLODES every brick around it, even the rainbow one.
+  // The ONE thing it can't break is a black brick: it just bounces off those.
   if (spikeTimer > 0) {
+    if (br.black) { if (br.cool > 0) return false; br.cool = 6; bounceOff(br, ball); beep(150, 0.05, 'square'); return true; }
     for (const n of bricks) {
-      if (n.hp > 0 && Math.hypot(n.x + BW / 2 - ball.x, n.y + BH / 2 - ball.y) < 130) breakBrick(n, n.rainbow ? rainbow() : '#c77dff');
+      if (n.hp > 0 && !n.black && Math.hypot(n.x + BW / 2 - ball.x, n.y + BH / 2 - ball.y) < 130) breakBrick(n, n.rainbow ? rainbow() : '#c77dff');
     }
     beep(100 + Math.random() * 60, 0.15, 'sawtooth', 0.07);
     return false;
   }
 
-  // FIREBALL: burn straight through. No bounce, and any brick breaks in one hit.
+  // FIREBALL: burns straight through most bricks (one hit). Purple bricks need 2 fire hits and
+  // black bricks need 5; the fireball bounces off a brick it didn't break yet.
   if (fireTimer > 0 && !br.rainbow) {
-    breakBrick(br, '#ff7a1a');
+    const dmg = br.black ? 1 : (br.max === 4 ? 2 : 99);
+    if (br.hp > dmg) {
+      if (br.cool > 0) return false;
+      br.cool = 6; br.hp -= dmg; score += 5;
+      bounceOff(br, ball); beep(200, 0.06, 'sawtooth', 0.05);
+      return true;
+    }
+    breakBrick(br, br.black ? '#8a7fb5' : '#ff7a1a');
     beep(180 + Math.random() * 80, 0.1, 'sawtooth', 0.05);
     // RAINBOW FIREBALL: also blows up every brick touching the one it hit
     if (rainbowTimer > 0) {
       for (const n of bricks) {
-        if (n.hp > 0 && !n.rainbow && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAPY) breakBrick(n, rainbow(n.x));
+        if (n.hp > 0 && !n.rainbow && !n.black && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAPY) breakBrick(n, rainbow(n.x));
       }
     }
     return false;   // keep going: it can hit more bricks right away
   }
 
-  const overlapX = Math.min(ball.x + ball.r - br.x, br.x + BW - (ball.x - ball.r));
-  const overlapY = Math.min(ball.y + ball.r - br.y, br.y + BH - (ball.y - ball.r));
-  if (overlapX < overlapY) ball.vx = -ball.vx; else ball.vy = -ball.vy;
+  bounceOff(br, ball);
   br.hp--;
   if (br.hp <= 0) {
-    breakBrick(br, br.rainbow ? rainbow() : COLORS[br.max]);
+    breakBrick(br, br.rainbow ? rainbow() : (br.black ? '#8a7fb5' : COLORS[br.max]));
     // nudge the ball up to the new speed, keeping its direction
     const len = Math.hypot(ball.vx, ball.vy) || 1;
     ball.vx = ball.vx / len * speed(); ball.vy = ball.vy / len * speed();
@@ -341,6 +363,7 @@ function update() {
   if (rainbowTimer > 0) rainbowTimer--;
   if (spikeTimer > 0) spikeTimer--;
   if (nukeFlash > 0) nukeFlash--;
+  for (const br of bricks) if (br.cool > 0) br.cool--;
   if (nukeMissile) {   // the missile speeds up as it flies, with a smoky flame trail
     nukeMissile.vy = Math.max(nukeMissile.vy - 0.35, -16);
     nukeMissile.y += nukeMissile.vy;
@@ -414,8 +437,13 @@ function draw() {
       const g = ctx.createLinearGradient(br.x, 0, br.x + BW, 0);
       for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rainbow(i * 70));
       ctx.fillStyle = g;
-    } else ctx.fillStyle = COLORS[br.hp];
+    } else ctx.fillStyle = br.black ? '#14101e' : COLORS[br.hp];
     roundRect(br.x, br.y, BW, BH, 8);
+    if (br.black) {   // black brick: dark with a shiny edge, and a number for the hits left
+      ctx.strokeStyle = '#8a7fb5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(br.x + 1, br.y + 1, BW - 2, BH - 2, 8); ctx.stroke();
+      text(br.hp, br.x + BW / 2, br.y + BH / 2 + 6, 16, '#f4f1ff');
+      continue;
+    }
     if (br.rainbow) text(br.hp, br.x + BW / 2, br.y + BH / 2 + 6, 16, '#160f3a');   // hits left
     ctx.fillStyle = 'rgba(255,255,255,0.35)'; roundRect(br.x + 6, br.y + 4, BW - 12, 5, 3);   // candy shine
   }
@@ -549,13 +577,17 @@ for (const it of STORE) {
 }
 function updateStore() {
   document.getElementById('coinBal').textContent = '🪙 ' + (INFINITE_COINS ? '∞' : coins);
-  for (const b of itemsEl.children) b.disabled = !INFINITE_COINS && coins < STORE.find(i => i.kind === b.dataset.kind).price;
+  for (const b of itemsEl.children) {
+    const it = STORE.find(i => i.kind === b.dataset.kind);
+    b.disabled = (!INFINITE_COINS && coins < it.price) || (it.kind === 'N' && !nukeAllowed());
+  }
 }
 function storeSay(t) { msgEl.textContent = t; }
 function buy(it) {
   if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
   if (!INFINITE_COINS && coins < it.price) return storeSay('Not enough coins yet!');
   if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
+  if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
   if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
   if (!INFINITE_COINS) { coins -= it.price; saveCoins(); updateStore(); }
