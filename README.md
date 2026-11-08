@@ -1,2 +1,3 @@
-# games
-JawDrop Arcade: games so good your jaw drops
+# JawDrop Arcade
+
+Games so good your jaw drops. Play at https://jawdropio.github.io/games/
