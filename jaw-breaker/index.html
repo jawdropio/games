@@ -759,6 +759,17 @@ const SKINS = [
   { id: 'pink', name: 'Pink Ball', color: '#ff7ad9', price: 100 },
   { id: 'gold', name: 'Gold Ball', color: '#ffd23f', price: 150 },
   { id: 'rainbow', name: 'Rainbow Ball', color: '#ffffff', price: 500 },
+  // animal balls: a colored ball with an animal face that spins as it flies
+  { id: 'cat', name: 'Cat Ball', color: '#ffd9a8', emoji: '🐱', price: 100 },
+  { id: 'dog', name: 'Dog Ball', color: '#d9a066', emoji: '🐶', price: 100 },
+  { id: 'frog', name: 'Frog Ball', color: '#8fdc5a', emoji: '🐸', price: 100 },
+  { id: 'panda', name: 'Panda Ball', color: '#ffffff', emoji: '🐼', price: 150 },
+  { id: 'fox', name: 'Fox Ball', color: '#ff9a3c', emoji: '🦊', price: 150 },
+  { id: 'pig', name: 'Pig Ball', color: '#ffb3c7', emoji: '🐷', price: 150 },
+  { id: 'monkey', name: 'Monkey Ball', color: '#b9803f', emoji: '🐵', price: 200 },
+  { id: 'tiger', name: 'Tiger Ball', color: '#ffc04d', emoji: '🐯', price: 200 },
+  { id: 'penguin', name: 'Penguin Ball', color: '#9ad1ff', emoji: '🐧', price: 250 },
+  { id: 'unicorn', name: 'Unicorn Ball', color: '#f3d9ff', emoji: '🦄', price: 400 },
 ];
 let skinsOwned = ['classic'], skinNow = 'classic';
 try {
@@ -772,7 +783,7 @@ for (const k of SKINS) {
   const b = document.createElement('button');
   b.className = 'item skin'; b.dataset.id = k.id;
   const bg = k.id === 'rainbow' ? 'linear-gradient(135deg,#ff3b3b,#ffd23f,#3ee6c1,#3b82f6,#c77dff)' : k.color;
-  b.innerHTML = `<span class="icon" style="background:${bg};border:2px solid #f4f1ff"></span><span>${k.name}<span class="price"></span></span>`;
+  b.innerHTML = `<span class="icon" style="background:${bg};border:2px solid #f4f1ff;font-size:20px">${k.emoji || ''}</span><span>${k.name}<span class="price"></span></span>`;
   b.addEventListener('click', () => { pickSkin(k); b.blur(); });
   skinsEl.appendChild(b);
 }
@@ -865,6 +876,11 @@ function drawSkinBall(b) {
   if (k.id === 'rainbow') { g.addColorStop(0, '#fff'); g.addColorStop(0.4, col); g.addColorStop(1, rainbow(b.x + 90)); }
   else { g.addColorStop(0, shade(col, 0.55)); g.addColorStop(0.5, col); g.addColorStop(1, shade(col, -0.35)); }
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+  if (k.emoji) {   // animal face, spinning as the ball flies
+    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(tick * 0.08);
+    ctx.font = Math.round(b.r * 1.7) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(k.emoji, 0, 1); ctx.restore(); ctx.textBaseline = 'alphabetic';
+  }
   ctx.strokeStyle = slowTimer > 0 ? '#8ab4ff' : 'rgba(255,255,255,0.7)'; ctx.lineWidth = slowTimer > 0 ? 3 : 1.5;   // light edge so the black ball shows up; blue while slowed
   ctx.stroke();
 }
