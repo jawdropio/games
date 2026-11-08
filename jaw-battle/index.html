@@ -118,6 +118,19 @@
   // coins + owned guns (saved in the browser)
   let mode = '1p', score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false, false, false, false, false], startMap = 0;
   try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o)) owned = owned.map((_, i) => !!o[i]); owned[0] = true; } catch (e) {}
+  // gun levels: guns level up by dealing damage with them
+  const XP_AT = [0, 40, 100, 200, 400];
+  let gunXP = Array(8).fill(0), toast = null;
+  try { const x = JSON.parse(localStorage.getItem('jawBattleXP') || 'null'); if (Array.isArray(x)) gunXP = gunXP.map((_, i) => +x[i] || 0); } catch (e) {}
+  function gunLevel(i) { let l = 1; for (let k = 1; k < XP_AT.length; k++) if (gunXP[i] >= XP_AT[k]) l = k + 1; return l; }
+  function gainXP(i, amt) {
+    const before = gunLevel(i); gunXP[i] += amt;
+    if (gunLevel(i) > before) {
+      toast = { text: '⬆️ ' + GUNS[i].name + ' Level ' + gunLevel(i) + '!', t: 130 };
+      [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80));
+      saveStuff();
+    }
+  }
   let aimbot = false, aimShots = 0;
   try { aimbot = localStorage.getItem('jawBattleAimbot') === '1'; } catch (e) {}
   let daily = { last: '', streak: 0 };
@@ -135,7 +148,7 @@
     [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'square', 0.07), i * 90));
     showMenu('🎁 You got ' + gain + ' coins! Day ' + streak + ' in a row.');
   }
-  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); } catch (e) {} }
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleXP', JSON.stringify(gunXP)); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
   loadBest();
 
@@ -297,7 +310,7 @@
     showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Win rounds to earn coins!', 'Back', () => showMenu(), false, p => {
       for (let i = 1; i < GUNS.length; i++) {
         const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
-        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b> – ' + g.info;
+        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b>' + (owned[i] ? ' (Lv ' + gunLevel(i) + ')' : '') + ' – ' + g.info;
         const btn = document.createElement('button');
         if (owned[i]) { btn.textContent = '✅ Owned'; btn.disabled = true; }
         else {
@@ -398,13 +411,14 @@
   }
   function fire(f, owner, gi) {
     const g = GUNS[gi];
+    const lvl = owner === 'p' ? gunLevel(gi) : 1, dmgMul = 1 + 0.1 * (lvl - 1); // each level: +10% damage, faster shooting
     const missShot = owner === 'p' && aimbot && ++aimShots % 10 === 0; // aimbot misses every 10th shot
     const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
     for (let i = 0; i < g.n; i++) {
       const a = f.aim + missOff + (g.n > 1 ? (i / (g.n - 1) - 0.5) * g.spread : (Math.random() - 0.5) * g.spread);
-      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg, color: g.color, r: g.r || 5, bounce: g.bounce || 0, obs: g.obs || 1, miss: missShot });
+      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg * dmgMul, base: g.dmg, gi, color: g.color, r: g.r || 5, bounce: g.bounce || 0, obs: g.obs || 1, miss: missShot });
     }
-    const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : 1;
+    const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : owner === 'p' ? 1 - 0.05 * (lvl - 1) : 1;
     f.cd = f.maxCd = Math.round(g.cd * cdMul);
     beep(g.freq, gi === 3 ? 0.25 : 0.1, owner === 'p' ? 'square' : 'sawtooth', 0.05, -g.freq * 0.5);
   }
@@ -490,7 +504,7 @@
       if (b.dead) continue;
       const target = b.owner === 'p' ? bot : player;
       if (!target.dead && Math.hypot(b.x - target.x, b.y - target.y) < target.r + b.r - 1) {
-        b.dead = true; target.hp -= b.dmg; target.flash = 10; shake = 8;
+        b.dead = true; target.hp -= b.dmg; if (b.owner === 'p') gainXP(b.gi, b.base); target.flash = 10; shake = 8;
         burst(b.x, b.y, target.color, 10); sfx.hit();
       }
     }
@@ -501,6 +515,7 @@
     if (player.flash > 0) player.flash--;
     if (bot.flash > 0) bot.flash--;
     if (shake > 0) shake--;
+    if (toast && toast.t > 0) toast.t--;
 
     if (mode === 'ctf') ctfTick();
     else if (bot.hp <= 0) endRound(true);
@@ -709,6 +724,7 @@
         if (hint) ctx.fillText(hint, W / 2, 60);
         if (banner && banner.t > 0) { ctx.font = '900 44px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(banner.text, W / 2, H / 2 - 24); }
       }
+      if (toast && toast.t > 0) { ctx.font = '900 30px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd24d'; ctx.fillText(toast.text, W / 2, H - 90); ctx.textBaseline = 'top'; }
       // gun slots + wall blocks
       ctx.textBaseline = 'middle';
       for (let i = 0; i < GUNS.length; i++) {
@@ -716,7 +732,14 @@
         ctx.fillStyle = sel ? 'rgba(255,176,32,.9)' : 'rgba(255,255,255,.1)';
         ctx.beginPath(); ctx.roundRect(x, y, 78, 26, 8); ctx.fill();
         ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 39, y + 14); ctx.globalAlpha = 1;
+        ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 39, y + 9);
+        if (owned[i]) {
+          const lv = gunLevel(i), lo = XP_AT[lv - 1], hi = XP_AT[lv] || lo, pr = lv >= 5 ? 1 : (gunXP[i] - lo) / (hi - lo);
+          ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(lv >= 5 ? 'MAX' : 'Lv' + lv, x + 7, y + 19);
+          ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + 32, y + 17, 40, 4);
+          ctx.fillStyle = sel ? '#2a1a00' : '#ffd24d'; ctx.fillRect(x + 32, y + 17, 40 * pr, 4);
+        }
+        ctx.globalAlpha = 1;
       }
       ctx.textAlign = 'right'; ctx.fillStyle = '#4fe0c0'; ctx.font = '700 15px system-ui, sans-serif';
       ctx.fillText('🧱 ' + '■'.repeat(player.blocks) + '□'.repeat(MAX_BLOCKS - player.blocks) + '  (B)', W - 16, H - 20);
