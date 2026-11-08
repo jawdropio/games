@@ -131,8 +131,8 @@
       saveStuff();
     }
   }
-  let aimbot = false, aimShots = 0;
-  try { aimbot = localStorage.getItem('jawBattleAimbot') === '1'; } catch (e) {}
+  let aimbot = false, aimPro = false, aimShots = 0;
+  try { const v = localStorage.getItem('jawBattleAimbot'); aimbot = v === '1' || v === '2'; aimPro = v === '2'; } catch (e) {}
   let daily = { last: '', streak: 0 };
   try { const d = JSON.parse(localStorage.getItem('jawBattleDaily') || 'null'); if (d && typeof d.last === 'string') daily = { last: d.last, streak: +d.streak || 0 }; } catch (e) {}
   const dayStr = ms => { const d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
@@ -284,9 +284,15 @@
     const cm = document.createElement('div');
     ci.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') cb.click(); });
     cb.onclick = () => {
-      if (/^JAW-?123$/i.test(ci.value.trim())) {
-        aimbot = !aimbot; try { localStorage.setItem('jawBattleAimbot', aimbot ? '1' : '0'); } catch (e) {}
-        cm.textContent = aimbot ? '🎯 Aimbot ON! It never misses, and when you hold shoot it moves your body for you. Enter the code again to turn it off.' : '🎯 Aimbot OFF.';
+      const code = ci.value.trim();
+      if (/^JAW-?123$/i.test(code) || /^JAW-?1234$/i.test(code)) {
+        const pro = /1234$/.test(code);
+        if (pro) { aimPro = !aimPro; aimbot = aimPro; }
+        else if (aimbot && !aimPro) aimbot = false;
+        else { aimbot = true; aimPro = false; }
+        try { localStorage.setItem('jawBattleAimbot', aimPro ? '2' : aimbot ? '1' : '0'); } catch (e) {}
+        cm.textContent = aimPro ? '🤖 PRO Aimbot ON! It aims, moves your body for you AND switches guns. Enter JAW1234 again to turn it off.'
+          : aimbot ? '🎯 Aimbot ON! It never misses, and when you hold shoot it moves your body for you. Enter the code again to turn it off.' : '🎯 Aimbot OFF.';
         beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
       } else cm.textContent = '🤔 Hmm, that code does not do anything.';
       ci.value = '';
@@ -454,7 +460,7 @@
     if (keys['s'] || (mode !== '2p' && keys['arrowdown'])) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
-    const auto = aimbot && (mouse.down || keys[' ']) && !bot.dead && !player.dead;
+    const auto = aimbot && (mouse.down || keys[' '] || (aimPro && mode !== 'ctf')) && !bot.dead && !player.dead;
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
     const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
     const ox0 = player.x, oy0 = player.y;
@@ -468,6 +474,7 @@
     let autoFire = false;
     if (aimbot && !bot.dead) {
       // OP aim: predict where the target will be when the bullet arrives
+      if (aimPro && player.cd <= 0) player.gun = pickGun(Math.hypot(bot.x - player.x, bot.y - player.y), lineClear(player.x, player.y, bot.x, bot.y));
       const spd = GUNS[player.gun].speed;
       let tx = bot.x, ty = bot.y;
       for (let i = 0; i < 4; i++) { const t = Math.hypot(tx - player.x, ty - player.y) / spd; tx = bot.x + bvx * t; ty = bot.y + bvy * t; }
@@ -523,6 +530,12 @@
   }
 
   // Aimbot autopilot: while you hold shoot, it dodges bullets, finds a clear shot and keeps a good distance
+  // PRO aimbot: picks the best gun you own for the situation
+  function pickGun(dist, los) {
+    const prefs = !los ? [5, 6, 0] : dist < 200 ? [1, 4, 5, 2, 0] : dist < 420 ? [7, 5, 4, 0, 2] : [3, 7, 0];
+    for (const g of prefs) if (owned[g]) return g;
+    return 0;
+  }
   function autoMove() {
     const p = player, dx = bot.x - p.x, dy = bot.y - p.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
     for (const bl of bullets) {
@@ -717,7 +730,7 @@
       ctx.textAlign = 'center'; ctx.fillStyle = '#cfc8f5';
       ctx.fillText(mode === 'ctf' ? 'You ' + caps1 + ' – ' + caps2 + ' Bot  (first to ' + CTF_WIN + ')' : mode === '2p' ? 'P1 ' + score1 + ' – ' + score2 + ' P2' : 'Round ' + round + '  •  Streak ' + wins, W / 2, 12);
       ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(mode === '2p' ? '👥 2 Players' : diff().label, W / 2, 38);
-      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText('🎯 Aimbot ON', W / 2, 80); }
+      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 PRO Aimbot ON' : '🎯 Aimbot ON', W / 2, 80); }
       if (mode === 'ctf') {
         ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.textAlign = 'center';
         const hint = flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
