@@ -329,13 +329,12 @@ let nukeMissile = null;
 const NUKE_LAST_LEVEL = 75;   // after this level the nuke stops working
 function nukeAllowed() { return level < NUKE_LAST_LEVEL; }   // level counts from 0, so levels 1-75
 let nukeSlam = null, shake = 0;
-const SLAM_FRAMES = 50;   // how long the animal takes to grow and hit the screen
+const SLAM_FRAMES = 90;   // the animal peeks in, grabs the nuke, winds up, and SLAMS it at this frame
 function nuke() {
   if (nukeMissile || nukeSlam || !nukeAllowed()) return;
   const k = SKINS.find(x => x.id === skinNow);
-  if (k && k.emoji) {   // ANIMAL ball: your animal grows HUGE and SLAMS into the screen
-    const mb = balls.find(b => !b.stuck) || balls[0] || paddle;
-    nukeSlam = { t: 0, x0: mb.x, y0: mb.y, emoji: k.emoji };
+  if (k && k.emoji) {   // ANIMAL ball: your animal pokes in over the top, grabs the nuke, and SLAMS it on the screen
+    nukeSlam = { t: 0, emoji: k.emoji };
     beep(120, 0.8, 'sawtooth', 0.08);
     return;
   }
@@ -349,6 +348,42 @@ function destroyEverything(x, y) {
   for (const br of bricks) if (br.hp > 0) breakBrick(br, br.rainbow ? rainbow() : ['#ff3b1a', '#ff7a1a', '#ffd23f'][Math.floor(Math.random() * 3)]);
   beep(60, 0.8, 'sawtooth', 0.1);
 }
+// The animal nuke scene (90 frames, then the SLAM):
+//   0-30  the animal's head pokes in over the top of the screen
+//  30-55  it reaches up and grabs a nuke (two fists)
+//  55-75  it lifts the nuke high to wind up
+//  75-90  SLAM! it swings the nuke down onto the screen
+function drawSlamScene(n) {
+  const t = n.t, ease = p => 1 - (1 - p) * (1 - p), clamp = (v) => Math.max(0, Math.min(1, v));
+  let headY, nukeY = H + 200, nukeScale = 1;
+  if (t < 30) headY = -240 + (140 + 240) * ease(t / 30);
+  else if (t < 75) headY = 140 - 20 * clamp((t - 55) / 20);                         // leans back to lift
+  else if (t < SLAM_FRAMES) headY = 120 + (330 - 120) * Math.pow((t - 75) / 15, 2);   // swings down
+  else headY = 330 - (t - SLAM_FRAMES) * 14;                                          // runs away after
+  if (t >= 30 && t < 55) nukeY = H + 150 + (330 - H - 150) * ease((t - 30) / 25);
+  else if (t >= 55 && t < 75) nukeY = 330 - 90 * ease((t - 55) / 20);                 // lifted up
+  else if (t >= 75 && t < SLAM_FRAMES) { const q = Math.pow((t - 75) / 15, 2); nukeY = 240 + (H / 2 - 240) * q; nukeScale = 1 + 2.5 * q; }
+  const x = W / 2 + (t >= 55 && t < 75 ? Math.sin(t) * 3 : 0);   // shaking while lifting it
+  const cut = t >= SLAM_FRAMES;   // after the hit the nuke is gone
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '260px system-ui'; ctx.fillText(n.emoji, x, headY);               // the animal's big head
+  if (!cut && nukeY < H + 100) {
+    ctx.save(); ctx.translate(x, nukeY); ctx.scale(nukeScale, nukeScale);
+    ctx.fillStyle = '#e8e4ff'; roundRect(-22, -60, 44, 120, 14);                 // the nuke: body, red nose, fins
+    ctx.fillStyle = '#ff3b1a'; ctx.beginPath(); ctx.moveTo(-22, -60); ctx.lineTo(0, -105); ctx.lineTo(22, -60); ctx.fill();
+    ctx.fillStyle = '#ff5d8f'; ctx.beginPath(); ctx.moveTo(-22, 30); ctx.lineTo(-48, 75); ctx.lineTo(-22, 65); ctx.moveTo(22, 30); ctx.lineTo(48, 75); ctx.lineTo(22, 65); ctx.fill();
+    ctx.font = '36px system-ui'; ctx.fillStyle = '#160f3a'; ctx.fillText('☢️', 0, 0);
+    ctx.font = '60px system-ui'; ctx.fillText('✊', -38, -10); ctx.fillText('✊', 38, -10);   // the fists holding it
+    ctx.restore();
+  }
+  ctx.restore(); ctx.textBaseline = 'alphabetic';
+  if (cut) {
+    const q = (t - SLAM_FRAMES) / 45;
+    ctx.globalAlpha = Math.max(0, 1 - q); text('💥 SLAM! 💥', W / 2, H / 2 + 120 * q, 90, '#ffd23f'); ctx.globalAlpha = 1;
+  }
+}
+
 function nukeExplode() {
   destroyEverything(nukeMissile.x, nukeMissile.y);
   nukeMissile = null;
@@ -491,7 +526,7 @@ function update() {
   if (nukeSlam) {
     nukeSlam.t++;
     if (nukeSlam.t === SLAM_FRAMES) destroyEverything(W / 2, H / 2);   // SLAM!
-    if (nukeSlam.t > SLAM_FRAMES + 40) nukeSlam = null;
+    if (nukeSlam.t > SLAM_FRAMES + 45) nukeSlam = null;
   }
   if (nukeMissile) {   // the missile speeds up as it flies, with a smoky flame trail
     nukeMissile.vy = Math.max(nukeMissile.vy - 0.35, -16);
@@ -550,7 +585,7 @@ function update() {
   }
   drops = drops.filter(d => !d.got && d.y < H + 20);
 
-  if (state === 'play' && !bricks.length) { state = level === LEVEL_COUNT - 1 ? 'won' : 'clear'; score += 100 + level * 20; addCoins(20 + level * 5); bossWon = isBoss(); if (bossWon) lives = Math.min(lives + 5, 99); beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
+  if ((state === 'play' || state === 'ready') && !bricks.length && !nukeSlam && !nukeMissile) { state = level === LEVEL_COUNT - 1 ? 'won' : 'clear'; score += 100 + level * 20; addCoins(20 + level * 5); bossWon = isBoss(); if (bossWon) lives = Math.min(lives + 5, 99); beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
 }
 
 // ---------- drawing ----------
@@ -663,21 +698,7 @@ function draw() {
     text('☢️', m.x, m.y + 8, 12, '#160f3a');
     ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(m.x - 5, m.y + 20); ctx.lineTo(m.x, m.y + 40 + Math.random() * 14); ctx.lineTo(m.x + 5, m.y + 20); ctx.fill();
   }
-  if (nukeSlam) {   // the giant animal: grows toward you, then SLAMS the screen and fades
-    const n = nukeSlam, p = Math.min(1, n.t / SLAM_FRAMES), grow = p * p;   // starts slow, speeds up
-    const size = 26 + (640 - 26) * grow;
-    const x = n.x0 + (W / 2 - n.x0) * grow, y = n.y0 + (H / 2 - n.y0) * grow;
-    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(n.t * 0.5) * 0.15 * (1 - p));
-    ctx.globalAlpha = n.t < SLAM_FRAMES ? 1 : Math.max(0, 1 - (n.t - SLAM_FRAMES) / 40);
-    ctx.shadowColor = '#ff7a1a'; ctx.shadowBlur = 30 * grow;
-    ctx.font = Math.round(size) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(n.emoji, 0, 0);
-    ctx.restore(); ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
-    if (n.t >= SLAM_FRAMES) {
-      const q = (n.t - SLAM_FRAMES) / 40;
-      ctx.globalAlpha = Math.max(0, 1 - q); text('💥 SLAM! 💥', W / 2, H / 2 + 200 * q, 90 + 30 * (1 - q), '#ffd23f'); ctx.globalAlpha = 1;
-    }
-  }
+  if (nukeSlam) drawSlamScene(nukeSlam);
   if (nukeFlash > 0) {   // big white-orange flash that fades out
     ctx.globalAlpha = nukeFlash / 45; ctx.fillStyle = nukeFlash > 30 ? '#fff' : '#ffb347'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
   }
@@ -781,7 +802,7 @@ function useItem(kind) {
   if (kind === 'R' && !rainbowAllowed()) return invSay('The Rainbow Fireball is disabled on level 100!');
   if (kind === 'N' && !nukeAllowed()) return invSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
   if (kind === 'N' && (nukeMissile || nukeSlam)) return invSay('A nuke is already on its way!');
-  if ((kind === 'M' || kind === 'N') && !balls.some(b => !b.stuck)) return invSay('Launch the ball first!');
+  if (kind === 'M' && !balls.some(b => !b.stuck)) return invSay('Launch the ball first!');   // (the nuke can go off before launching)
   inv[kind]--; saveInv();
   givePower(kind); beep(880, 0.12, 'sine', 0.08);
   invSay('Used ' + it.name + '! ✨');
@@ -979,7 +1000,10 @@ function buy(it) {
   if (it.kind === 'M') multiBuys++;   // Multiball gets pricier every time
   inv[it.kind] = (inv[it.kind] || 0) + 1; saveInv();
   updateStore(); beep(880, 0.12, 'sine', 0.08);
-  storeSay('Got ' + it.name + '! It is in the bottom right ↘');
+  const before = inv[it.kind];
+  if (state === 'play') useItem(it.kind);   // bought in the middle of a round? Use it right away!
+  if (inv[it.kind] < before) storeSay('Bought and used ' + it.name + '! ✨');
+  else storeSay('Got ' + it.name + '! It is in the bottom right ↘');
 }
 function setStoreOpen(open) {
   document.body.classList.toggle('store-open', open);
