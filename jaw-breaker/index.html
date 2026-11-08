@@ -136,7 +136,7 @@ let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {},
 let tick = 0;   // counts up every update; used to animate rainbow colors
 function rainbow(offset = 0) { return `hsl(${(tick * 4 + offset) % 360}, 95%, 62%)`; }
 
-function newGame() { spikeCool = 0; score = 0; lives = 3; level = 0; loadLevel(); }
+function newGame() { spikeCool = 0; multiBuys = 0; score = 0; lives = 3; level = 0; loadLevel(); }
 function loadLevel() {
   const pattern = LEVELS[level];
   dropTimer = dropEvery(); bossWon = false;
@@ -593,30 +593,36 @@ const msgEl = document.getElementById('storeMsg'), tabEl = document.getElementBy
 for (const it of STORE) {
   const b = document.createElement('button');
   b.className = 'item'; b.dataset.kind = it.kind;
-  b.innerHTML = `<span class="icon" style="background:${DROP_COLORS[it.kind]}">${ICONS[it.kind]}</span><span>${it.name}<span class="price">🪙 ${it.price.toLocaleString()}</span></span>`;
+  b.innerHTML = `<span class="icon" style="background:${DROP_COLORS[it.kind]}">${ICONS[it.kind]}</span><span>${it.name}<span class="price">🪙 ${priceOf(it).toLocaleString()}</span></span>`;
   b.addEventListener('click', () => { buy(it); b.blur(); });
   itemsEl.appendChild(b);
 }
+// Multiball costs 50 more coins every time you buy it (the count starts over with a new game)
+let multiBuys = 0;
+function priceOf(it) { return it.kind === 'M' ? it.price + multiBuys * 50 : it.price; }
 function updateStore() {
   document.getElementById('coinBal').textContent = '🪙 ' + (INFINITE_COINS ? '∞' : coins);
   for (const b of itemsEl.children) {
     const it = STORE.find(i => i.kind === b.dataset.kind);
     const cooling = it.kind === 'X' && (spikeCool > 0 || spikeTimer > 0);
-    b.disabled = (!INFINITE_COINS && coins < it.price) || (it.kind === 'N' && !nukeAllowed()) || cooling;
-    if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🪙 ' + it.price.toLocaleString();
+    b.disabled = (!INFINITE_COINS && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || cooling;
+    if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🪙 ' + priceOf(it).toLocaleString();
+    else b.querySelector('.price').textContent = '🪙 ' + priceOf(it).toLocaleString();
   }
 }
 function storeSay(t) { msgEl.textContent = t; }
 function buy(it) {
   if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
-  if (!INFINITE_COINS && coins < it.price) return storeSay('Not enough coins yet!');
+  if (!INFINITE_COINS && coins < priceOf(it)) return storeSay('Not enough coins yet!');
   if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
   if (it.kind === 'X' && spikeTimer > 0) return storeSay('The Spike Ball is already active!');
   if (it.kind === 'X' && spikeCool > 0) return storeSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
   if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
   if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
-  if (!INFINITE_COINS) { coins -= it.price; saveCoins(); updateStore(); }
+  if (!INFINITE_COINS) { coins -= priceOf(it); saveCoins(); }
+  if (it.kind === 'M') multiBuys++;   // Multiball gets pricier every time
+  updateStore();
   givePower(it.kind); beep(880, 0.12, 'sine', 0.08);
   storeSay('Got ' + it.name + '! ✨');
 }
