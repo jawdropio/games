@@ -48,7 +48,7 @@
 
 <script>
 (() => {
-  const W = 960, H = 600;
+  let W = 960, H = 600;
   const cv = document.getElementById('c'), ctx = cv.getContext('2d');
   const overlay = document.getElementById('overlay');
   const ovTitle = document.getElementById('ovTitle'), ovText = document.getElementById('ovText'), ovBtn = document.getElementById('ovBtn');
@@ -61,6 +61,7 @@
     cv.style.height = H * s + 'px';
   }
   addEventListener('resize', resize); resize();
+  function setArena(w, h) { if (W === w && H === h) return; W = w; H = h; cv.width = w; cv.height = h; resize(); }
 
   // ---------- sound ----------
   let ac = null;
@@ -165,12 +166,14 @@
   const GRID = 40, BUILD_RANGE = 240, MAX_BLOCKS = 8;
 
   function makeFighter(x, y, color, isBot) {
-    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
+    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, digT: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
              // bot brain
              strafe: 1, strafeT: 0, dodge: 0, stuck: 0 };
   }
 
   function startRound() {
+    setArena(mode === 'ctf' ? 1440 : 960, mode === 'ctf' ? 900 : 600);
+    if (mode === 'ctf') { BASE_P.x = 60; BASE_P.y = H / 2; BASE_B.x = W - 60; BASE_B.y = H / 2; }
     obstacles = (mode === 'ctf' ? CTF_LAYOUT : layouts[layoutIdx % layouts.length]).map(o => ({ x:o[0], y:o[1], w:o[2], h:o[3], type:o[4], hp:3, maxHp:3 }));
     player = makeFighter(80, H / 2, '#4fd1ff', false);
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true);
@@ -217,18 +220,18 @@
       (note ? '<b style="color:#ffb020">' + note + '</b><br>' : '') + 'Beat the bot before it beats you! Pick your difficulty:<br>' +
       '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
       '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
-      '<b>Pause:</b> P or Esc<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins!<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
+      '<b>Pause:</b> P or Esc<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! Hold <b>E</b> to dig tunnels, and the map is big.<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
       (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame1P, true, menuLinks);
     onMenu = true;
   }
   // ---------- capture the flag ----------
   const BASE_P = { x: 60, y: 300 }, BASE_B = { x: 900, y: 300 }, BASE_R = 46, CTF_WIN = 3;
-  const CTF_LAYOUT = [ [440,150,80,40,'w'], [440,410,80,40,'w'], [280,60,24,140,'w'], [280,400,24,140,'w'], [656,60,24,140,'w'], [656,400,24,140,'w'], [430,275,100,50,'c'] ];
+  const CTF_LAYOUT = [ [660,190,120,40,'w'], [660,670,120,40,'w'], [400,100,26,260,'w'], [400,540,26,260,'w'], [1014,100,26,260,'w'], [1014,540,26,260,'w'], [620,410,200,80,'c'], [240,200,60,60,'c'], [240,640,60,60,'c'], [1140,200,60,60,'c'], [1140,640,60,60,'c'], [540,320,26,110,'w'], [874,470,26,110,'w'] ];
   let flags = null, caps1 = 0, caps2 = 0, banner = null;
   const atBase = (fl, base) => fl.x === base.x && fl.y === base.y;
   function initFlags() { flags = { p: { x: BASE_P.x, y: BASE_P.y, carrier: null }, b: { x: BASE_B.x, y: BASE_B.y, carrier: null } }; }
   function newCTF() { mode = 'ctf'; caps1 = caps2 = 0; banner = null; round = 1; startRound(); }
-  function ctfRespawn(f, x) { f.dead = false; f.hp = f.maxHp; f.x = x; f.y = 300; f.cd = 0; f.respawn = 0; }
+  function ctfRespawn(f, x) { f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
   function ctfScore(who) {
     who === 'p' ? caps1++ : caps2++;
     banner = { text: who === 'p' ? '🚩 You scored!' : '🚩 Bot scored!', t: 110 };
@@ -253,6 +256,20 @@
         for (const fl of [flags.p, flags.b]) if (fl.carrier === f) fl.carrier = null;
       } else if (f.dead && --f.respawn <= 0) ctfRespawn(f, f === player ? 80 : W - 80);
     }
+  }
+  // digging (Capture the Flag): hold E to carve a tunnel through whatever is in front of you
+  function dig(f) {
+    const hx = f.x + Math.cos(f.aim) * (f.r + 16), hy = f.y + Math.sin(f.aim) * (f.r + 16), hs = 22;
+    const hx1 = hx - hs, hx2 = hx + hs, hy1 = hy - hs, hy2 = hy + hs, out = [];
+    let dug = false;
+    for (const o of obstacles) {
+      if (hx1 >= o.x + o.w || hx2 <= o.x || hy1 >= o.y + o.h || hy2 <= o.y) { out.push(o); continue; }
+      dug = true;
+      const ix1 = Math.max(o.x, hx1), ix2 = Math.min(o.x + o.w, hx2), iy1 = Math.max(o.y, hy1), iy2 = Math.min(o.y + o.h, hy2);
+      for (const [x, y, w, h] of [[o.x, o.y, ix1 - o.x, o.h], [ix2, o.y, o.x + o.w - ix2, o.h], [ix1, o.y, ix2 - ix1, iy1 - o.y], [ix1, iy2, ix2 - ix1, o.y + o.h - iy2]])
+        if (w >= 6 && h >= 6) out.push(Object.assign({}, o, { x, y, w, h }));
+    }
+    if (dug) { obstacles = out; burst(hx, hy, '#c9b48a', 8); beep(140, 0.06, 'triangle', 0.06); }
   }
   function botGoal() {
     if (flags.b.carrier === player) return { x: player.x, y: player.y };
@@ -461,6 +478,7 @@
     if (keys['s'] || (mode !== '2p' && keys['arrowdown'])) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
+    if (mode === 'ctf' && keys['e'] && !player.dead && ++player.digT >= 8) { player.digT = 0; dig(player); }
     const auto = aimbot && (mouse.down || keys[' '] || (aimPro && mode !== 'ctf')) && !bot.dead && !player.dead;
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
     const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
@@ -736,6 +754,7 @@
         ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.textAlign = 'center';
         const hint = flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
         if (hint) ctx.fillText(hint, W / 2, 60);
+        ctx.font = '600 13px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText('⛏ Hold E to dig a tunnel in front of you', W / 2, 100);
         if (banner && banner.t > 0) { ctx.font = '900 44px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(banner.text, W / 2, H / 2 - 24); }
       }
       if (toast && toast.t > 0) { ctx.font = '900 30px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd24d'; ctx.fillText(toast.text, W / 2, H - 90); ctx.textBaseline = 'top'; }
