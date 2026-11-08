@@ -127,7 +127,11 @@ function dropEvery() {   // frames between wall drops (0 = the wall stays put)
   return isBoss() ? Math.max(480, Math.round(f * 0.75)) : f;
 }
 const COLS = 10, BW = 70, BH = 24, GAP = 6, GAPY = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
-const COLORS = { 1: '#3ee6c1', 2: '#ffd23f', 3: '#ff5d8f', 4: '#c77dff', 5: '#ff9a3c' };
+const COLORS = { 1: '#f0b13c', 2: '#e0651f', 3: '#c1272d', 4: '#a855c8', 5: '#7a4a21' };   // gold, pumpkin, crimson, plum, bark brown
+function shade(hex, amt) {   // make a color lighter (amt > 0) or darker (amt < 0)
+  const n = parseInt(hex.slice(1), 16), f = v => Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt));
+  return `rgb(${f(n >> 16)}, ${f((n >> 8) & 255)}, ${f(n & 255)})`;
+}
 const POWERUPS = ['W', 'M', 'S', '+', 'F'];
 const ICONS = { R: '🌈', W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '🔥', X: '🦔', N: '☢️' };   // what each power-up looks like
 const DROP_COLORS = { R: '#ff7ad9', N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
@@ -137,6 +141,54 @@ const leaves = Array.from({ length: 28 }, () => ({
   x: Math.random() * W, y: Math.random() * H, vy: 0.5 + Math.random() * 1.2, phase: Math.random() * 6,
   rot: Math.random() * 6, spin: (Math.random() - 0.5) * 0.04, size: 14 + Math.random() * 14, emoji: ['🍂', '🍁', '🍃'][Math.floor(Math.random() * 3)],
 }));
+let bgPic = null;
+function makeBackground() {
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  let seed = 4242; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const sky = g.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#24102f'); sky.addColorStop(0.35, '#6a2a1a'); sky.addColorStop(0.7, '#b8581a'); sky.addColorStop(1, '#e8902e');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  g.shadowColor = '#ffcf7a'; g.shadowBlur = 60; g.fillStyle = '#ffd89a';           // big harvest moon
+  g.beginPath(); g.arc(610, 170, 62, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+  g.fillStyle = 'rgba(200, 130, 60, 0.35)';
+  for (const c of [[595, 160, 12], [630, 190, 9], [620, 145, 7]]) { g.beginPath(); g.arc(c[0], c[1], c[2], 0, Math.PI * 2); g.fill(); }   // moon craters
+  // far-away forest: layers of misty round treetops
+  for (const [y, col] of [[440, 'rgba(120, 50, 20, 0.55)'], [480, 'rgba(80, 32, 12, 0.8)']]) {
+    g.fillStyle = col;
+    for (let x = -20; x < W + 30; x += 26) { g.beginPath(); g.arc(x, y + rnd() * 25, 26 + rnd() * 18, 0, Math.PI * 2); g.fill(); }
+    g.fillRect(0, y + 25, W, H);
+  }
+  // big foreground trees with wiggly trunks, branches, and fluffy leafy tops
+  const leafCols = ['#c2410c', '#e07a1f', '#f2a93b', '#a3200f', '#d9531e'];
+  function tree(x, base, h, wid) {
+    g.fillStyle = '#2a1206';
+    g.beginPath(); g.moveTo(x - wid, base); g.quadraticCurveTo(x - wid * 0.4, base - h * 0.5, x - wid * 0.5, base - h); g.lineTo(x + wid * 0.5, base - h); g.quadraticCurveTo(x + wid * 0.4, base - h * 0.5, x + wid, base); g.fill();
+    g.strokeStyle = '#2a1206'; g.lineWidth = wid * 0.35; g.lineCap = 'round';
+    for (const [dx, dy] of [[-70, -0.55], [60, -0.65], [-40, -0.85], [45, -0.95]]) {   // branches
+      g.beginPath(); g.moveTo(x, base - h * Math.abs(dy) * 0.8); g.lineTo(x + dx, base - h * Math.abs(dy) - 25); g.stroke();
+    }
+    for (let i = 0; i < 26; i++) {   // fluffy canopy
+      const a0 = rnd() * Math.PI * 2, d = rnd() * h * 0.42;
+      g.fillStyle = leafCols[Math.floor(rnd() * leafCols.length)]; g.globalAlpha = 0.9;
+      g.beginPath(); g.arc(x + Math.cos(a0) * d * 1.3, base - h - 20 + Math.sin(a0) * d * 0.8, 22 + rnd() * 26, 0, Math.PI * 2); g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+  tree(55, H, 330, 26); tree(755, H, 360, 28); tree(175, H, 230, 16); tree(645, H, 250, 17);
+  // the ground: a carpet of leaves, plus a few pumpkins
+  g.fillStyle = '#4a2108'; g.fillRect(0, 565, W, 40);
+  for (let i = 0; i < 160; i++) {
+    g.fillStyle = leafCols[Math.floor(rnd() * leafCols.length)]; g.beginPath();
+    g.ellipse(rnd() * W, 568 + rnd() * 34, 7, 3.5, rnd() * 3, 0, Math.PI * 2); g.fill();
+  }
+  for (const x of [105, 705, 415]) {
+    g.fillStyle = '#e8741a'; g.beginPath(); g.ellipse(x, 572, 17, 13, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#c75b0e'; g.beginPath(); g.ellipse(x - 6, 572, 6, 12, 0, 0, Math.PI * 2); g.ellipse(x + 6, 572, 6, 12, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#3d6b1f'; g.fillRect(x - 2, 557, 4, 7);
+  }
+  return cv;
+}
 let tick = 0;   // counts up every update; used to animate rainbow colors
 function rainbow(offset = 0) { return `hsl(${(tick * 4 + offset) % 360}, 95%, 62%)`; }
 
@@ -460,19 +512,9 @@ function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#1c0e06'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.setTransform(scale, 0, 0, scale, offX, offY);
-  // ---------- FALL THEME: dusky orange sky, harvest moon, hills, and falling leaves ----------
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#2b1408'); sky.addColorStop(0.6, '#5a280e'); sky.addColorStop(1, '#8a4414');
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-  ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 40; ctx.fillStyle = 'rgba(255, 190, 90, 0.4)';
-  ctx.beginPath(); ctx.arc(660, 150, 55, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;   // harvest moon
-  ctx.fillStyle = '#3a1a0a';   // rolling hills
-  ctx.beginPath(); ctx.ellipse(150, H + 20, 330, 120, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(620, H + 40, 380, 100, 0, 0, Math.PI * 2); ctx.fill();
-  for (const t of [[70, 505], [180, 520], [700, 515], [770, 500]]) {   // little autumn trees
-    ctx.fillStyle = '#2a1206'; ctx.fillRect(t[0] - 3, t[1], 6, 30);
-    ctx.fillStyle = ['#c2410c', '#d97706', '#b91c1c'][t[0] % 3]; ctx.beginPath(); ctx.arc(t[0], t[1] - 8, 20, 0, Math.PI * 2); ctx.fill();
-  }
+  // ---------- FALL THEME: the background is painted once (see makeBackground), then leaves fall in front ----------
+  if (!bgPic) bgPic = makeBackground();
+  ctx.drawImage(bgPic, 0, 0, W, H);
   for (const l of leaves) {
     ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.rot); ctx.globalAlpha = 0.85;
     ctx.font = l.size + 'px system-ui'; ctx.textAlign = 'center'; ctx.fillText(l.emoji, 0, 0);
@@ -486,7 +528,12 @@ function draw() {
       const g = ctx.createLinearGradient(br.x, 0, br.x + BW, 0);
       for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rainbow(i * 70));
       ctx.fillStyle = g;
-    } else ctx.fillStyle = br.black ? '#14101e' : COLORS[br.hp];
+    } else if (br.black) ctx.fillStyle = '#14101e';
+    else {   // warm gradient, like a painted autumn leaf
+      const base = COLORS[br.hp], g = ctx.createLinearGradient(0, br.y, 0, br.y + BH);
+      g.addColorStop(0, shade(base, 0.3)); g.addColorStop(0.5, base); g.addColorStop(1, shade(base, -0.3));
+      ctx.fillStyle = g;
+    }
     roundRect(br.x, br.y, BW, BH, 8);
     if (br.black) {   // black brick: dark with a shiny edge, and a number for the hits left
       ctx.strokeStyle = '#8a7fb5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(br.x + 1, br.y + 1, BW - 2, BH - 2, 8); ctx.stroke();
@@ -494,7 +541,13 @@ function draw() {
       continue;
     }
     if (br.rainbow) text(br.hp, br.x + BW / 2, br.y + BH / 2 + 6, 16, '#160f3a');   // hits left
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'; roundRect(br.x + 6, br.y + 4, BW - 12, 5, 3);   // candy shine
+    if (!br.rainbow) {   // leaf veins and a little stem
+      ctx.strokeStyle = 'rgba(60, 20, 0, 0.3)'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.moveTo(br.x + 10, br.y + BH / 2); ctx.lineTo(br.x + BW - 10, br.y + BH / 2);
+      for (const k of [0.3, 0.5, 0.7]) { ctx.moveTo(br.x + BW * k, br.y + BH / 2); ctx.lineTo(br.x + BW * k + 6, br.y + 5); ctx.moveTo(br.x + BW * k, br.y + BH / 2); ctx.lineTo(br.x + BW * k + 6, br.y + BH - 5); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255, 240, 200, 0.35)'; roundRect(br.x + 6, br.y + 3, BW - 12, 4, 2);   // shine
   }
   for (const d of drops) {
     if (d.kind === 'R') {
