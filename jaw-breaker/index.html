@@ -144,10 +144,6 @@ const ICONS = { R: '🌈', W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '�
 const DROP_COLORS = { R: '#ff7ad9', N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
 
 let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0, wideStacks = 0, spikeCool = 0, spikeRings = [];
-const leaves = Array.from({ length: 28 }, () => ({
-  x: Math.random() * W, y: Math.random() * H, vy: 0.5 + Math.random() * 1.2, phase: Math.random() * 6,
-  rot: Math.random() * 6, spin: (Math.random() - 0.5) * 0.04, size: 14 + Math.random() * 14, emoji: ['🍂', '🍁', '🍃'][Math.floor(Math.random() * 3)],
-}));
 let bgPic = null;
 function makeBackground() {
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -444,10 +440,6 @@ function update() {
   if (wideTimer > 0 && --wideTimer === 0) wideStacks = 0;
   if (slowTimer > 0) slowTimer--;
   tick++;
-  for (const l of leaves) {   // fall themed leaves drift down, swaying side to side
-    l.y += l.vy; l.x += Math.sin(tick / 40 + l.phase) * 0.8; l.rot += l.spin;
-    if (l.y > H + 20) { l.y = -20; l.x = Math.random() * W; }
-  }
   // the wall creeps down! (level 7 and up)
   if (state === 'play' && dropEvery() > 0 && --dropTimer <= 0) {
     dropTimer = dropEvery();
@@ -529,15 +521,9 @@ function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#1c0e06'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.setTransform(scale, 0, 0, scale, offX, offY);
-  // ---------- FALL THEME: the background is painted once (see makeBackground), then leaves fall in front ----------
+  // ---------- FALL THEME: the background is painted once (see makeBackground), ----------
   if (!bgPic) bgPic = makeBackground();
   ctx.drawImage(bgPic, 0, 0, W, H);
-  for (const l of leaves) {
-    ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.rot); ctx.globalAlpha = 0.85;
-    ctx.font = l.size + 'px system-ui'; ctx.textAlign = 'center'; ctx.fillText(l.emoji, 0, 0);
-    ctx.restore();
-  }
-  ctx.globalAlpha = 1;
 
   for (const br of bricks) {
     if (br.rainbow) {
