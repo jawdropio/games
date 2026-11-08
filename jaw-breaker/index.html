@@ -579,6 +579,7 @@ try { coins = Math.max(0, parseInt(localStorage.getItem('jawbreaker.coins'), 10)
 function addCoins(n) { coins += n; saveCoins(); updateStore(); }
 function saveCoins() { try { localStorage.setItem('jawbreaker.coins', coins); } catch (e) {} }
 
+let multiBuys = 0;   // how many Multiballs you bought (each one costs 50 more)
 const STORE = [
   { kind: 'W', name: 'Wide Paddle', price: 100 },
   { kind: 'S', name: 'Slow Ball', price: 75 },
@@ -598,7 +599,6 @@ for (const it of STORE) {
   itemsEl.appendChild(b);
 }
 // Multiball costs 50 more coins every time you buy it (the count starts over with a new game)
-let multiBuys = 0;
 function priceOf(it) { return it.kind === 'M' ? it.price + multiBuys * 50 : it.price; }
 function updateStore() {
   document.getElementById('coinBal').textContent = '🪙 ' + (INFINITE_COINS ? '∞' : coins);
