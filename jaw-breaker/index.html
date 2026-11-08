@@ -348,39 +348,43 @@ function destroyEverything(x, y) {
   for (const br of bricks) if (br.hp > 0) breakBrick(br, br.rainbow ? rainbow() : ['#ff3b1a', '#ff7a1a', '#ffd23f'][Math.floor(Math.random() * 3)]);
   beep(60, 0.8, 'sawtooth', 0.1);
 }
-// The animal nuke scene (90 frames, then the SLAM):
+// The animal nuke scene (90 frames, then the BOOM):
 //   0-30  the animal's head pokes in over the top of the screen
-//  30-55  it reaches up and grabs a nuke (two fists)
-//  55-75  it lifts the nuke high to wind up
-//  75-90  SLAM! it swings the nuke down onto the screen
+//  30-60  its head shakes and a nuke slowly comes OUT OF ITS MOUTH
+//  60-75  the nuke hovers and charges up, glowing
+//  75-90  the animal spits it out: the nuke SLAMS down onto the screen
 function drawSlamScene(n) {
-  const t = n.t, ease = p => 1 - (1 - p) * (1 - p), clamp = (v) => Math.max(0, Math.min(1, v));
-  let headY, nukeY = H + 200, nukeScale = 1;
+  const t = n.t, ease = p => 1 - (1 - p) * (1 - p), clamp = v => Math.max(0, Math.min(1, v));
+  let headY, headShake = 0;
   if (t < 30) headY = -240 + (140 + 240) * ease(t / 30);
-  else if (t < 75) headY = 140 - 20 * clamp((t - 55) / 20);                         // leans back to lift
-  else if (t < SLAM_FRAMES) headY = 120 + (330 - 120) * Math.pow((t - 75) / 15, 2);   // swings down
-  else headY = 330 - (t - SLAM_FRAMES) * 14;                                          // runs away after
-  if (t >= 30 && t < 55) nukeY = H + 150 + (330 - H - 150) * ease((t - 30) / 25);
-  else if (t >= 55 && t < 75) nukeY = 330 - 90 * ease((t - 55) / 20);                 // lifted up
-  else if (t >= 75 && t < SLAM_FRAMES) { const q = Math.pow((t - 75) / 15, 2); nukeY = 240 + (H / 2 - 240) * q; nukeScale = 1 + 2.5 * q; }
-  const x = W / 2 + (t >= 55 && t < 75 ? Math.sin(t) * 3 : 0);   // shaking while lifting it
-  const cut = t >= SLAM_FRAMES;   // after the hit the nuke is gone
-  ctx.save();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = '260px system-ui'; ctx.fillText(n.emoji, x, headY);               // the animal's big head
-  if (!cut && nukeY < H + 100) {
-    ctx.save(); ctx.translate(x, nukeY); ctx.scale(nukeScale, nukeScale);
-    ctx.fillStyle = '#e8e4ff'; roundRect(-22, -60, 44, 120, 14);                 // the nuke: body, red nose, fins
-    ctx.fillStyle = '#ff3b1a'; ctx.beginPath(); ctx.moveTo(-22, -60); ctx.lineTo(0, -105); ctx.lineTo(22, -60); ctx.fill();
-    ctx.fillStyle = '#ff5d8f'; ctx.beginPath(); ctx.moveTo(-22, 30); ctx.lineTo(-48, 75); ctx.lineTo(-22, 65); ctx.moveTo(22, 30); ctx.lineTo(48, 75); ctx.lineTo(22, 65); ctx.fill();
-    ctx.font = '36px system-ui'; ctx.fillStyle = '#160f3a'; ctx.fillText('☢️', 0, 0);
-    ctx.font = '60px system-ui'; ctx.fillText('✊', -38, -10); ctx.fillText('✊', 38, -10);   // the fists holding it
+  else if (t < 75) { headY = 140; headShake = Math.sin(t * 1.3) * (t - 30) * 0.12; }          // shakes harder as the nuke comes out
+  else if (t < SLAM_FRAMES) headY = 140 - 60 * ease((t - 75) / 15);                           // recoils from spitting it out
+  else headY = 80 - (t - SLAM_FRAMES) * 14;                                                   // then runs away
+  let nukeY = -999, nukeScale = 1, nukeShake = 0;
+  if (t >= 30 && t < 60) nukeY = 140 + (340 - 140) * ease((t - 30) / 30);                      // slides out of the mouth
+  else if (t >= 60 && t < 75) { nukeY = 340; nukeShake = Math.sin(t * 2) * 4; }               // hovers and charges
+  else if (t >= 75 && t < SLAM_FRAMES) { const q = Math.pow((t - 75) / 15, 2); nukeY = 340 + (H / 2 - 340) * q; nukeScale = 1 + 2.5 * q; }
+  const drawNuke = () => {
+    if (nukeY === -999) return;
+    ctx.save(); ctx.translate(W / 2 + nukeShake, nukeY); ctx.scale(nukeScale, -nukeScale);   // upside down: the nose points down
+    ctx.shadowColor = '#ff7a1a'; ctx.shadowBlur = t >= 60 ? 30 : 0;
+    ctx.fillStyle = '#e8e4ff'; roundRect(-22, -60, 44, 120, 14);                                // the nuke: body, red nose, fins
+    ctx.fillStyle = '#ff3b1a'; ctx.beginPath(); ctx.moveTo(-22, 60); ctx.lineTo(0, 105); ctx.lineTo(22, 60); ctx.fill();
+    ctx.fillStyle = '#ff5d8f'; ctx.beginPath(); ctx.moveTo(-22, -30); ctx.lineTo(-48, -75); ctx.lineTo(-22, -65); ctx.moveTo(22, -30); ctx.lineTo(48, -75); ctx.lineTo(22, -65); ctx.fill();
+    ctx.shadowBlur = 0; ctx.scale(1, -1);                                                       // flip back so the symbol isn't upside down
+    ctx.font = '40px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#160f3a'; ctx.fillText('☢️', 0, 0);
     ctx.restore();
-  }
-  ctx.restore(); ctx.textBaseline = 'alphabetic';
-  if (cut) {
+  };
+  const drawHead = () => {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '260px system-ui'; ctx.fillText(n.emoji, W / 2 + headShake, headY);
+    ctx.restore();
+  };
+  if (t < 75) { drawNuke(); drawHead(); } else { drawHead(); drawNuke(); }   // before the throw the nuke is behind the head, so it looks like it comes out of it
+  ctx.textBaseline = 'alphabetic';
+  if (t >= SLAM_FRAMES) {
     const q = (t - SLAM_FRAMES) / 45;
-    ctx.globalAlpha = Math.max(0, 1 - q); text('💥 SLAM! 💥', W / 2, H / 2 + 120 * q, 90, '#ffd23f'); ctx.globalAlpha = 1;
+    ctx.globalAlpha = Math.max(0, 1 - q); text('💥 BOOM! 💥', W / 2, H / 2 + 120 * q, 90, '#ffd23f'); ctx.globalAlpha = 1;
   }
 }
 
