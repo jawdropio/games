@@ -15,6 +15,13 @@
   button:hover { background:#8269ff; }
   #overlay { position:fixed; inset:0; background:rgba(10,6,30,.78); display:grid; place-items:center; text-align:center; }
   #overlay.hide { display:none; }
+  #panel { margin:0 0 18px; display:flex; flex-direction:column; gap:8px; align-items:center; }
+  #panel .row { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  #panel button { font-size:16px; padding:8px 14px; background:#2c2268; }
+  #panel button.on { background:#ffb020; color:#2a1a00; }
+  #panel button:disabled { opacity:.5; cursor:default; }
+  #panel input { font:inherit; font-weight:800; font-size:18px; width:130px; text-align:center; text-transform:uppercase; padding:8px; border-radius:10px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; }
+  .code { font-size:30px; font-weight:900; letter-spacing:3px; color:#ffb020; }
   #diffRow { display:flex; gap:8px; justify-content:center; margin:0 0 18px; flex-wrap:wrap; }
   #diffRow button { background:#2c2268; font-size:16px; padding:8px 14px; }
   #diffRow button.on { background:#ffb020; color:#2a1a00; }
@@ -34,6 +41,7 @@
     <h1 id="ovTitle">🦷 JAW BATTLE</h1>
     <p id="ovText"></p>
     <div id="diffRow"></div>
+    <div id="panel"></div>
     <button id="ovBtn">Play!</button>
   </div>
 </div>
@@ -107,15 +115,19 @@
   let diffName = 'medium';
   try { const d = localStorage.getItem('jawBattleDiff'); if (DIFFS[d]) diffName = d; } catch (e) {}
   const diff = () => DIFFS[diffName];
+  // coins + owned guns (saved in the browser)
+  let coins = 0, owned = [true, false, false, false], startMap = 0;
+  try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o) && o.length === 4) owned = o.map(Boolean); owned[0] = true; } catch (e) {}
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
   loadBest();
 
   // ---------- guns ----------
   const GUNS = [
-    { name: 'Pistol',      cd: 16, n: 1, spread: 0.02, speed: 9,   dmg: 2, life: 140, freq: 520, color: '#bff3ff' },
-    { name: 'Shotgun',     cd: 50, n: 5, spread: 0.40, speed: 8,   dmg: 1, life: 38,  freq: 220, color: '#ffe08a' },
-    { name: 'Machine Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 1, life: 100, freq: 700, color: '#c8ffb0' },
-    { name: 'Sniper',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 8, life: 80,  freq: 300, color: '#ffffff' },
+    { name: 'Pistol',      cd: 16, n: 1, spread: 0.02, speed: 9,   dmg: 4, life: 140, freq: 520, color: '#bff3ff', cost: 0 },
+    { name: 'Shotgun',     cd: 50, n: 5, spread: 0.40, speed: 8,   dmg: 1, life: 38,  freq: 220, color: '#ffe08a', cost: 20, info: '5 pellets, great up close' },
+    { name: 'Machine Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 0.6, life: 100, freq: 700, color: '#c8ffb0', cost: 35, info: 'Super fast, tiny damage' },
+    { name: 'Sniper',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 12, life: 80,  freq: 300, color: '#ffffff', cost: 50, info: 'Slow, but 3 hearts per hit!' },
   ];
 
   // ---------- building ----------
@@ -136,11 +148,13 @@
     showOverlay(false);
   }
 
-  function newGame() { round = 1; wins = 0; layoutIdx = 0; startRound(); }
+  function newGame() { round = 1; wins = 0; layoutIdx = startMap; startRound(); }
 
   // ---------- overlay ----------
   let ovAction = newGame;
   const diffRow = document.getElementById('diffRow');
+  let onDiff = null;
+  const panel = document.getElementById('panel');
   function renderDiff() {
     diffRow.innerHTML = '';
     for (const k in DIFFS) {
@@ -150,16 +164,18 @@
       b.onclick = () => {
         diffName = k; loadBest();
         try { localStorage.setItem('jawBattleDiff', k); } catch (e) {}
-        renderDiff();
+        renderDiff(); if (onDiff) onDiff();
       };
       diffRow.appendChild(b);
     }
   }
-  function showOverlay(show, title, text, btn, action, showDiff) {
+  function showOverlay(show, title, text, btn, action, showDiff, build, diffHook) {
     overlay.classList.toggle('hide', !show);
     if (!show) return;
     diffRow.style.display = showDiff ? 'flex' : 'none';
+    onDiff = diffHook || null;
     if (showDiff) renderDiff();
+    panel.innerHTML = ''; if (build) build(panel);
     ovTitle.textContent = title; ovText.innerHTML = text; ovBtn.textContent = btn; ovAction = action;
   }
   ovBtn.addEventListener('click', () => ovAction());
@@ -169,7 +185,59 @@
       '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
       '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
       '<b>Pause:</b> P or Esc<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
-      (best ? '<br>🏆 Best win streak: ' + best : ''), 'Play!', newGame, true);
+      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame, true, menuLinks);
+  }
+  function menuLinks(p) {
+    const row = document.createElement('div'); row.className = 'row';
+    const a = document.createElement('button'); a.textContent = '🛒 Gun Shop'; a.onclick = showShop;
+    const b = document.createElement('button'); b.textContent = '🎲 Make / Join a Game'; b.onclick = showSetup;
+    row.append(a, b); p.appendChild(row);
+  }
+
+  // ---------- gun shop ----------
+  function showShop() {
+    showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Win rounds to earn coins!', 'Back', showMenu, false, p => {
+      for (let i = 1; i < GUNS.length; i++) {
+        const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
+        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b> – ' + g.info;
+        const btn = document.createElement('button');
+        if (owned[i]) { btn.textContent = '✅ Owned'; btn.disabled = true; }
+        else {
+          btn.textContent = 'Buy 💰' + g.cost; btn.disabled = coins < g.cost;
+          btn.onclick = () => { if (coins >= g.cost) { coins -= g.cost; owned[i] = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } };
+        }
+        row.append(label, btn); p.appendChild(row);
+      }
+    });
+  }
+
+  // ---------- make / join a game (challenge codes) ----------
+  const DL = { easy: 'E', medium: 'M', hard: 'H', insane: 'I' };
+  const makeCode = () => 'JAW-' + DL[diffName] + (startMap + 1);
+  function showSetup() {
+    const info = 'Pick a difficulty and a map, then share your code. Friends type it in on their own computer to play the <b>same game</b>, and you can compare win streaks!<br><small>(You each play on your own computer, not live together.)</small>';
+    const draw = () => showOverlay(true, '🎲 Make / Join a Game', info, 'Back', showMenu, true, p => {
+      const maps = document.createElement('div'); maps.className = 'row';
+      ['🗺️ Map 1', '🗺️ Map 2', '🗺️ Map 3'].forEach((t, i) => {
+        const b = document.createElement('button'); b.textContent = t; b.className = i === startMap ? 'on' : '';
+        b.onclick = () => { startMap = i; draw(); }; maps.appendChild(b);
+      });
+      const code = document.createElement('div'); code.innerHTML = 'Your game code:<br><span class="code">' + makeCode() + '</span>';
+      const join = document.createElement('div'); join.className = 'row';
+      const inp = document.createElement('input'); inp.placeholder = 'JAW-H2'; inp.maxLength = 8;
+      const go = document.createElement('button'); go.textContent = 'Join!';
+      const msg = document.createElement('div');
+      inp.addEventListener('keydown', e => e.stopPropagation());
+      go.onclick = () => {
+        const m = /^JAW-?([EMHI])([1-3])$/i.exec(inp.value.trim());
+        if (!m) { msg.textContent = '🤔 That code doesn\'t look right. Try one like JAW-H2.'; return; }
+        diffName = Object.keys(DL).find(k => DL[k] === m[1].toUpperCase()); startMap = +m[2] - 1; loadBest();
+        try { localStorage.setItem('jawBattleDiff', diffName); } catch (e) {}
+        newGame();
+      };
+      join.append(inp, go); p.append(maps, code, join, msg);
+    }, draw);
+    draw();
   }
   function pause() {
     if (state !== 'play') return;
@@ -189,12 +257,12 @@
     if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
     keys[k] = true;
     if (state === 'play') {
-      if (k >= '1' && k <= '4') player.gun = +k - 1;
+      if (k >= '1' && k <= '4' && owned[+k - 1]) player.gun = +k - 1;
       if (k === 'b' && !e.repeat) tryBuild();
     }
   });
   addEventListener('wheel', e => {
-    if (state === 'play') player.gun = (player.gun + (e.deltaY > 0 ? 1 : 3)) % 4;
+    if (state === 'play') { const step = e.deltaY > 0 ? 1 : 3; let g = player.gun; for (let i = 0; i < 4; i++) { g = (g + step) % 4; if (owned[g]) { player.gun = g; break; } } }
   }, { passive: true });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -390,13 +458,14 @@
   function endRound(won) {
     state = 'over';
     if (won) {
+      const gain = 10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName]; coins += gain; saveStuff();
       wins++; round++; layoutIdx++;
       if (wins > best) { best = wins; try { localStorage.setItem('jawBattleBest_' + diffName, best); } catch (e) {} }
       sfx.win();
-      showOverlay(true, '🎉 You win!', 'Win streak: <b>' + wins + '</b> &nbsp; 🏆 Best: ' + best + '<br>The next bot is a little tougher...', 'Next round', startRound);
+      showOverlay(true, '🎉 You win!', 'Win streak: <b>' + wins + '</b> &nbsp; 🏆 Best: ' + best + '<br>💰 +' + gain + ' coins (you have ' + coins + ')<br>The next bot is a little tougher...', 'Next round', startRound);
     } else {
-      sfx.lose();
-      showOverlay(true, '💥 Bot wins!', 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>Change the difficulty if you like:', 'Try again', newGame, true);
+      sfx.lose(); coins += 2; saveStuff();
+      showOverlay(true, '💥 Bot wins!', 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>💰 +2 coins (you have ' + coins + ')<br>Change the difficulty if you like:', 'Try again', newGame, true, menuLinks);
     }
   }
 
@@ -482,11 +551,11 @@
       // gun slots + wall blocks
       ctx.textBaseline = 'middle';
       for (let i = 0; i < GUNS.length; i++) {
-        const x = 16 + i * 112, y = H - 34, sel = player.gun === i;
+        const x = 16 + i * 112, y = H - 34, sel = player.gun === i; ctx.globalAlpha = owned[i] ? 1 : 0.35;
         ctx.fillStyle = sel ? 'rgba(255,176,32,.9)' : 'rgba(255,255,255,.1)';
         ctx.beginPath(); ctx.roundRect(x, y, 104, 26, 8); ctx.fill();
         ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 13px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText((i + 1) + ' ' + GUNS[i].name, x + 52, y + 14);
+        ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + GUNS[i].name, x + 52, y + 14); ctx.globalAlpha = 1;
       }
       ctx.textAlign = 'right'; ctx.fillStyle = '#4fe0c0'; ctx.font = '700 15px system-ui, sans-serif';
       ctx.fillText('🧱 ' + '■'.repeat(player.blocks) + '□'.repeat(MAX_BLOCKS - player.blocks) + '  (B)', W - 16, H - 20);
