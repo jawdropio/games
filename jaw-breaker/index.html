@@ -74,24 +74,40 @@ function beep(freq, len = 0.06, type = 'square', vol = 0.06) {
 }
 
 // ---------- levels: each number is how many hits a brick takes ----------
-const LEVELS = [
-  ['1111111111',
-   '1111111111',
-   '2222222222',
-   '1111111111',
-   '1111111111'],
-  ['..222222..',
-   '.21111112.',
-   '2113333112',
-   '.21111112.',
-   '..222222..'],
-  ['3.3.3.3.3.',
-   '.2.2.2.2.2',
-   '1111111111',
-   '2.2.2.2.2.',
-   '.3.3.3.3.3',
-   '1111111111'],
-];
+// 25 levels. Every level is harder than the last one:
+//  - more rows, and tougher bricks (2 and 3 hits)
+//  - the ball starts faster and the paddle gets smaller
+//  - from level 7 on, the whole wall creeps DOWN, and if it reaches your paddle it's game over!
+// Level 25 is the final boss: a solid wall of 3-hit bricks.
+const LEVEL_COUNT = 25;
+function makeLevel(n) {
+  if (n === LEVEL_COUNT - 1) return Array.from({ length: 10 }, () => '3333333333');   // FINAL BOSS
+  let seed = n * 7919 + 13;                        // same random numbers every time, so a level is always the same
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const rows = Math.min(9, 5 + Math.floor(n / 5)), h = n / (LEVEL_COUNT - 1);
+  const shapes = [
+    () => true,                                                    // solid wall
+    (r, c) => (r + c) % 2 === 0,                                   // checkerboard
+    (r, c) => Math.abs(c - 4.5) <= r + 1,                          // pyramid
+    (r, c) => c % 3 !== 2,                                         // stripes with gaps
+    (r, c) => r === 0 || r === rows - 1 || c === 0 || c === 9 || (r > 1 && r < rows - 2 && c > 2 && c < 7),   // fortress
+    (r, c) => (c + (r % 4 < 2 ? r : 4 - r) * 2) % 5 !== 0,         // zigzag
+  ];
+  const shape = shapes[n % shapes.length];
+  const pattern = [];
+  for (let r = 0; r < rows; r++) {
+    let row = '';
+    for (let c = 0; c < 10; c++) {
+      if (!shape(r, c)) { row += '.'; continue; }
+      row += 1 + (rnd() < h * 0.9 ? 1 : 0) + (rnd() < h * h * 0.8 ? 1 : 0);   // tougher and tougher
+    }
+    pattern.push(row);
+  }
+  return pattern;
+}
+const LEVELS = Array.from({ length: LEVEL_COUNT }, (_, n) => makeLevel(n));
+function paddleBase() { return 110 - Math.floor(level * 1.8); }        // the paddle shrinks every level
+function dropEvery() { return level < 6 ? 0 : (level === LEVEL_COUNT - 1 ? 700 : Math.max(700, 1800 - (level - 6) * 70)); }   // frames between wall drops
 const COLS = 10, BW = 70, BH = 24, GAP = 6, GAPY = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
 const COLORS = { 1: '#3ee6c1', 2: '#ffd23f', 3: '#ff5d8f' };
 const POWERUPS = ['W', 'M', 'S', '+', 'F'];
@@ -103,7 +119,8 @@ function rainbow(offset = 0) { return `hsl(${(tick * 4 + offset) % 360}, 95%, 62
 
 function newGame() { score = 0; lives = 3; level = 0; loadLevel(); }
 function loadLevel() {
-  const pattern = LEVELS[level % LEVELS.length];
+  const pattern = LEVELS[level];
+  dropTimer = dropEvery();
   bricks = [];
   pattern.forEach((row0, r) => {
     // patterns are written 10 wide; stretch each one to fill all the columns
@@ -121,20 +138,20 @@ function loadLevel() {
   const topRow = bricks.filter(b => b.y === topY);
   const special = topRow[Math.floor(Math.random() * topRow.length)];
   special.rainbow = true; special.hp = 6; special.max = 6;
-  paddle = { x: W / 2, y: H - 40, w: 110, h: 14 };
+  paddle = { x: W / 2, y: H - 40, w: paddleBase(), h: 14 };
   drops = []; sparks = []; wideTimer = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
   resetBall();
   state = 'ready';
 }
 // Starts slow and speeds up a little with every brick you break.
 // Each new level starts a bit faster than the last one did.
-let brokenThisLevel = 0;
-function speed() { return Math.min(9, 3.5 + level * 0.5 + brokenThisLevel * 0.06); }
+let brokenThisLevel = 0, dropTimer = 0;
+function speed() { return Math.min(12, 3.5 + level * 0.3 + brokenThisLevel * 0.06); }
 function resetBall() { balls = [{ x: paddle.x, y: paddle.y - 10, vx: 0, vy: 0, r: 8, stuck: true }]; }
 
 function launch() {
   if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-  if (state === 'over') { newGame(); return; }
+  if (state === 'over' || state === 'won') { newGame(); return; }
   if (state === 'clear') { level++; loadLevel(); return; }
   if (state === 'ready') {
     state = 'play';
@@ -148,7 +165,7 @@ let paused = false;
 const pauseBtn = document.getElementById('pause');
 function setPaused(p) {
   // nothing to pause on the game over / level clear screens
-  if (p && (state === 'over' || state === 'clear')) return;
+  if (p && (state === 'over' || state === 'clear' || state === 'won')) return;
   paused = p;
   pauseBtn.textContent = paused ? '▶' : '⏸';
 }
@@ -286,11 +303,18 @@ function hitBrick(br, ball) {
 function update() {
   if (keys.ArrowLeft) paddle.x -= 10;
   if (keys.ArrowRight) paddle.x += 10;
-  paddle.w = wideTimer > 0 ? 170 : 110;
+  paddle.w = paddleBase() + (wideTimer > 0 ? 60 : 0);
   paddle.x = Math.max(paddle.w / 2, Math.min(W - paddle.w / 2, paddle.x));
   if (wideTimer > 0) wideTimer--;
   if (slowTimer > 0) slowTimer--;
   tick++;
+  // the wall creeps down! (level 7 and up)
+  if (state === 'play' && dropEvery() > 0 && --dropTimer <= 0) {
+    dropTimer = dropEvery();
+    for (const br of bricks) br.y += BH + GAPY;
+    beep(120, 0.2, 'sawtooth', 0.06);
+    if (bricks.some(br => br.y + BH >= paddle.y - 20)) { state = 'over'; beep(80, 0.6, 'sawtooth', 0.1); }
+  }
   if (rainbowTimer > 0) rainbowTimer--;
   if (spikeTimer > 0) spikeTimer--;
   if (nukeFlash > 0) nukeFlash--;
@@ -340,7 +364,7 @@ function update() {
   }
   drops = drops.filter(d => !d.got && d.y < H + 20);
 
-  if (state === 'play' && !bricks.length) { state = 'clear'; score += 100; addCoins(20); beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
+  if (state === 'play' && !bricks.length) { state = level === LEVEL_COUNT - 1 ? 'won' : 'clear'; score += 100 + level * 20; addCoins(20 + level * 5); beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
 }
 
 // ---------- drawing ----------
@@ -413,7 +437,12 @@ function draw() {
     ctx.globalAlpha = nukeFlash / 45; ctx.fillStyle = nukeFlash > 30 ? '#fff' : '#ffb347'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
   }
   text('SCORE ' + score, 20, 40, 20, '#f4f1ff', 'left');
-  text('LEVEL ' + (level + 1), W / 2, 40, 20, '#a99ee0');
+  text('LEVEL ' + (level + 1) + ' / ' + LEVEL_COUNT, W / 2, 40, 20, level === LEVEL_COUNT - 1 ? '#ff5d8f' : '#a99ee0');
+  if (dropEvery() > 0 && state === 'play') {   // countdown bar until the wall creeps down
+    ctx.fillStyle = '#2d1f6b'; ctx.fillRect(W / 2 - 80, 52, 160, 8);
+    ctx.fillStyle = dropTimer < 180 ? '#ff5d8f' : '#ffd23f'; ctx.fillRect(W / 2 - 80, 52, 160 * dropTimer / dropEvery(), 8);
+    text('⬇ wall drops', W / 2, 76, 12, '#a99ee0');
+  }
   text('❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
   text('🪙 ' + coins, 20, 68, 18, '#ffd23f', 'left');
 
@@ -423,7 +452,16 @@ function draw() {
     text('Click, or press P, Esc, or space to keep playing', W / 2, H / 2 + 44, 22, '#f4f1ff');
     return;
   }
-  if (state === 'ready') text('Click, tap, or press space to launch!', W / 2, H / 2 + 60, 22, '#f4f1ff');
+  if (state === 'ready') {
+    text('Click, tap, or press space to launch!', W / 2, H / 2 + 60, 22, '#f4f1ff');
+    if (level === LEVEL_COUNT - 1) text('FINAL LEVEL: the boss wall!', W / 2, H / 2 + 100, 28, '#ff5d8f');
+    else if (dropEvery() > 0) text('Careful: the wall creeps down!', W / 2, H / 2 + 100, 20, '#ffd23f');
+  }
+  if (state === 'won') {
+    text('YOU MASTERED JAW BREAKER! 🏆', W / 2, H / 2 - 10, 40, rainbow());
+    text('All 25 levels beaten!  Score: ' + score, W / 2, H / 2 + 34, 22, '#f4f1ff');
+    text('Click to play again', W / 2, H / 2 + 68, 20, '#a99ee0');
+  }
   if (state === 'clear') { text('LEVEL CLEAR!', W / 2, H / 2, 52, '#ffd23f'); text('Click for the next level', W / 2, H / 2 + 44, 22, '#f4f1ff'); }
   if (state === 'over') { text('GAME OVER', W / 2, H / 2, 56, '#ff5d8f'); text('Score: ' + score + '  ·  Click to play again', W / 2, H / 2 + 44, 22, '#f4f1ff'); }
 }
