@@ -39,10 +39,10 @@
   #store .item:hover:not(:disabled) { border-color:#3ee6c1; }
   #store .item:disabled { opacity:.45; cursor:not-allowed; }
   #store .icon { flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:#160f3a; font-weight:800; font-size:18px; }
-  #tabs { display:flex; gap:6px; margin-bottom:12px; }
-  #store .tab { flex:1; padding:8px 4px; border:2px solid #a99ee0; border-radius:10px; background:#160f3a; color:#f4f1ff; font:800 12px system-ui; cursor:pointer; }
+  #tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  #store .tab { flex:1 1 40%; flex:1; padding:8px 4px; border:2px solid #a99ee0; border-radius:10px; background:#160f3a; color:#f4f1ff; font:800 12px system-ui; cursor:pointer; }
   #store .tab.on { background:#ffd23f; border-color:#ffd23f; color:#160f3a; }
-  #store .skin.equipped { border-color:#3ee6c1; }
+  #store .skin.equipped, #store .pad.equipped { border-color:#3ee6c1; }
   #store .price { display:block; color:#ffd23f; font-weight:800; }
   #storeMsg { min-height:20px; margin-top:6px; font-size:13px; color:#a99ee0; }
 </style>
@@ -58,9 +58,10 @@
 <div id="store">
   <h2>🛍️ Store</h2>
   <div id="coinBal"></div>
-  <div id="tabs"><button class="tab on" data-tab="items">⚡ Power-ups</button><button class="tab" data-tab="skins">🎨 Balls</button></div>
+  <div id="tabs"><button class="tab on" data-tab="items">⚡ Power-ups</button><button class="tab" data-tab="skins">🎨 Balls</button><button class="tab" data-tab="paddles">🏓 Paddles</button></div>
   <div id="items"></div>
   <div id="skins" style="display:none"></div>
+  <div id="paddles" style="display:none"></div>
   <div id="storeMsg"></div>
 </div>
 <canvas id="c"></canvas>
@@ -584,8 +585,7 @@ function draw() {
   for (const s of sparks) { ctx.globalAlpha = Math.max(0, s.life / 50); ctx.fillStyle = s.color; ctx.fillRect(s.x - 2, s.y - 2, 4, 4); }
   ctx.globalAlpha = 1;
 
-  ctx.fillStyle = wideTimer > 0 ? '#3ee6c1' : '#f4f1ff';
-  roundRect(paddle.x - paddle.w / 2, paddle.y, paddle.w, paddle.h, 7);
+  drawPaddle();
   for (const b of balls) {
     if (spikeTimer > 0) {
       // SPIKE BALL: glowing purple aura, two spinning rings of spikes, and a shiny metal core
@@ -792,11 +792,69 @@ function updateSkins() {
     b.querySelector('.price').textContent = k.id === skinNow ? '✓ Using' : owned ? 'Tap to use' : '🍬 ' + k.price.toLocaleString();
   }
 }
-// switching between the two store tabs
+// ---------- paddle colors (just for looks) ----------
+const PADDLES = [
+  { id: 'classic', name: 'Classic White', color: '#f4f1ff', price: 0 },
+  { id: 'red', name: 'Red Paddle', color: '#ff3b3b', price: 50 },
+  { id: 'orange', name: 'Orange Paddle', color: '#ff8c1a', price: 50 },
+  { id: 'green', name: 'Green Paddle', color: '#2ecc40', price: 75 },
+  { id: 'blue', name: 'Blue Paddle', color: '#3b82f6', price: 75 },
+  { id: 'pink', name: 'Pink Paddle', color: '#ff7ad9', price: 100 },
+  { id: 'black', name: 'Black Paddle', color: '#222222', price: 100 },
+  { id: 'gold', name: 'Gold Paddle', color: '#ffd23f', price: 200 },
+  { id: 'rainbow', name: 'Rainbow Paddle', color: '#ffffff', price: 500 },
+];
+let padsOwned = ['classic'], padNow = 'classic';
+try {
+  const saved = JSON.parse(localStorage.getItem('jawbreaker.paddles') || 'null');
+  if (saved && Array.isArray(saved.owned) && PADDLES.some(k => k.id === saved.now)) { padsOwned = saved.owned.filter(id => PADDLES.some(k => k.id === id)); padNow = saved.now; }
+} catch (e) {}
+if (!padsOwned.includes('classic')) padsOwned.push('classic');
+function savePads() { try { localStorage.setItem('jawbreaker.paddles', JSON.stringify({ owned: padsOwned, now: padNow })); } catch (e) {} }
+const padsEl = document.getElementById('paddles');
+for (const k of PADDLES) {
+  const b = document.createElement('button');
+  b.className = 'item pad'; b.dataset.id = k.id;
+  const bg = k.id === 'rainbow' ? 'linear-gradient(135deg,#ff3b3b,#ffd23f,#3ee6c1,#3b82f6,#c77dff)' : k.color;
+  b.innerHTML = `<span class="icon" style="background:${bg};border:2px solid #f4f1ff;border-radius:8px"></span><span>${k.name}<span class="price"></span></span>`;
+  b.addEventListener('click', () => { pickPad(k); b.blur(); });
+  padsEl.appendChild(b);
+}
+function pickPad(k) {
+  if (!padsOwned.includes(k.id)) {
+    if (!operator && coins < k.price) return storeSay('Not enough candy yet!');
+    if (!operator) { coins -= k.price; saveCoins(); }
+    padsOwned.push(k.id); storeSay('Bought the ' + k.name + '! 🏓');
+  } else storeSay('Now using the ' + k.name + '!');
+  padNow = k.id; savePads(); beep(880, 0.1, 'sine', 0.08); updateStore();
+}
+function updatePads() {
+  for (const b of padsEl.children) {
+    const k = PADDLES.find(x => x.id === b.dataset.id), owned = padsOwned.includes(k.id);
+    b.classList.toggle('equipped', k.id === padNow);
+    b.disabled = !owned && !operator && coins < k.price;
+    b.querySelector('.price').textContent = k.id === padNow ? '✓ Using' : owned ? 'Tap to use' : '🍬 ' + k.price.toLocaleString();
+  }
+}
+// draw the paddle in the chosen color (with a teal glow while a Wide Paddle is active)
+function drawPaddle() {
+  const k = PADDLES.find(x => x.id === padNow) || PADDLES[0];
+  const x = paddle.x - paddle.w / 2, y = paddle.y;
+  let g;
+  if (k.id === 'rainbow') { g = ctx.createLinearGradient(x, 0, x + paddle.w, 0); for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rainbow(i * 70)); }
+  else { g = ctx.createLinearGradient(0, y, 0, y + paddle.h); g.addColorStop(0, shade(k.color, 0.4)); g.addColorStop(0.5, k.color); g.addColorStop(1, shade(k.color, -0.3)); }
+  if (wideTimer > 0) { ctx.shadowColor = '#3ee6c1'; ctx.shadowBlur = 18; }
+  ctx.fillStyle = g; roundRect(x, y, paddle.w, paddle.h, 7);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(x, y, paddle.w, paddle.h, 7); ctx.stroke();   // light edge so the black one shows up
+}
+
+// switching between the store tabs
 for (const t of document.querySelectorAll('#tabs .tab')) t.addEventListener('click', () => {
   for (const o of document.querySelectorAll('#tabs .tab')) o.classList.toggle('on', o === t);
   itemsEl.style.display = t.dataset.tab === 'items' ? '' : 'none';
   skinsEl.style.display = t.dataset.tab === 'skins' ? '' : 'none';
+  padsEl.style.display = t.dataset.tab === 'paddles' ? '' : 'none';
   storeSay(''); t.blur();
 });
 // draw a normal ball in the chosen design
@@ -820,7 +878,7 @@ function updateStore() {
     b.disabled = (!operator && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed());
     b.querySelector('.price').textContent = '🍬 ' + priceOf(it).toLocaleString();
   }
-  updateSkins(); updateInv();
+  updateSkins(); updatePads(); updateInv();
 }
 function storeSay(t) { msgEl.textContent = t; }
 // Buying puts the power-up in your bottom-right bag. Use it later: click it, or press its number key.
