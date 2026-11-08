@@ -192,9 +192,8 @@
   function menuLinks(p) {
     const row = document.createElement('div'); row.className = 'row';
     const a = document.createElement('button'); a.textContent = '🛒 Gun Shop'; a.onclick = showShop;
-    const b = document.createElement('button'); b.textContent = '🎲 Make / Join a Game'; b.onclick = showSetup;
     const c = document.createElement('button'); c.textContent = '👥 2 Players'; c.onclick = newGame2P;
-    row.append(a, b, c); p.appendChild(row);
+    row.append(a, c); p.appendChild(row);
   }
 
   // ---------- gun shop ----------
@@ -214,35 +213,6 @@
     });
   }
 
-  // ---------- make / join a game (challenge codes) ----------
-  const DL = { easy: 'E', medium: 'M', hard: 'H', insane: 'I' };
-  const makeCode = () => 'JAW-' + DL[diffName] + (startMap + 1);
-  function showSetup() {
-    const info = 'Pick a difficulty and a map, then share your code. Friends type it in on their own computer to play the <b>same game</b>, and you can compare win streaks!<br><small>(You each play on your own computer, not live together.)</small>';
-    const draw = () => showOverlay(true, '🎲 Make / Join a Game', info, 'Back', showMenu, true, p => {
-      const maps = document.createElement('div'); maps.className = 'row';
-      ['🗺️ Map 1', '🗺️ Map 2', '🗺️ Map 3'].forEach((t, i) => {
-        const b = document.createElement('button'); b.textContent = t; b.className = i === startMap ? 'on' : '';
-        b.onclick = () => { startMap = i; draw(); }; maps.appendChild(b);
-      });
-      const code = document.createElement('div'); code.innerHTML = 'Your game code:<br><span class="code">' + makeCode() + '</span>';
-      const join = document.createElement('div'); join.className = 'row';
-      const inp = document.createElement('input'); inp.placeholder = 'JAW-H2'; inp.maxLength = 10;
-      const go = document.createElement('button'); go.textContent = 'Join!';
-      const msg = document.createElement('div');
-      inp.addEventListener('keydown', e => e.stopPropagation());
-      go.onclick = () => {
-        if (/^JAW-?MONEY$/i.test(inp.value.trim())) { coins += 1000; saveStuff(); msg.textContent = '💰 +1000 coins! You have ' + coins + '.'; inp.value = ''; return; }
-        const m = /^JAW-?([EMHI])([1-3])$/i.exec(inp.value.trim());
-        if (!m) { msg.textContent = '🤔 That code doesn\'t look right. Try one like JAW-H2.'; return; }
-        diffName = Object.keys(DL).find(k => DL[k] === m[1].toUpperCase()); startMap = +m[2] - 1; loadBest();
-        try { localStorage.setItem('jawBattleDiff', diffName); } catch (e) {}
-        newGame1P();
-      };
-      join.append(inp, go); p.append(maps, code, join, msg);
-    }, draw);
-    draw();
-  }
   function pause() {
     if (state !== 'play') return;
     state = 'paused';
