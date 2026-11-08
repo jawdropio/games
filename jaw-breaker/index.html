@@ -31,6 +31,10 @@
   #store .item:hover:not(:disabled) { border-color:#3ee6c1; }
   #store .item:disabled { opacity:.45; cursor:not-allowed; }
   #store .icon { flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:#160f3a; font-weight:800; font-size:18px; }
+  #tabs { display:flex; gap:6px; margin-bottom:12px; }
+  #store .tab { flex:1; padding:8px 4px; border:2px solid #a99ee0; border-radius:10px; background:#160f3a; color:#f4f1ff; font:800 12px system-ui; cursor:pointer; }
+  #store .tab.on { background:#ffd23f; border-color:#ffd23f; color:#160f3a; }
+  #store .skin.equipped { border-color:#3ee6c1; }
   #store .price { display:block; color:#ffd23f; font-weight:800; }
   #storeMsg { min-height:20px; margin-top:6px; font-size:13px; color:#a99ee0; }
 </style>
@@ -44,7 +48,9 @@
 <div id="store">
   <h2>🛍️ Store</h2>
   <div id="coinBal"></div>
+  <div id="tabs"><button class="tab on" data-tab="items">⚡ Power-ups</button><button class="tab" data-tab="skins">🎨 Balls</button></div>
   <div id="items"></div>
+  <div id="skins" style="display:none"></div>
   <div id="storeMsg"></div>
 </div>
 <canvas id="c"></canvas>
@@ -605,8 +611,7 @@ function draw() {
       ctx.fillStyle = rb ? rainbow(180) : '#ffd23f'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 3, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
     } else {
-      ctx.fillStyle = slowTimer > 0 ? '#8ab4ff' : '#fff';
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+      drawSkinBall(b);
     }
   }
 
@@ -692,6 +697,68 @@ for (const it of STORE) {
   b.addEventListener('click', () => { buy(it); b.blur(); });
   itemsEl.appendChild(b);
 }
+// ---------- ball designs (just for looks) ----------
+const SKINS = [
+  { id: 'classic', name: 'Classic White', color: '#ffffff', price: 0 },
+  { id: 'black', name: 'Black Ball', color: '#1a1a1a', price: 50 },
+  { id: 'green', name: 'Green Ball', color: '#2ecc40', price: 50 },
+  { id: 'red', name: 'Red Ball', color: '#ff3b3b', price: 75 },
+  { id: 'blue', name: 'Blue Ball', color: '#3b82f6', price: 75 },
+  { id: 'pink', name: 'Pink Ball', color: '#ff7ad9', price: 100 },
+  { id: 'gold', name: 'Gold Ball', color: '#ffd23f', price: 150 },
+  { id: 'rainbow', name: 'Rainbow Ball', color: '#ffffff', price: 500 },
+];
+let skinsOwned = ['classic'], skinNow = 'classic';
+try {
+  const saved = JSON.parse(localStorage.getItem('jawbreaker.skins') || 'null');
+  if (saved && Array.isArray(saved.owned) && SKINS.some(k => k.id === saved.now)) { skinsOwned = saved.owned.filter(id => SKINS.some(k => k.id === id)); skinNow = saved.now; }
+} catch (e) {}
+if (!skinsOwned.includes('classic')) skinsOwned.push('classic');
+function saveSkins() { try { localStorage.setItem('jawbreaker.skins', JSON.stringify({ owned: skinsOwned, now: skinNow })); } catch (e) {} }
+const skinsEl = document.getElementById('skins');
+for (const k of SKINS) {
+  const b = document.createElement('button');
+  b.className = 'item skin'; b.dataset.id = k.id;
+  const bg = k.id === 'rainbow' ? 'linear-gradient(135deg,#ff3b3b,#ffd23f,#3ee6c1,#3b82f6,#c77dff)' : k.color;
+  b.innerHTML = `<span class="icon" style="background:${bg};border:2px solid #f4f1ff"></span><span>${k.name}<span class="price"></span></span>`;
+  b.addEventListener('click', () => { pickSkin(k); b.blur(); });
+  skinsEl.appendChild(b);
+}
+function pickSkin(k) {
+  if (!skinsOwned.includes(k.id)) {
+    if (!operator && coins < k.price) return storeSay('Not enough candy yet!');
+    if (!operator) { coins -= k.price; saveCoins(); }
+    skinsOwned.push(k.id); storeSay('Bought the ' + k.name + '! 🎨');
+  } else storeSay('Now using the ' + k.name + '!');
+  skinNow = k.id; saveSkins(); beep(880, 0.1, 'sine', 0.08); updateStore();
+}
+function updateSkins() {
+  for (const b of skinsEl.children) {
+    const k = SKINS.find(x => x.id === b.dataset.id), owned = skinsOwned.includes(k.id);
+    b.classList.toggle('equipped', k.id === skinNow);
+    b.disabled = !owned && !operator && coins < k.price;
+    b.querySelector('.price').textContent = k.id === skinNow ? '✓ Using' : owned ? 'Tap to use' : '🍬 ' + k.price.toLocaleString();
+  }
+}
+// switching between the two store tabs
+for (const t of document.querySelectorAll('#tabs .tab')) t.addEventListener('click', () => {
+  for (const o of document.querySelectorAll('#tabs .tab')) o.classList.toggle('on', o === t);
+  itemsEl.style.display = t.dataset.tab === 'items' ? '' : 'none';
+  skinsEl.style.display = t.dataset.tab === 'skins' ? '' : 'none';
+  storeSay(''); t.blur();
+});
+// draw a normal ball in the chosen design
+function drawSkinBall(b) {
+  const k = SKINS.find(x => x.id === skinNow) || SKINS[0];
+  const col = k.id === 'rainbow' ? rainbow(b.x) : k.color;
+  const g = ctx.createRadialGradient(b.x - b.r * 0.35, b.y - b.r * 0.35, 1, b.x, b.y, b.r);
+  if (k.id === 'rainbow') { g.addColorStop(0, '#fff'); g.addColorStop(0.4, col); g.addColorStop(1, rainbow(b.x + 90)); }
+  else { g.addColorStop(0, shade(col, 0.55)); g.addColorStop(0.5, col); g.addColorStop(1, shade(col, -0.35)); }
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = slowTimer > 0 ? '#8ab4ff' : 'rgba(255,255,255,0.7)'; ctx.lineWidth = slowTimer > 0 ? 3 : 1.5;   // light edge so the black ball shows up; blue while slowed
+  ctx.stroke();
+}
+
 // Multiball costs 50 more coins every time you buy it (the count starts over with a new game)
 function priceOf(it) { return it.kind === 'M' ? it.price + multiBuys * 50 : it.price; }
 function updateStore() {
@@ -703,6 +770,7 @@ function updateStore() {
     if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🍬 ' + priceOf(it).toLocaleString();
     else b.querySelector('.price').textContent = '🍬 ' + priceOf(it).toLocaleString();
   }
+  updateSkins();
 }
 function storeSay(t) { msgEl.textContent = t; }
 function buy(it) {
