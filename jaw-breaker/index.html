@@ -186,7 +186,7 @@ function givePower(kind) {
   if (kind === '+') lives = Math.min(lives + 1, 6);
   if (kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
   if (kind === 'M') multiball();
-  if (kind === 'X') { spikeTimer = 60 * 15; beep(90, 0.5, 'sawtooth', 0.08); }
+  if (kind === 'X') { spikeTimer = 60 * 30; beep(90, 0.5, 'sawtooth', 0.08); }
 }
 
 // every moving ball splits into 3 (used by the M power-up and the M cheat key)
@@ -236,6 +236,15 @@ function hitBrick(br, ball) {
   const dx = ball.x - cx, dy = ball.y - cy;
   if (dx * dx + dy * dy > ball.r * ball.r) return false;
 
+  // SPIKE BALL (OP!): it plows straight through and EXPLODES every brick around it, even the rainbow one
+  if (spikeTimer > 0) {
+    for (const n of bricks) {
+      if (n.hp > 0 && Math.hypot(n.x + BW / 2 - ball.x, n.y + BH / 2 - ball.y) < 130) breakBrick(n, n.rainbow ? rainbow() : '#c77dff');
+    }
+    beep(100 + Math.random() * 60, 0.15, 'sawtooth', 0.07);
+    return false;
+  }
+
   // FIREBALL: burn straight through. No bounce, and any brick breaks in one hit.
   if (fireTimer > 0 && !br.rainbow) {
     breakBrick(br, '#ff7a1a');
@@ -252,7 +261,6 @@ function hitBrick(br, ball) {
   const overlapX = Math.min(ball.x + ball.r - br.x, br.x + BW - (ball.x - ball.r));
   const overlapY = Math.min(ball.y + ball.r - br.y, br.y + BH - (ball.y - ball.r));
   if (overlapX < overlapY) ball.vx = -ball.vx; else ball.vy = -ball.vy;
-  if (spikeTimer > 0) br.hp = 1;   // SPIKE BALL: smashes any brick in one hit (even the rainbow one) and still bounces
   br.hp--;
   if (br.hp <= 0) {
     breakBrick(br, br.rainbow ? rainbow() : COLORS[br.max]);
@@ -292,6 +300,7 @@ function update() {
       if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx); beep(660, 0.03); }
       if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx); beep(660, 0.03); }
       if (b.y < b.r) { b.y = b.r; b.vy = Math.abs(b.vy); beep(660, 0.03); }
+      if (spikeTimer > 0 && b.y > H - b.r) { b.y = H - b.r; b.vy = -Math.abs(b.vy); }   // spike ball can't fall out the bottom
       // paddle: where you hit it decides the bounce angle
       if (b.vy > 0 && b.y + b.r >= paddle.y && b.y < paddle.y + paddle.h && Math.abs(b.x - paddle.x) <= paddle.w / 2 + b.r) {
         const hit = (b.x - paddle.x) / (paddle.w / 2);           // -1 (left edge) .. 1 (right edge)
