@@ -122,7 +122,7 @@
   const GRID = 40, BUILD_RANGE = 240, MAX_BLOCKS = 8;
 
   function makeFighter(x, y, color, isBot) {
-    return { x, y, r: 17, hp: isBot ? diff().hp : 20, maxHp: isBot ? diff().hp : 20, gun: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
+    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
              // bot brain
              strafe: 1, strafeT: 0, dodge: 0, stuck: 0 };
   }
@@ -465,11 +465,17 @@
       ctx.font = '700 20px system-ui, sans-serif'; ctx.textBaseline = 'top';
       const bar = (x, w, f, col, label, right) => {
         ctx.textAlign = right ? 'right' : 'left'; ctx.fillStyle = col; ctx.fillText(label, right ? x + w : x, 12);
-        ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x, 38, w, 12);
-        ctx.fillStyle = col; const pw = w * Math.max(0, f.hp) / f.maxHp; ctx.fillRect(right ? x + w - pw : x, 38, pw, 12);
+        // 5 hearts: each heart is worth 4 health. Hurt hearts fade out.
+        ctx.font = '22px system-ui, sans-serif'; ctx.textAlign = 'left';
+        for (let i = 0; i < 5; i++) {
+          const left = Math.max(0, Math.min(4, f.hp - i * 4));
+          ctx.globalAlpha = left >= 4 ? 1 : left >= 2 ? 0.55 : left > 0 ? 0.3 : 0.12;
+          ctx.fillText('❤️', x + i * 30, 36);
+        }
+        ctx.globalAlpha = 1; ctx.font = '700 20px system-ui, sans-serif';
       };
-      bar(16, 220, player, '#4fd1ff', 'YOU', false);
-      bar(W - 236, 220, bot, '#ff6b9a', 'BOT', true);
+      bar(16, 150, player, '#4fd1ff', 'YOU', false);
+      bar(W - 166, 150, bot, '#ff6b9a', 'BOT', true);
       ctx.textAlign = 'center'; ctx.fillStyle = '#cfc8f5';
       ctx.fillText('Round ' + round + '  •  Streak ' + wins, W / 2, 12);
       ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(diff().label, W / 2, 38);
