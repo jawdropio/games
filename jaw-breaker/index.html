@@ -634,7 +634,7 @@ function draw() {
     text('⬇ wall drops', W / 2, 76, 12, '#a99ee0');
   }
   text(lives > 8 ? '❤️ x' + lives : '❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
-  text('🍬 ' + coins, 20, 68, 18, '#ffd23f', 'left');
+  text('🍬 ' + (operator ? '∞' : coins), 20, 68, 18, '#ffd23f', 'left');
 
   if (paused) {
     ctx.fillStyle = 'rgba(13, 8, 36, 0.7)'; ctx.fillRect(0, 0, W, H);
@@ -666,7 +666,7 @@ try { coins = Math.max(0, parseInt(localStorage.getItem('jawbreaker.coins.v2'), 
 function addCoins(n) { coins += n; saveCoins(); updateStore(); }
 function saveCoins() { try { localStorage.setItem('jawbreaker.coins.v2', coins); } catch (e) {} }
 
-// ---------- operator mode: type the secret code to unlock the test keys (F, M, B, N, C) ----------
+// ---------- operator mode: type the secret code to unlock infinite candy and the test keys (F, M, B, N, C) ----------
 // It is never saved, so you have to type the code again every time the game loads.
 const OPERATOR_CODE = 'JAW123';
 let operator = false;
@@ -695,11 +695,11 @@ for (const it of STORE) {
 // Multiball costs 50 more coins every time you buy it (the count starts over with a new game)
 function priceOf(it) { return it.kind === 'M' ? it.price + multiBuys * 50 : it.price; }
 function updateStore() {
-  document.getElementById('coinBal').textContent = '🍬 ' + coins;
+  document.getElementById('coinBal').textContent = '🍬 ' + (operator ? '∞' : coins);
   for (const b of itemsEl.children) {
     const it = STORE.find(i => i.kind === b.dataset.kind);
     const cooling = it.kind === 'X' && (spikeCool > 0 || spikeTimer > 0);
-    b.disabled = coins < priceOf(it) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed()) || cooling;
+    b.disabled = (!operator && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed()) || cooling;
     if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🍬 ' + priceOf(it).toLocaleString();
     else b.querySelector('.price').textContent = '🍬 ' + priceOf(it).toLocaleString();
   }
@@ -707,7 +707,7 @@ function updateStore() {
 function storeSay(t) { msgEl.textContent = t; }
 function buy(it) {
   if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
-  if (coins < priceOf(it)) return storeSay('Not enough candy yet!');
+  if (!operator && coins < priceOf(it)) return storeSay('Not enough candy yet!');
   if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
   if (it.kind === 'X' && spikeTimer > 0) return storeSay('The Spike Ball is already active!');
   if (it.kind === 'X' && spikeCool > 0) return storeSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
@@ -715,7 +715,7 @@ function buy(it) {
   if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
   if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
-  coins -= priceOf(it); saveCoins();
+  if (!operator) { coins -= priceOf(it); saveCoins(); }   // operators buy for free
   if (it.kind === 'M') multiBuys++;   // Multiball gets pricier every time
   updateStore();
   givePower(it.kind); beep(880, 0.12, 'sine', 0.08);
