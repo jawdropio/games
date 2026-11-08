@@ -132,11 +132,11 @@ const POWERUPS = ['W', 'M', 'S', '+', 'F'];
 const ICONS = { W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '🔥', X: '🦔', N: '☢️' };   // what each power-up looks like
 const DROP_COLORS = { N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
 
-let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0, wideStacks = 0;
+let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0, wideStacks = 0, spikeCool = 0, spikeRings = [];
 let tick = 0;   // counts up every update; used to animate rainbow colors
 function rainbow(offset = 0) { return `hsl(${(tick * 4 + offset) % 360}, 95%, 62%)`; }
 
-function newGame() { score = 0; lives = 3; level = 0; loadLevel(); }
+function newGame() { spikeCool = 0; score = 0; lives = 3; level = 0; loadLevel(); }
 function loadLevel() {
   const pattern = LEVELS[level];
   dropTimer = dropEvery(); bossWon = false;
@@ -162,6 +162,7 @@ function loadLevel() {
   nukeMissile = null; updateStore(); drops = []; sparks = []; wideTimer = 0; wideStacks = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
   resetBall();
   state = 'ready';
+  updateStore();
 }
 // Starts slow and speeds up a little with every brick you break.
 // Each new level starts a bit faster than the last one did.
@@ -225,7 +226,21 @@ function givePower(kind) {
   if (kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
   if (kind === 'M') multiball();
   if (kind === 'N') nuke();
-  if (kind === 'X') { spikeTimer = 60 * 30; beep(90, 0.5, 'sawtooth', 0.08); }
+  if (kind === 'X') { spikeTimer = 60 * 30; beep(90, 0.5, 'sawtooth', 0.08); updateStore(); }
+}
+
+// the spike ball explodes when its time is up, then it needs 25 seconds to cool down
+const SPIKE_COOLDOWN = 60 * 25;
+function spikeEnds() {
+  for (const b of balls) {
+    spikeRings.push({ x: b.x, y: b.y, life: 30 });
+    burst(b.x, b.y, '#c77dff', 40); burst(b.x, b.y, '#fff', 20);
+    for (const n of bricks) {
+      if (n.hp > 0 && !n.black && Math.hypot(n.x + BW / 2 - b.x, n.y + BH / 2 - b.y) < 200) breakBrick(n, n.rainbow ? rainbow() : '#c77dff');
+    }
+  }
+  beep(70, 0.7, 'sawtooth', 0.1);
+  spikeCool = SPIKE_COOLDOWN; updateStore();
 }
 
 // NUKE: every single brick goes boom
@@ -361,7 +376,10 @@ function update() {
     if (bricks.some(br => br.y + BH >= paddle.y - 20)) { state = 'over'; beep(80, 0.6, 'sawtooth', 0.1); }
   }
   if (rainbowTimer > 0) rainbowTimer--;
-  if (spikeTimer > 0) spikeTimer--;
+  if (spikeTimer > 0 && --spikeTimer === 0) spikeEnds();
+  if (spikeCool > 0) { spikeCool--; if (spikeCool % 60 === 0) updateStore(); }
+  for (const r of spikeRings) r.life--;
+  spikeRings = spikeRings.filter(r => r.life > 0);
   if (nukeFlash > 0) nukeFlash--;
   for (const br of bricks) if (br.cool > 0) br.cool--;
   if (nukeMissile) {   // the missile speeds up as it flies, with a smoky flame trail
@@ -505,6 +523,10 @@ function draw() {
     }
   }
 
+  for (const r of spikeRings) {
+    ctx.globalAlpha = r.life / 30; ctx.strokeStyle = '#c77dff'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(r.x, r.y, (30 - r.life) * 7, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+  }
   if (nukeMissile) {   // the missile: body, red nose, fins, and a flame
     const m = nukeMissile;
     ctx.fillStyle = '#e8e4ff'; roundRect(m.x - 7, m.y - 14, 14, 34, 4);
@@ -579,7 +601,9 @@ function updateStore() {
   document.getElementById('coinBal').textContent = '🪙 ' + (INFINITE_COINS ? '∞' : coins);
   for (const b of itemsEl.children) {
     const it = STORE.find(i => i.kind === b.dataset.kind);
-    b.disabled = (!INFINITE_COINS && coins < it.price) || (it.kind === 'N' && !nukeAllowed());
+    const cooling = it.kind === 'X' && (spikeCool > 0 || spikeTimer > 0);
+    b.disabled = (!INFINITE_COINS && coins < it.price) || (it.kind === 'N' && !nukeAllowed()) || cooling;
+    if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🪙 ' + it.price.toLocaleString();
   }
 }
 function storeSay(t) { msgEl.textContent = t; }
@@ -587,6 +611,8 @@ function buy(it) {
   if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
   if (!INFINITE_COINS && coins < it.price) return storeSay('Not enough coins yet!');
   if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
+  if (it.kind === 'X' && spikeTimer > 0) return storeSay('The Spike Ball is already active!');
+  if (it.kind === 'X' && spikeCool > 0) return storeSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
   if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
   if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
