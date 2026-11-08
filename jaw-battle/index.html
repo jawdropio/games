@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>JAW BATTLE</title>
+<style>
+  html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; overflow:hidden; touch-action:none; user-select:none; }
+  body { display:grid; place-items:center; }
+  canvas { background:#1d1445; border:3px solid #4b3a9e; border-radius:12px; cursor:crosshair; touch-action:none; }
+  .top { position:fixed; top:10px; left:12px; right:12px; display:flex; justify-content:space-between; align-items:center; pointer-events:none; }
+  .top > * { pointer-events:auto; }
+  a { color:#a99ee0; text-decoration:none; font-weight:700; }
+  button { font:inherit; font-weight:800; background:#6c4cff; color:#fff; border:0; border-radius:10px; padding:8px 16px; cursor:pointer; }
+  button:hover { background:#8269ff; }
+  #overlay { position:fixed; inset:0; background:rgba(10,6,30,.78); display:grid; place-items:center; text-align:center; }
+  #overlay.hide { display:none; }
+  #panel { margin:0 0 18px; display:flex; flex-direction:column; gap:8px; align-items:center; }
+  #panel .row { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  #panel button { font-size:16px; padding:8px 14px; background:#2c2268; }
+  #panel button.on { background:#ffb020; color:#2a1a00; }
+  #panel button:disabled { opacity:.5; cursor:default; }
+  #panel input { font:inherit; font-weight:800; font-size:18px; width:130px; text-align:center; text-transform:uppercase; padding:8px; border-radius:10px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; }
+  .code { font-size:30px; font-weight:900; letter-spacing:3px; color:#ffb020; }
+  #diffRow { display:flex; gap:8px; justify-content:center; margin:0 0 18px; flex-wrap:wrap; }
+  #diffRow button { background:#2c2268; font-size:16px; padding:8px 14px; }
+  #diffRow button.on { background:#ffb020; color:#2a1a00; }
+  #overlay h1 { font-size:clamp(32px,7vw,56px); margin:0 0 10px; }
+  #overlay p { margin:0 0 18px; color:#cfc8f5; line-height:1.5; }
+  #overlay button { font-size:22px; padding:12px 28px; }
+</style>
+</head>
+<body>
+<div class="top">
+  <a href="../">← Arcade</a>
+  <button id="pauseBtn">⏸ Pause</button>
+</div>
+<canvas id="c" width="960" height="600"></canvas>
+<div id="overlay">
+  <div>
+    <h1 id="ovTitle">🦷 JAW BATTLE</h1>
+    <p id="ovText"></p>
+    <div id="diffRow"></div>
+    <div id="panel"></div>
+    <button id="ovBtn">Play!</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const W = 960, H = 600;
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const ovTitle = document.getElementById('ovTitle'), ovText = document.getElementById('ovText'), ovBtn = document.getElementById('ovBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  // ---------- sizing ----------
+  function resize() {
+    const s = Math.min((innerWidth - 20) / W, (innerHeight - 60) / H);
+    cv.style.width = W * s + 'px';
+    cv.style.height = H * s + 'px';
+  }
+  addEventListener('resize', resize); resize();
+
+  // ---------- sound ----------
+  let ac = null;
+  function unlockAudio() {
+    try {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state !== 'running') ac.resume();
+    } catch (e) {}
+  }
+  ['pointerdown', 'keydown', 'click', 'touchend'].forEach(ev => addEventListener(ev, unlockAudio, true));
+  function beep(freq, dur, type = 'square', vol = 0.06, slide = 0) {
+    try {
+      unlockAudio();
+      if (!ac) return;
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, ac.currentTime);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), ac.currentTime + dur);
+      g.gain.setValueAtTime(vol, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+      o.connect(g); g.connect(ac.destination);
+      o.start(); o.stop(ac.currentTime + dur);
+    } catch (e) {}
+  }
+  const sfx = {
+    shoot: () => beep(520, 0.1, 'square', 0.05, -300),
+    botShoot: () => beep(300, 0.1, 'sawtooth', 0.04, -150),
+    hit: () => beep(200, 0.18, 'sawtooth', 0.08, -120),
+    crate: () => beep(120, 0.08, 'triangle', 0.08),
+    win: () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'square', 0.07), i * 110)),
+    lose: () => [400, 330, 260, 180].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'sawtooth', 0.07), i * 140)),
+  };
+
+  // ---------- levels ----------
+  // type: 'w' = solid wall, 'c' = crate (breaks after 3 hits)
+  const layouts = [
+    [ [450,100,60,150,'w'], [450,350,60,150,'w'], [290,140,50,50,'c'], [290,410,50,50,'c'], [620,140,50,50,'c'], [620,410,50,50,'c'] ],
+    [ [210,190,22,220,'w'], [728,190,22,220,'w'], [400,270,160,60,'w'], [450,90,60,60,'c'], [450,450,60,60,'c'] ],
+    [ [300,80,60,60,'w'], [300,460,60,60,'w'], [600,80,60,60,'w'], [600,460,60,60,'w'], [430,220,100,40,'c'], [430,340,100,40,'c'], [200,280,40,40,'c'], [720,280,40,40,'c'] ],
+  ];
+
+  // ---------- state ----------
+  let state = 'menu'; // menu | play | paused | over
+  let player, bot, bullets, obstacles, parts, round = 1, wins = 0, best = 0, layoutIdx = 0, shake = 0;
+
+  // ---------- difficulty ----------
+  const DIFFS = {
+    easy:   { label: '😊 Easy',   speed: 1.7, err: 0.28, cd: 1.8, fireP: 0.05, dodge: 0.2, hp: 14, guns: [0] },
+    medium: { label: '😎 Medium', speed: 2.2, err: 0.16, cd: 1.2, fireP: 0.09, dodge: 0.6, hp: 20, guns: [0, 1] },
+    hard:   { label: '😤 Hard',   speed: 2.7, err: 0.08, cd: 1.0, fireP: 0.13, dodge: 0.9, hp: 24, guns: [0, 1, 2] },
+    insane: { label: '💀 Insane', speed: 3.2, err: 0.04, cd: 0.8, fireP: 0.20, dodge: 1.0, hp: 30, guns: [0, 1, 2, 3] },
+  };
+  let diffName = 'medium';
+  try { const d = localStorage.getItem('jawBattleDiff'); if (DIFFS[d]) diffName = d; } catch (e) {}
+  const diff = () => DIFFS[diffName];
+  // coins + owned guns (saved in the browser)
+  let coins = 0, owned = [true, false, false, false], startMap = 0;
+  try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o) && o.length === 4) owned = o.map(Boolean); owned[0] = true; } catch (e) {}
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); } catch (e) {} }
+  function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
+  loadBest();
+
+  // ---------- guns ----------
+  const GUNS = [
+    { name: 'Pistol',      cd: 16, n: 1, spread: 0.02, speed: 9,   dmg: 4, life: 140, freq: 520, color: '#bff3ff', cost: 0 },
+    { name: 'Shotgun',     cd: 50, n: 5, spread: 0.40, speed: 8,   dmg: 1, life: 38,  freq: 220, color: '#ffe08a', cost: 20, info: '5 pellets, great up close' },
+    { name: 'Machine Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 0.6, life: 100, freq: 700, color: '#c8ffb0', cost: 35, info: 'Super fast, tiny damage' },
+    { name: 'Sniper',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 12, life: 80,  freq: 300, color: '#ffffff', cost: 50, info: 'Slow, but 3 hearts per hit!' },
+  ];
+
+  // ---------- building ----------
+  const GRID = 40, BUILD_RANGE = 240, MAX_BLOCKS = 8;
+
+  function makeFighter(x, y, color, isBot) {
+    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
+             // bot brain
+             strafe: 1, strafeT: 0, dodge: 0, stuck: 0 };
+  }
+
+  function startRound() {
+    obstacles = layouts[layoutIdx % layouts.length].map(o => ({ x:o[0], y:o[1], w:o[2], h:o[3], type:o[4], hp:3, maxHp:3 }));
+    player = makeFighter(80, H / 2, '#4fd1ff', false);
+    bot = makeFighter(W - 80, H / 2, '#ff6b9a', true);
+    bullets = []; parts = [];
+    state = 'play';
+    showOverlay(false);
+  }
+
+  function newGame() { round = 1; wins = 0; layoutIdx = startMap; startRound(); }
+
+  // ---------- overlay ----------
+  let ovAction = newGame;
+  const diffRow = document.getElementById('diffRow');
+  let onDiff = null;
+  const panel = document.getElementById('panel');
+  function renderDiff() {
+    diffRow.innerHTML = '';
+    for (const k in DIFFS) {
+      const b = document.createElement('button');
+      b.textContent = DIFFS[k].label;
+      b.className = k === diffName ? 'on' : '';
+      b.onclick = () => {
+        diffName = k; loadBest();
+        try { localStorage.setItem('jawBattleDiff', k); } catch (e) {}
+        renderDiff(); if (onDiff) onDiff();
+      };
+      diffRow.appendChild(b);
+    }
+  }
+  function showOverlay(show, title, text, btn, action, showDiff, build, diffHook) {
+    overlay.classList.toggle('hide', !show);
+    if (!show) return;
+    diffRow.style.display = showDiff ? 'flex' : 'none';
+    onDiff = diffHook || null;
+    if (showDiff) renderDiff();
+    panel.innerHTML = ''; if (build) build(panel);
+    ovTitle.textContent = title; ovText.innerHTML = text; ovBtn.textContent = btn; ovAction = action;
+  }
+  ovBtn.addEventListener('click', () => ovAction());
+  function showMenu() {
+    showOverlay(true, '🦷 JAW BATTLE',
+      'Beat the bot before it beats you! Pick your difficulty:<br>' +
+      '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
+      '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
+      '<b>Pause:</b> P or Esc<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
+      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame, true, menuLinks);
+  }
+  function menuLinks(p) {
+    const row = document.createElement('div'); row.className = 'row';
+    const a = document.createElement('button'); a.textContent = '🛒 Gun Shop'; a.onclick = showShop;
+    const b = document.createElement('button'); b.textContent = '🎲 Make / Join a Game'; b.onclick = showSetup;
+    row.append(a, b); p.appendChild(row);
+  }
+
+  // ---------- gun shop ----------
+  function showShop() {
+    showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Win rounds to earn coins!', 'Back', showMenu, false, p => {
+      for (let i = 1; i < GUNS.length; i++) {
+        const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
+        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b> – ' + g.info;
+        const btn = document.createElement('button');
+        if (owned[i]) { btn.textContent = '✅ Owned'; btn.disabled = true; }
+        else {
+          btn.textContent = 'Buy 💰' + g.cost; btn.disabled = coins < g.cost;
+          btn.onclick = () => { if (coins >= g.cost) { coins -= g.cost; owned[i] = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } };
+        }
+        row.append(label, btn); p.appendChild(row);
+      }
+    });
+  }
+
+  // ---------- make / join a game (challenge codes) ----------
+  const DL = { easy: 'E', medium: 'M', hard: 'H', insane: 'I' };
+  const makeCode = () => 'JAW-' + DL[diffName] + (startMap + 1);
+  function showSetup() {
+    const info = 'Pick a difficulty and a map, then share your code. Friends type it in on their own computer to play the <b>same game</b>, and you can compare win streaks!<br><small>(You each play on your own computer, not live together.)</small>';
+    const draw = () => showOverlay(true, '🎲 Make / Join a Game', info, 'Back', showMenu, true, p => {
+      const maps = document.createElement('div'); maps.className = 'row';
+      ['🗺️ Map 1', '🗺️ Map 2', '🗺️ Map 3'].forEach((t, i) => {
+        const b = document.createElement('button'); b.textContent = t; b.className = i === startMap ? 'on' : '';
+        b.onclick = () => { startMap = i; draw(); }; maps.appendChild(b);
+      });
+      const code = document.createElement('div'); code.innerHTML = 'Your game code:<br><span class="code">' + makeCode() + '</span>';
+      const join = document.createElement('div'); join.className = 'row';
+      const inp = document.createElement('input'); inp.placeholder = 'JAW-H2'; inp.maxLength = 8;
+      const go = document.createElement('button'); go.textContent = 'Join!';
+      const msg = document.createElement('div');
+      inp.addEventListener('keydown', e => e.stopPropagation());
+      go.onclick = () => {
+        const m = /^JAW-?([EMHI])([1-3])$/i.exec(inp.value.trim());
+        if (!m) { msg.textContent = '🤔 That code doesn\'t look right. Try one like JAW-H2.'; return; }
+        diffName = Object.keys(DL).find(k => DL[k] === m[1].toUpperCase()); startMap = +m[2] - 1; loadBest();
+        try { localStorage.setItem('jawBattleDiff', diffName); } catch (e) {}
+        newGame();
+      };
+      join.append(inp, go); p.append(maps, code, join, msg);
+    }, draw);
+    draw();
+  }
+  function pause() {
+    if (state !== 'play') return;
+    state = 'paused';
+    showOverlay(true, '⏸ Paused', 'Take a breather!', 'Resume', resume);
+  }
+  function resume() { if (state === 'paused') { state = 'play'; showOverlay(false); } }
+  pauseBtn.addEventListener('click', () => state === 'paused' ? resume() : pause());
+
+  // ---------- input ----------
+  const keys = {};
+  const mouse = { x: W * 0.75, y: H / 2, down: false };
+  const touch = { moveId: null, ox: 0, oy: 0, dx: 0, dy: 0, aimId: null };
+  addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'p' || k === 'escape') { state === 'paused' ? resume() : pause(); return; }
+    if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+    keys[k] = true;
+    if (state === 'play') {
+      if (k >= '1' && k <= '4' && owned[+k - 1]) player.gun = +k - 1;
+      if (k === 'b' && !e.repeat) tryBuild();
+    }
+  });
+  addEventListener('wheel', e => {
+    if (state === 'play') { const step = e.deltaY > 0 ? 1 : 3; let g = player.gun; for (let i = 0; i < 4; i++) { g = (g + step) % 4; if (owned[g]) { player.gun = g; break; } } }
+  }, { passive: true });
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; pause(); });
+  function sfxUnlock() { unlockAudio(); }
+  function toGame(e) {
+    const r = cv.getBoundingClientRect();
+    return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height];
+  }
+  cv.addEventListener('pointerdown', e => {
+    sfxUnlock();
+    const [x, y] = toGame(e);
+    if (e.pointerType !== 'touch' && e.button === 2) { mouse.x = x; mouse.y = y; if (state === 'play') tryBuild(); return; }
+    if (e.pointerType === 'touch') {
+      cv.setPointerCapture(e.pointerId);
+      if (x < W / 2 && touch.moveId === null) { touch.moveId = e.pointerId; touch.ox = e.clientX; touch.oy = e.clientY; touch.dx = touch.dy = 0; }
+      else if (touch.aimId === null) { touch.aimId = e.pointerId; mouse.x = x; mouse.y = y; mouse.down = true; }
+    } else { mouse.x = x; mouse.y = y; mouse.down = true; }
+  });
+  cv.addEventListener('pointermove', e => {
+    const [x, y] = toGame(e);
+    if (e.pointerType === 'touch') {
+      if (e.pointerId === touch.moveId) {
+        const dx = e.clientX - touch.ox, dy = e.clientY - touch.oy, m = Math.hypot(dx, dy) || 1, k = Math.min(1, m / 40);
+        touch.dx = dx / m * k; touch.dy = dy / m * k;
+      } else if (e.pointerId === touch.aimId) { mouse.x = x; mouse.y = y; }
+    } else { mouse.x = x; mouse.y = y; }
+  });
+  function endPointer(e) {
+    if (e.pointerId === touch.moveId) { touch.moveId = null; touch.dx = touch.dy = 0; }
+    else if (e.pointerId === touch.aimId) { touch.aimId = null; mouse.down = false; }
+    else if (e.pointerType !== 'touch') mouse.down = false;
+  }
+  cv.addEventListener('pointerup', endPointer);
+  cv.addEventListener('pointercancel', endPointer);
+  addEventListener('pointerup', e => { if (e.pointerType !== 'touch') mouse.down = false; });
+
+  // ---------- helpers ----------
+  function circleHitsRect(x, y, r, o) {
+    const cx = Math.max(o.x, Math.min(x, o.x + o.w)), cy = Math.max(o.y, Math.min(y, o.y + o.h));
+    return (x - cx) ** 2 + (y - cy) ** 2 < r * r;
+  }
+  function blocked(x, y, r) {
+    if (x < r || y < r || x > W - r || y > H - r) return true;
+    for (const o of obstacles) if (circleHitsRect(x, y, r, o)) return true;
+    return false;
+  }
+  function moveFighter(f, vx, vy) {
+    if (!blocked(f.x + vx, f.y, f.r)) f.x += vx;
+    if (!blocked(f.x, f.y + vy, f.r)) f.y += vy;
+  }
+  function lineClear(x1, y1, x2, y2) {
+    const d = Math.hypot(x2 - x1, y2 - y1), n = Math.ceil(d / 8);
+    for (let i = 1; i < n; i++) {
+      const px = x1 + (x2 - x1) * i / n, py = y1 + (y2 - y1) * i / n;
+      for (const o of obstacles) if (px > o.x - 3 && px < o.x + o.w + 3 && py > o.y - 3 && py < o.y + o.h + 3) return false;
+    }
+    return true;
+  }
+  function fire(f, owner, gi) {
+    const g = GUNS[gi];
+    for (let i = 0; i < g.n; i++) {
+      const a = f.aim + (g.n > 1 ? (i / (g.n - 1) - 0.5) * g.spread : (Math.random() - 0.5) * g.spread);
+      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg, color: g.color });
+    }
+    const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : 1;
+    f.cd = f.maxCd = Math.round(g.cd * cdMul);
+    beep(g.freq, gi === 3 ? 0.25 : 0.1, owner === 'p' ? 'square' : 'sawtooth', 0.05, -g.freq * 0.5);
+  }
+  const botCdMul = () => diff().cd * Math.max(0.6, 1 - (round - 1) * 0.05);
+
+  function tryBuild() {
+    const p = player;
+    if (p.blocks < 1) return;
+    const gx = Math.floor(mouse.x / GRID) * GRID, gy = Math.floor(mouse.y / GRID) * GRID;
+    if (gx < 0 || gy < 0 || gx + GRID > W || gy + GRID > H) return;
+    if (Math.hypot(gx + GRID / 2 - p.x, gy + GRID / 2 - p.y) > BUILD_RANGE) return;
+    const box = { x: gx, y: gy, w: GRID, h: GRID };
+    for (const o of obstacles) if (gx < o.x + o.w && gx + GRID > o.x && gy < o.y + o.h && gy + GRID > o.y) return;
+    if (circleHitsRect(p.x, p.y, p.r + 3, box) || circleHitsRect(bot.x, bot.y, bot.r + 3, box)) return;
+    obstacles.push({ x: gx, y: gy, w: GRID, h: GRID, type: 'b', hp: 4, maxHp: 4 });
+    p.blocks--;
+    beep(160, 0.08, 'triangle', 0.08, 80);
+  }
+  function burst(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.283, s = 1 + Math.random() * 3;
+      parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 20 + Math.random() * 15, color });
+    }
+  }
+
+  // ---------- update (60 times per second) ----------
+  function update() {
+    // player
+    let mx = 0, my = 0;
+    if (keys['a'] || keys['arrowleft']) mx--;
+    if (keys['d'] || keys['arrowright']) mx++;
+    if (keys['w'] || keys['arrowup']) my--;
+    if (keys['s'] || keys['arrowdown']) my++;
+    if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
+    if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
+    moveFighter(player, mx * 3.2, my * 3.2);
+    player.aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+    if (player.cd > 0) player.cd--;
+    if ((mouse.down || keys[' ']) && player.cd <= 0) fire(player, 'p', player.gun);
+    if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
+
+    updateBot();
+
+    // bullets
+    for (const b of bullets) {
+      b.x += b.vx; b.y += b.vy; b.life--;
+      if (b.x < 0 || b.x > W || b.y < 0 || b.y > H || b.life <= 0) { b.dead = true; continue; }
+      for (const o of obstacles) {
+        if (o.dead) continue;
+        if (b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h) {
+          b.dead = true;
+          if (o.type !== 'w') { const c = o.type === 'b' ? '#4fe0c0' : '#d9a05b'; o.hp--; sfx.crate(); burst(b.x, b.y, c, 5); if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, c, 14); } }
+          else burst(b.x, b.y, '#8f84d6', 3);
+          break;
+        }
+      }
+      if (b.dead) continue;
+      const target = b.owner === 'p' ? bot : player;
+      if (Math.hypot(b.x - target.x, b.y - target.y) < target.r + 4) {
+        b.dead = true; target.hp -= b.dmg; target.flash = 10; shake = 8;
+        burst(b.x, b.y, target.color, 10); sfx.hit();
+      }
+    }
+    bullets = bullets.filter(b => !b.dead);
+    obstacles = obstacles.filter(o => !o.dead);
+    for (const p of parts) { p.x += p.vx; p.y += p.vy; p.life--; }
+    parts = parts.filter(p => p.life > 0);
+    if (player.flash > 0) player.flash--;
+    if (bot.flash > 0) bot.flash--;
+    if (shake > 0) shake--;
+
+    if (bot.hp <= 0) endRound(true);
+    else if (player.hp <= 0) endRound(false);
+  }
+
+  function updateBot() {
+    const b = bot;
+    if (b.cd > 0) b.cd--;
+    const dx = player.x - b.x, dy = player.y - b.y, dist = Math.hypot(dx, dy) || 1;
+    const los = lineClear(b.x, b.y, player.x, player.y);
+    const speed = Math.min(3.4, diff().speed + round * 0.04);
+
+    // dodge incoming bullets
+    let dodge = 0;
+    for (const bl of bullets) {
+      if (bl.owner !== 'p') continue;
+      const rx = b.x - bl.x, ry = b.y - bl.y, sp = Math.hypot(bl.vx, bl.vy);
+      const along = (rx * bl.vx + ry * bl.vy) / sp;
+      const cross = (rx * bl.vy - ry * bl.vx) / sp;
+      if (along > 0 && along < 260 && Math.abs(cross) < 34) dodge = cross >= 0 ? -1 : 1;
+    }
+
+    let vx = 0, vy = 0;
+    const ux = dx / dist, uy = dy / dist;
+    if (dodge && Math.random() < diff().dodge) {
+      vx = uy * dodge; vy = -ux * dodge; // sidestep
+    } else {
+      if (--b.strafeT <= 0) { b.strafe = Math.random() < 0.5 ? -1 : 1; b.strafeT = 40 + Math.random() * 80; }
+      const want = los ? 270 : 0;
+      const push = dist > want + 40 ? 1 : dist < want - 60 ? -1 : 0;
+      vx = ux * push + -uy * b.strafe * (los ? 0.9 : 0.3);
+      vy = uy * push + ux * b.strafe * (los ? 0.9 : 0.3);
+    }
+    const m = Math.hypot(vx, vy) || 1;
+    const ox = b.x, oy = b.y;
+    moveFighter(b, vx / m * speed, vy / m * speed);
+    // stuck on a wall? try the other way
+    if (Math.hypot(b.x - ox, b.y - oy) < speed * 0.4) { if (++b.stuck > 8) { b.strafe *= -1; b.strafeT = 40; b.stuck = 0; } } else b.stuck = 0;
+
+    // aim + shoot
+    const err = Math.max(0.02, diff().err - round * 0.008);
+    const target = Math.atan2(dy, dx);
+    let ad = target - b.aim; while (ad > Math.PI) ad -= 6.283; while (ad < -Math.PI) ad += 6.283;
+    b.aim += Math.max(-0.12, Math.min(0.12, ad));
+    if (los && b.cd <= 0 && Math.abs(ad) < 0.15 && Math.random() < diff().fireP + round * 0.01) {
+      // pick a gun that suits the distance (from the ones this difficulty allows)
+      const ok = diff().guns;
+      let gi = 0;
+      if (dist < 220 && ok.includes(1)) gi = 1;
+      else if (dist > 450 && ok.includes(3)) gi = 3;
+      else if (dist < 400 && ok.includes(2)) gi = 2;
+      b.gun = gi;
+      const real = b.aim; b.aim += (Math.random() - 0.5) * 2 * err; fire(b, 'b', gi); b.aim = real;
+    }
+  }
+
+  function endRound(won) {
+    state = 'over';
+    if (won) {
+      const gain = 10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName]; coins += gain; saveStuff();
+      wins++; round++; layoutIdx++;
+      if (wins > best) { best = wins; try { localStorage.setItem('jawBattleBest_' + diffName, best); } catch (e) {} }
+      sfx.win();
+      showOverlay(true, '🎉 You win!', 'Win streak: <b>' + wins + '</b> &nbsp; 🏆 Best: ' + best + '<br>💰 +' + gain + ' coins (you have ' + coins + ')<br>The next bot is a little tougher...', 'Next round', startRound);
+    } else {
+      sfx.lose(); coins += 2; saveStuff();
+      showOverlay(true, '💥 Bot wins!', 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>💰 +2 coins (you have ' + coins + ')<br>Change the difficulty if you like:', 'Try again', newGame, true, menuLinks);
+    }
+  }
+
+  // ---------- drawing ----------
+  function drawFighter(f, t) {
+    ctx.save(); ctx.translate(f.x, f.y);
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0, f.r - 2, f.r, 6, 0, 0, 6.283); ctx.fill();
+    ctx.rotate(f.aim);
+    const open = 0.25 + 0.5 * (f.cd > 0 ? 1 - f.cd / (f.maxCd || 1) : 1) * (f.cd > 0 ? 0.6 : 0.35);
+    ctx.fillStyle = f.flash > 0 && (f.flash % 4 < 2) ? '#fff' : f.color;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, f.r, open, 6.283 - open); ctx.closePath(); ctx.fill();
+    // teeth
+    ctx.fillStyle = '#fff';
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); const a = s * open;
+      ctx.moveTo(Math.cos(a) * (f.r - 8), Math.sin(a) * (f.r - 8));
+      ctx.lineTo(Math.cos(a) * f.r, Math.sin(a) * f.r);
+      ctx.lineTo(Math.cos(a + s * 0.35) * (f.r - 2), Math.sin(a + s * 0.35) * (f.r - 2));
+      ctx.closePath(); ctx.fill();
+    }
+    // eye
+    ctx.fillStyle = '#120b2e'; ctx.beginPath(); ctx.arc(-3, -7, 3, 0, 6.283); ctx.fill();
+    ctx.restore();
+  }
+
+  function draw(t) {
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    ctx.clearRect(-10, -10, W + 20, H + 20);
+    // floor grid
+    ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = 1;
+    for (let x = 0; x <= W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y <= H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    if (obstacles) {
+      for (const o of obstacles) {
+        if (o.type === 'w') {
+          ctx.fillStyle = '#5a4bb5'; ctx.fillRect(o.x, o.y, o.w, o.h);
+          ctx.strokeStyle = '#8f84d6'; ctx.lineWidth = 3; ctx.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
+        } else {
+          const mine = o.type === 'b';
+          ctx.fillStyle = mine ? '#1f9c86' : '#b9803f'; ctx.fillRect(o.x, o.y, o.w, o.h);
+          ctx.strokeStyle = mine ? '#4fe0c0' : '#7a4f1f'; ctx.lineWidth = 3; ctx.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
+          ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x + o.w, o.y + o.h); ctx.moveTo(o.x + o.w, o.y); ctx.lineTo(o.x, o.y + o.h); ctx.stroke();
+          if (o.hp < o.maxHp) { ctx.fillStyle = 'rgba(0,0,0,' + (0.6 * (o.maxHp - o.hp) / o.maxHp) + ')'; ctx.fillRect(o.x, o.y, o.w, o.h); }
+        }
+      }
+      // build preview
+      if (state === 'play' && player.blocks > 0) {
+        const gx = Math.floor(mouse.x / GRID) * GRID, gy = Math.floor(mouse.y / GRID) * GRID;
+        const inRange = Math.hypot(gx + GRID / 2 - player.x, gy + GRID / 2 - player.y) <= BUILD_RANGE;
+        ctx.strokeStyle = inRange ? 'rgba(79,224,192,.7)' : 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+        ctx.strokeRect(gx + 1, gy + 1, GRID - 2, GRID - 2); ctx.setLineDash([]);
+      }
+      for (const b of bullets) {
+        ctx.fillStyle = b.owner === 'p' ? b.color : '#ffc2d6';
+        ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, 6.283); ctx.fill();
+        ctx.fillStyle = b.owner === 'p' ? 'rgba(79,209,255,.35)' : 'rgba(255,107,154,.35)';
+        ctx.beginPath(); ctx.arc(b.x - b.vx * 0.8, b.y - b.vy * 0.8, 4, 0, 6.283); ctx.fill();
+      }
+      drawFighter(player, t); drawFighter(bot, t);
+      for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.color; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }
+      ctx.globalAlpha = 1;
+      // HUD
+      ctx.font = '700 20px system-ui, sans-serif'; ctx.textBaseline = 'top';
+      const bar = (x, w, f, col, label, right) => {
+        ctx.textAlign = right ? 'right' : 'left'; ctx.fillStyle = col; ctx.fillText(label, right ? x + w : x, 12);
+        // 5 hearts: each heart is worth 4 health. Hurt hearts fade out.
+        ctx.font = '22px system-ui, sans-serif'; ctx.textAlign = 'left';
+        for (let i = 0; i < 5; i++) {
+          const left = Math.max(0, Math.min(4, f.hp - i * 4));
+          ctx.globalAlpha = left >= 4 ? 1 : left >= 2 ? 0.55 : left > 0 ? 0.3 : 0.12;
+          ctx.fillText('❤️', x + i * 30, 36);
+        }
+        ctx.globalAlpha = 1; ctx.font = '700 20px system-ui, sans-serif';
+      };
+      bar(16, 150, player, '#4fd1ff', 'YOU', false);
+      bar(W - 166, 150, bot, '#ff6b9a', 'BOT', true);
+      ctx.textAlign = 'center'; ctx.fillStyle = '#cfc8f5';
+      ctx.fillText('Round ' + round + '  •  Streak ' + wins, W / 2, 12);
+      ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(diff().label, W / 2, 38);
+      // gun slots + wall blocks
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < GUNS.length; i++) {
+        const x = 16 + i * 112, y = H - 34, sel = player.gun === i; ctx.globalAlpha = owned[i] ? 1 : 0.35;
+        ctx.fillStyle = sel ? 'rgba(255,176,32,.9)' : 'rgba(255,255,255,.1)';
+        ctx.beginPath(); ctx.roundRect(x, y, 104, 26, 8); ctx.fill();
+        ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 13px system-ui, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + GUNS[i].name, x + 52, y + 14); ctx.globalAlpha = 1;
+      }
+      ctx.textAlign = 'right'; ctx.fillStyle = '#4fe0c0'; ctx.font = '700 15px system-ui, sans-serif';
+      ctx.fillText('🧱 ' + '■'.repeat(player.blocks) + '□'.repeat(MAX_BLOCKS - player.blocks) + '  (B)', W - 16, H - 20);
+    }
+    ctx.restore();
+  }
+
+  // ---------- fixed 60 fps timestep ----------
+  const STEP = 1000 / 60;
+  let last = 0, acc = 0;
+  function frame(t) {
+    requestAnimationFrame(frame);
+    if (!last) last = t;
+    acc += Math.min(100, t - last); last = t;
+    while (acc >= STEP) { if (state === 'play') update(); acc -= STEP; }
+    draw(t);
+  }
+  showMenu();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

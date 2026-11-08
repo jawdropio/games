@@ -5,17 +5,65 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Jaw Breaker</title>
 <style>
-  html, body { margin:0; height:100%; background:#0d0824; overflow:hidden; font-family:system-ui, sans-serif; }
+  html, body { margin:0; height:100%; background:#1c0e06; overflow:hidden; font-family:system-ui, sans-serif; }
   canvas { display:block; width:100vw; height:100vh; touch-action:none; cursor:none; }
   a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; z-index:1; }
   #pause { position:fixed; bottom:16px; right:16px; z-index:1; width:56px; height:56px; border-radius:50%;
            border:3px solid #a99ee0; background:#1e1450; color:#f4f1ff; font-size:24px; cursor:pointer; }
+  #opBtn { position:fixed; bottom:16px; left:16px; z-index:3; height:40px; padding:0 14px; border-radius:20px; border:2px solid #a99ee0; background:#1e1450; color:#f4f1ff; font:700 14px system-ui; cursor:pointer; }
+  #opBox { position:fixed; bottom:64px; left:16px; z-index:3; display:none; background:#1e1450; border:2px solid #a99ee0; border-radius:12px; padding:10px; }
+  #opBox.open { display:block; }
+  #opInput { width:150px; padding:6px; border-radius:8px; border:2px solid #a99ee0; background:#160f3a; color:#f4f1ff; font:700 14px system-ui; }
+  #opMsg { margin-top:6px; min-height:16px; font:700 13px system-ui; color:#ffd23f; }
   #pause:hover { border-color:#3ee6c1; }
+  body.store-open #pause { right:236px; }
+  #inv { position:fixed; bottom:16px; right:84px; z-index:1; display:flex; gap:8px; }
+  body.store-open #inv, body.store-open #invMsg { right:304px; }
+  #invMsg { position:fixed; bottom:82px; right:84px; z-index:1; color:#ffd23f; font:800 14px system-ui; text-shadow:0 2px 4px #000; }
+  #inv .slot { position:relative; width:56px; height:56px; border-radius:14px; border:3px solid #ffd23f; background:#1e1450; color:#f4f1ff; font-size:26px; cursor:pointer; padding:0; }
+  #inv .slot:hover { border-color:#3ee6c1; }
+  #inv .slot .key { position:absolute; top:1px; left:5px; font:800 11px system-ui; color:#a99ee0; }
+  #inv .slot .count { position:absolute; bottom:0; right:4px; font:800 14px system-ui; color:#ffd23f; }
+  #inv .slot .wait { position:absolute; inset:0; border-radius:10px; background:rgba(13,8,36,.7); font:800 13px system-ui; display:grid; place-items:center; }
+  #storeTab { position:fixed; top:50%; right:0; z-index:2; transform:translateY(-50%); writing-mode:vertical-rl;
+              padding:14px 8px; border:3px solid #ffd23f; border-right:none; border-radius:12px 0 0 12px;
+              background:#1e1450; color:#ffd23f; font:800 16px system-ui; cursor:pointer; }
+  body.store-open #storeTab { right:220px; }
+  #store { position:fixed; top:0; right:0; bottom:0; width:220px; box-sizing:border-box; z-index:2; padding:16px 14px;
+           background:#1e1450; border-left:3px solid #ffd23f; color:#f4f1ff; overflow-y:auto; display:none; }
+  body.store-open #store { display:block; }
+  #store h2 { margin:0 0 4px; font-size:22px; color:#ffd23f; }
+  #coinBal { font-weight:800; font-size:20px; margin-bottom:12px; }
+  #store .item { display:flex; align-items:center; gap:10px; width:100%; margin-bottom:10px; padding:10px; text-align:left;
+                 border:2px solid #a99ee0; border-radius:12px; background:#160f3a; color:#f4f1ff; font:700 14px system-ui; cursor:pointer; }
+  #store .item:hover:not(:disabled) { border-color:#3ee6c1; }
+  #store .item:disabled { opacity:.45; cursor:not-allowed; }
+  #store .icon { flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:#160f3a; font-weight:800; font-size:18px; }
+  #tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  #store .tab { flex:1 1 40%; flex:1; padding:8px 4px; border:2px solid #a99ee0; border-radius:10px; background:#160f3a; color:#f4f1ff; font:800 12px system-ui; cursor:pointer; }
+  #store .tab.on { background:#ffd23f; border-color:#ffd23f; color:#160f3a; }
+  #store .skin.equipped, #store .pad.equipped { border-color:#3ee6c1; }
+  #store .price { display:block; color:#ffd23f; font-weight:800; }
+  #storeMsg { min-height:20px; margin-top:6px; font-size:13px; color:#a99ee0; }
 </style>
 </head>
 <body>
 <a href="../">← Arcade</a>
+<button id="opBtn" title="Operator mode">🔑</button>
+<div id="opBox"><input id="opInput" type="password" placeholder="Operator code" autocomplete="off"><div id="opMsg"></div></div>
+<div id="invMsg"></div>
+<div id="inv"></div>
 <button id="pause" title="Pause (P or Esc)">⏸</button>
+<button id="storeTab" title="Power-up store">🛍️ STORE</button>
+<div id="store">
+  <h2>🛍️ Store</h2>
+  <div id="coinBal"></div>
+  <div id="tabs"><button class="tab on" data-tab="items">⚡ Power-ups</button><button class="tab" data-tab="skins">🎨 Balls</button><button class="tab" data-tab="paddles">🏓 Paddles</button></div>
+  <div id="items"></div>
+  <div id="skins" style="display:none"></div>
+  <div id="paddles" style="display:none"></div>
+  <div id="storeMsg"></div>
+</div>
 <canvas id="c"></canvas>
 <script>
 // Jaw Breaker: smash every candy brick with the ball.
@@ -28,7 +76,10 @@ const ctx = c.getContext('2d');
 const W = 800, H = 600;           // the playfield; it gets scaled to fit the window
 let scale = 1, offX = 0, offY = 0;
 function resize() {
-  c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
+  // when the store is open the game squeezes to make room for it
+  const availW = innerWidth - (document.body.classList.contains('store-open') ? 220 : 0);
+  c.style.width = availW + 'px';
+  c.width = availW * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
   scale = Math.min(c.width / W, c.height / H);
   offX = (c.width - W * scale) / 2; offY = (c.height - H * scale) / 2;
 }
@@ -36,8 +87,9 @@ addEventListener('resize', resize); resize();
 
 // ---------- sound (little beeps made in code) ----------
 let audio;
+const MUTED = true;   // set to false to bring the sounds back
 function beep(freq, len = 0.06, type = 'square', vol = 0.06) {
-  if (!audio) return;
+  if (MUTED || !audio) return;
   const o = audio.createOscillator(), g = audio.createGain();
   o.type = type; o.frequency.value = freq;
   g.gain.setValueAtTime(vol, audio.currentTime);
@@ -46,62 +98,158 @@ function beep(freq, len = 0.06, type = 'square', vol = 0.06) {
 }
 
 // ---------- levels: each number is how many hits a brick takes ----------
-const LEVELS = [
-  ['1111111111',
-   '1111111111',
-   '2222222222',
-   '1111111111'],
-  ['..222222..',
-   '.21111112.',
-   '2113333112',
-   '.21111112.',
-   '..222222..'],
-  ['3.3.3.3.3.',
-   '.2.2.2.2.2',
-   '1111111111',
-   '2.2.2.2.2.',
-   '.3.3.3.3.3',
-   '1111111111'],
-];
-const COLS = 10, BW = 70, BH = 24, GAP = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
-const COLORS = { 1: '#3ee6c1', 2: '#ffd23f', 3: '#ff5d8f' };
+// 100 levels. Every level is harder than the last one:
+//  - more rows, and tougher bricks (2, 3 and even 4 hits)
+//  - the ball starts faster and the paddle gets smaller
+//  - from level 7 on, the whole wall creeps DOWN, and if it reaches your paddle it's game over!
+// Every 10th level is a BOSS: a solid wall of extra-tough bricks that drops fast.
+// Beat a boss and you win 5 more hearts! ❤️
+const LEVEL_COUNT = 100;
+function isBoss(n = level) { return n % 10 === 9; }
+function bossHP(n) { return 3 + Math.floor((Math.floor(n / 10) + 1) / 4); }   // bosses 1-3: 3 hits, 4-7: 4 hits, 8-10: 5 hits
+function makeLevel(n) {
+  if (isBoss(n)) {
+    const wall = Array.from({ length: Math.min(10, 5 + Math.floor(n / 10) + 1) }, () => String(bossHP(n)).repeat(10));
+    if (n >= 49) wall[wall.length - 1] = 'BXBXBXBXBX'.replace(/X/g, bossHP(n));   // from boss 5 on, black bricks guard the bottom row
+    return wall;
+  }
+  let seed = n * 7919 + 13;                        // same random numbers every time, so a level is always the same
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const rows = Math.min(10, 5 + Math.floor(n / 12)), h = n / (LEVEL_COUNT - 1);
+  const shapes = [
+    () => true,                                                    // solid wall
+    (r, c) => (r + c) % 2 === 0,                                   // checkerboard
+    (r, c) => Math.abs(c - 4.5) <= r + 1,                          // pyramid
+    (r, c) => c % 3 !== 2,                                         // stripes with gaps
+    (r, c) => r === 0 || r === rows - 1 || c === 0 || c === 9 || (r > 1 && r < rows - 2 && c > 2 && c < 7),   // fortress
+    (r, c) => (c + (r % 4 < 2 ? r : 4 - r) * 2) % 5 !== 0,         // zigzag
+    (r, c) => Math.abs(c - 4.5) <= rows - r,                       // upside-down pyramid
+    (r, c) => c % 2 === 0,                                         // tall columns
+    (r, c) => (r + c) % 4 !== 0,                                   // diagonal stripes
+    (r, c) => r % 2 === 0 || c === 0 || c === 9,                   // shelves
+  ];
+  const shape = shapes[(n + Math.floor(n / 10)) % shapes.length];
+  const holes = 0.12 * (1 - h);                                    // a few random gaps early on, fewer later
+  const pattern = [];
+  for (let r = 0; r < rows; r++) {
+    let row = '';
+    for (let c = 0; c < 10; c++) {
+      if (!shape(r, c) || rnd() < holes) { row += '.'; continue; }
+      if (n >= 20 && r > 0 && rnd() < Math.min(0.2, (h - 0.15) * 0.22)) { row += 'B'; continue; }   // black bricks start at level 21
+      row += 1 + (rnd() < h * 0.9 ? 1 : 0) + (rnd() < h * h * 0.8 ? 1 : 0) + (n >= 50 && rnd() < (h - 0.5) * 0.6 ? 1 : 0);   // tougher and tougher
+    }
+    pattern.push(row);
+  }
+  if (!/\d/.test(pattern[0])) pattern[0] = '1111111111';           // always something in the top row
+  return pattern;
+}
+const LEVELS = Array.from({ length: LEVEL_COUNT }, (_, n) => makeLevel(n));
+function paddleBase() { return Math.max(60, 110 - Math.floor(level * 0.5)); }        // the paddle shrinks as you go
+function dropEvery() {   // frames between wall drops (0 = the wall stays put)
+  if (level < 6) return 0;
+  const f = Math.max(540, 1800 - (level - 6) * 30);
+  return isBoss() ? Math.max(480, Math.round(f * 0.75)) : f;
+}
+const COLS = 10, BW = 70, BH = 24, GAP = 6, GAPY = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
+const COLORS = { 1: '#f0b13c', 2: '#e0651f', 3: '#c1272d', 4: '#a855c8', 5: '#7a4a21' };   // gold, pumpkin, crimson, plum, bark brown
+function shade(hex, amt) {   // make a color lighter (amt > 0) or darker (amt < 0)
+  const n = parseInt(hex.slice(1), 16), f = v => Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt));
+  return `rgb(${f(n >> 16)}, ${f((n >> 8) & 255)}, ${f(n & 255)})`;
+}
 const POWERUPS = ['W', 'M', 'S', '+', 'F'];
-const DROP_COLORS = { W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
+const ICONS = { R: '🌈', W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '🔥', X: '🦔', N: '☢️' };   // what each power-up looks like
+const DROP_COLORS = { R: '#ff7ad9', N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
 
-let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer;
+let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0, wideStacks = 0, spikeCool = 0, spikeRings = [];
+let bgPic = null;
+function makeBackground() {
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  let seed = 4242; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const sky = g.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#24102f'); sky.addColorStop(0.35, '#6a2a1a'); sky.addColorStop(0.7, '#b8581a'); sky.addColorStop(1, '#e8902e');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  g.shadowColor = '#ffcf7a'; g.shadowBlur = 60; g.fillStyle = '#ffd89a';           // big harvest moon
+  g.beginPath(); g.arc(610, 170, 62, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+  g.fillStyle = 'rgba(200, 130, 60, 0.35)';
+  for (const c of [[595, 160, 12], [630, 190, 9], [620, 145, 7]]) { g.beginPath(); g.arc(c[0], c[1], c[2], 0, Math.PI * 2); g.fill(); }   // moon craters
+  // far-away forest: layers of misty round treetops
+  for (const [y, col] of [[440, 'rgba(120, 50, 20, 0.55)'], [480, 'rgba(80, 32, 12, 0.8)']]) {
+    g.fillStyle = col;
+    for (let x = -20; x < W + 30; x += 26) { g.beginPath(); g.arc(x, y + rnd() * 25, 26 + rnd() * 18, 0, Math.PI * 2); g.fill(); }
+    g.fillRect(0, y + 25, W, H);
+  }
+  // big foreground trees with wiggly trunks, branches, and fluffy leafy tops
+  const leafCols = ['#c2410c', '#e07a1f', '#f2a93b', '#a3200f', '#d9531e'];
+  function tree(x, base, h, wid) {
+    g.fillStyle = '#2a1206';
+    g.beginPath(); g.moveTo(x - wid, base); g.quadraticCurveTo(x - wid * 0.4, base - h * 0.5, x - wid * 0.5, base - h); g.lineTo(x + wid * 0.5, base - h); g.quadraticCurveTo(x + wid * 0.4, base - h * 0.5, x + wid, base); g.fill();
+    g.strokeStyle = '#2a1206'; g.lineWidth = wid * 0.35; g.lineCap = 'round';
+    for (const [dx, dy] of [[-70, -0.55], [60, -0.65], [-40, -0.85], [45, -0.95]]) {   // branches
+      g.beginPath(); g.moveTo(x, base - h * Math.abs(dy) * 0.8); g.lineTo(x + dx, base - h * Math.abs(dy) - 25); g.stroke();
+    }
+    for (let i = 0; i < 26; i++) {   // fluffy canopy
+      const a0 = rnd() * Math.PI * 2, d = rnd() * h * 0.42;
+      g.fillStyle = leafCols[Math.floor(rnd() * leafCols.length)]; g.globalAlpha = 0.9;
+      g.beginPath(); g.arc(x + Math.cos(a0) * d * 1.3, base - h - 20 + Math.sin(a0) * d * 0.8, 22 + rnd() * 26, 0, Math.PI * 2); g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+  tree(55, H, 330, 26); tree(755, H, 360, 28); tree(175, H, 230, 16); tree(645, H, 250, 17);
+  // the ground: a carpet of leaves, plus a few pumpkins
+  g.fillStyle = '#4a2108'; g.fillRect(0, 565, W, 40);
+  for (let i = 0; i < 160; i++) {
+    g.fillStyle = leafCols[Math.floor(rnd() * leafCols.length)]; g.beginPath();
+    g.ellipse(rnd() * W, 568 + rnd() * 34, 7, 3.5, rnd() * 3, 0, Math.PI * 2); g.fill();
+  }
+  for (const x of [105, 705, 415]) {
+    g.fillStyle = '#e8741a'; g.beginPath(); g.ellipse(x, 572, 17, 13, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#c75b0e'; g.beginPath(); g.ellipse(x - 6, 572, 6, 12, 0, 0, Math.PI * 2); g.ellipse(x + 6, 572, 6, 12, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#3d6b1f'; g.fillRect(x - 2, 557, 4, 7);
+  }
+  return cv;
+}
+let pops = [];   // little "+10 🍬" messages that float up
 let tick = 0;   // counts up every update; used to animate rainbow colors
 function rainbow(offset = 0) { return `hsl(${(tick * 4 + offset) % 360}, 95%, 62%)`; }
 
-function newGame() { score = 0; lives = 3; level = 0; loadLevel(); }
+function newGame() { spikeCool = 0; multiBuys = 0; score = 0; lives = 3; level = 0; loadLevel(); }
 function loadLevel() {
-  const pattern = LEVELS[level % LEVELS.length];
+  const pattern = LEVELS[level];
+  dropTimer = dropEvery(); bossWon = false;
   bricks = [];
-  pattern.forEach((row, r) => [...row].forEach((ch, col) => {
-    if (ch === '.') return;
-    bricks.push({ x: LEFT + col * (BW + GAP), y: TOP + r * (BH + GAP), hp: +ch, max: +ch });
-  }));
+  pattern.forEach((row0, r) => {
+    // patterns are written 10 wide; stretch each one to fill all the columns
+    const row = [...row0].map(ch => ch.repeat(COLS / row0.length)).join('');
+    [...row].forEach((ch, col) => {
+      if (ch === '.') return;
+      const black = ch === 'B', hp = black ? 5 : +ch;   // B = black brick: 5 hits, and the spike ball can't break it
+      bricks.push({ x: LEFT + col * (BW + GAP), y: TOP + r * (BH + GAPY), hp, max: hp, black });
+    });
+  });
   // one brick per level is the RAINBOW brick, and it's HARD to get:
   //  - it's always in the top row (the farthest away)
   //  - it takes 6 hits, and fireballs can't burn through it (they only chip it)
   //  - the power-up it drops falls fast and wiggles side to side
   const topY = Math.min(...bricks.map(b => b.y));
-  const topRow = bricks.filter(b => b.y === topY);
+  const topRow = bricks.filter(b => b.y === topY && !b.black);
   const special = topRow[Math.floor(Math.random() * topRow.length)];
   special.rainbow = true; special.hp = 6; special.max = 6;
-  paddle = { x: W / 2, y: H - 40, w: 110, h: 14 };
-  drops = []; sparks = []; wideTimer = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; brokenThisLevel = 0;
+  paddle = { x: W / 2, y: H - 40, w: paddleBase(), h: 14 };
+  nukeMissile = null; nukeSlam = null; shake = 0; updateStore(); drops = []; sparks = []; wideTimer = 0; wideStacks = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
   resetBall();
   state = 'ready';
+  updateStore();
 }
 // Starts slow and speeds up a little with every brick you break.
 // Each new level starts a bit faster than the last one did.
-let brokenThisLevel = 0;
-function speed() { return Math.min(9, 3.5 + level * 0.5 + brokenThisLevel * 0.06); }
+let brokenThisLevel = 0, dropTimer = 0, bossWon = false;
+function speed() { return Math.min(13, 3.5 + level * 0.1 + (isBoss() ? 1.5 : 0) + brokenThisLevel * 0.05); }
 function resetBall() { balls = [{ x: paddle.x, y: paddle.y - 10, vx: 0, vy: 0, r: 8, stuck: true }]; }
 
 function launch() {
   if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-  if (state === 'over') { newGame(); return; }
+  if (state === 'over' || state === 'won') { newGame(); return; }
   if (state === 'clear') { level++; loadLevel(); return; }
   if (state === 'ready') {
     state = 'play';
@@ -115,7 +263,7 @@ let paused = false;
 const pauseBtn = document.getElementById('pause');
 function setPaused(p) {
   // nothing to pause on the game over / level clear screens
-  if (p && (state === 'over' || state === 'clear')) return;
+  if (p && (state === 'over' || state === 'clear' || state === 'won')) return;
   paused = p;
   pauseBtn.textContent = paused ? '▶' : '⏸';
 }
@@ -137,12 +285,123 @@ addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'Escape') { setPaused(!paused); return; }
   if (paused) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setPaused(false); } return; }
   if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); launch(); }
+  if (e.key === 'r') { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); newGame(); beep(440, 0.1, 'sine', 0.08); }   // restart the whole game
+  if (/^[1-9]$/.test(e.key)) { const it = STORE[+e.key - 1]; if (it) useItem(it.kind); }   // 1-8 use the power-ups in your bag
+  if (!operator) return;   // everything below is for OPERATORS only
   if (e.key === 'f') { fireTimer = 60 * 8; beep(140, 0.4, 'sawtooth', 0.07); }   // cheat key for testing the fireball
-  if (e.key === 'r') startRainbow();                                               // cheat key for testing the rainbow fireball
+  if (e.key === 'm' && state === 'play') { multiball(); beep(660, 0.12, 'sine', 0.08); }   // cheat key for testing more balls
+  if (e.key === 'b') startRainbow();
+  if (e.key === 'n' && state !== 'won') { level = Math.min(level + 1, LEVEL_COUNT - 1); loadLevel(); }   // cheat key: skip to the next level
+  if (e.key === 'c') addCoins(10000000000);   // cheat key: 10 billion coins!                                              // cheat key for testing the rainbow fireball
 });
 addEventListener('keyup', e => { keys[e.key] = false; });
 
 // ---------- game logic ----------
+// switch on a power-up (used by falling power-ups AND the store)
+function givePower(kind) {
+  if (kind === 'W') { wideStacks++; wideTimer = 60 * 12; }   // every Wide Paddle makes it bigger, up to half the screen
+  if (kind === 'S') slowTimer = 60 * 10;
+  if (kind === '+') lives = Math.min(lives + 1, 99);
+  if (kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
+  if (kind === 'M') multiball();
+  if (kind === 'R') startRainbow();
+  if (kind === 'N') nuke();
+  if (kind === 'X') { spikeTimer = 60 * 30; beep(90, 0.5, 'sawtooth', 0.08); updateStore(); }
+}
+
+// the spike ball explodes when its time is up, then it needs 25 seconds to cool down
+const SPIKE_COOLDOWN = 60 * 25;
+function spikeEnds() {
+  for (const b of balls) {
+    spikeRings.push({ x: b.x, y: b.y, life: 30 });
+    burst(b.x, b.y, '#c77dff', 40); burst(b.x, b.y, '#fff', 20);
+    for (const n of bricks) {
+      if (n.hp > 0 && !n.black && Math.hypot(n.x + BW / 2 - b.x, n.y + BH / 2 - b.y) < 200) breakBrick(n, n.rainbow ? rainbow() : '#c77dff');
+    }
+  }
+  beep(70, 0.7, 'sawtooth', 0.1);
+  spikeCool = SPIKE_COOLDOWN; updateStore();
+}
+
+// NUKE: every single brick goes boom
+let nukeFlash = 0;
+let nukeMissile = null;
+const NUKE_LAST_LEVEL = 75;   // after this level the nuke stops working
+function nukeAllowed() { return level < NUKE_LAST_LEVEL; }   // level counts from 0, so levels 1-75
+let nukeSlam = null, shake = 0;
+const SLAM_FRAMES = 90;   // the animal peeks in, grabs the nuke, winds up, and SLAMS it at this frame
+function nuke() {
+  if (nukeMissile || nukeSlam || !nukeAllowed()) return;
+  const k = SKINS.find(x => x.id === skinNow);
+  if (k && k.emoji) {   // ANIMAL ball: your animal pokes in over the top, grabs the nuke, and SLAMS it on the screen
+    nukeSlam = { t: 0, emoji: k.emoji };
+    beep(120, 0.8, 'sawtooth', 0.08);
+    return;
+  }
+  // normal ball: launch a missile from the paddle; it explodes up high (see update)
+  nukeMissile = { x: paddle.x, y: paddle.y - 10, vy: -4 };
+  beep(200, 0.5, 'sawtooth', 0.08);
+}
+function destroyEverything(x, y) {
+  nukeFlash = 45; shake = 28;
+  burst(x, y, '#ffd23f', 60);
+  for (const br of bricks) if (br.hp > 0) breakBrick(br, br.rainbow ? rainbow() : ['#ff3b1a', '#ff7a1a', '#ffd23f'][Math.floor(Math.random() * 3)]);
+  beep(60, 0.8, 'sawtooth', 0.1);
+}
+// The animal nuke scene (90 frames, then the BOOM):
+//   0-30  the animal's head pokes in over the top of the screen
+//  30-60  its head shakes and a nuke slowly comes OUT OF ITS MOUTH
+//  60-75  the nuke hovers and charges up, glowing
+//  75-90  the animal spits it out: the nuke SLAMS down onto the screen
+function drawSlamScene(n) {
+  const t = n.t, ease = p => 1 - (1 - p) * (1 - p), clamp = v => Math.max(0, Math.min(1, v));
+  let headY, headShake = 0;
+  if (t < 30) headY = -240 + (140 + 240) * ease(t / 30);
+  else if (t < 75) { headY = 140; headShake = Math.sin(t * 1.3) * (t - 30) * 0.12; }          // shakes harder as the nuke comes out
+  else if (t < SLAM_FRAMES) headY = 140 - 60 * ease((t - 75) / 15);                           // recoils from spitting it out
+  else headY = 80 - (t - SLAM_FRAMES) * 14;                                                   // then runs away
+  let nukeY = -999, nukeScale = 1, nukeShake = 0;
+  if (t >= 30 && t < 60) nukeY = 140 + (340 - 140) * ease((t - 30) / 30);                      // slides out of the mouth
+  else if (t >= 60 && t < 75) { nukeY = 340; nukeShake = Math.sin(t * 2) * 4; }               // hovers and charges
+  else if (t >= 75 && t < SLAM_FRAMES) { const q = Math.pow((t - 75) / 15, 2); nukeY = 340 + (H / 2 - 340) * q; nukeScale = 1 + 2.5 * q; }
+  const drawNuke = () => {
+    if (nukeY === -999) return;
+    ctx.save(); ctx.translate(W / 2 + nukeShake, nukeY); ctx.scale(nukeScale, -nukeScale);   // upside down: the nose points down
+    ctx.shadowColor = '#ff7a1a'; ctx.shadowBlur = t >= 60 ? 30 : 0;
+    ctx.fillStyle = '#e8e4ff'; roundRect(-22, -60, 44, 120, 14);                                // the nuke: body, red nose, fins
+    ctx.fillStyle = '#ff3b1a'; ctx.beginPath(); ctx.moveTo(-22, 60); ctx.lineTo(0, 105); ctx.lineTo(22, 60); ctx.fill();
+    ctx.fillStyle = '#ff5d8f'; ctx.beginPath(); ctx.moveTo(-22, -30); ctx.lineTo(-48, -75); ctx.lineTo(-22, -65); ctx.moveTo(22, -30); ctx.lineTo(48, -75); ctx.lineTo(22, -65); ctx.fill();
+    ctx.shadowBlur = 0; ctx.scale(1, -1);                                                       // flip back so the symbol isn't upside down
+    ctx.font = '40px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#160f3a'; ctx.fillText('☢️', 0, 0);
+    ctx.restore();
+  };
+  const drawHead = () => {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '260px system-ui'; ctx.fillText(n.emoji, W / 2 + headShake, headY);
+    ctx.restore();
+  };
+  if (t < 75) { drawNuke(); drawHead(); } else { drawHead(); drawNuke(); }   // before the throw the nuke is behind the head, so it looks like it comes out of it
+  ctx.textBaseline = 'alphabetic';
+  if (t >= SLAM_FRAMES) {
+    const q = (t - SLAM_FRAMES) / 45;
+    ctx.globalAlpha = Math.max(0, 1 - q); text('💥 BOOM! 💥', W / 2, H / 2 + 120 * q, 90, '#ffd23f'); ctx.globalAlpha = 1;
+  }
+}
+
+function nukeExplode() {
+  destroyEverything(nukeMissile.x, nukeMissile.y);
+  nukeMissile = null;
+}
+
+// every moving ball splits into 3 (used by the M power-up and the M cheat key)
+function multiball() {
+  const extra = [];
+  for (const b of balls) if (!b.stuck) for (const t of [-0.5, 0.5]) {
+    const a = Math.atan2(b.vx, -b.vy) + t;
+    extra.push({ x: b.x, y: b.y, r: b.r, vx: Math.sin(a) * speed(), vy: -Math.cos(a) * speed() });
+  }
+  balls.push(...extra);
+}
 function burst(x, y, color, n = 12) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 4;
@@ -162,6 +421,7 @@ function flame(x, y) {
 function breakBrick(br, color) {
   br.hp = 0;
   score += 10 * br.max;
+  addCoins(br.rainbow ? 15 : br.max);   // tougher bricks pay more
   brokenThisLevel++;
   burst(br.x + BW / 2, br.y + BH / 2, color, br.rainbow ? 40 : 14);
   const x = br.x + BW / 2, y = br.y + BH / 2;
@@ -169,9 +429,17 @@ function breakBrick(br, color) {
   else if (Math.random() < 0.15) drops.push({ x, y, kind: POWERUPS[Math.floor(Math.random() * POWERUPS.length)] });
 }
 
+function rainbowAllowed() { return level < LEVEL_COUNT - 1; }   // the rainbow fireball is disabled on level 100
 function startRainbow() {
+  if (!rainbowAllowed()) return;
   rainbowTimer = fireTimer = 60 * 12;
   [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'sine', 0.08), i * 90));
+}
+
+function bounceOff(br, ball) {
+  const overlapX = Math.min(ball.x + ball.r - br.x, br.x + BW - (ball.x - ball.r));
+  const overlapY = Math.min(ball.y + ball.r - br.y, br.y + BH - (ball.y - ball.r));
+  if (overlapX < overlapY) ball.vx = -ball.vx; else ball.vy = -ball.vy;
 }
 
 function hitBrick(br, ball) {
@@ -180,25 +448,50 @@ function hitBrick(br, ball) {
   const dx = ball.x - cx, dy = ball.y - cy;
   if (dx * dx + dy * dy > ball.r * ball.r) return false;
 
-  // FIREBALL: burn straight through. No bounce, and any brick breaks in one hit.
-  if (fireTimer > 0 && !br.rainbow) {
-    breakBrick(br, '#ff7a1a');
+  // hit a brick FROM ABOVE (the ball comes down onto its top)? That's a 10 candy bonus!
+  if (ball.vy > 0 && ball.y <= br.y && !(br.topCool > 0)) {
+    br.topCool = 20; addCoins(10);
+    pops.push({ x: br.x + BW / 2, y: br.y, life: 50 });
+  }
+
+  // SPIKE BALL (OP!): it plows straight through and EXPLODES every brick around it, even the rainbow one.
+  // The ONE thing it can't break is a black brick: it just bounces off those.
+  if (spikeTimer > 0 && rainbowTimer <= 0) {   // (the rainbow fireball beats the spike ball, so it can break black bricks too)
+    if (br.black) { if (br.cool > 0) return false; br.cool = 6; bounceOff(br, ball); beep(150, 0.05, 'square'); return true; }
+    for (const n of bricks) {
+      if (n.hp > 0 && !n.black && Math.hypot(n.x + BW / 2 - ball.x, n.y + BH / 2 - ball.y) < 130) breakBrick(n, n.rainbow ? rainbow() : '#c77dff');
+    }
+    beep(100 + Math.random() * 60, 0.15, 'sawtooth', 0.07);
+    return false;
+  }
+
+  // FIREBALL: burns straight through most bricks (one hit). Purple bricks need 2 fire hits and
+  // black bricks need 5; the fireball bounces off a brick it didn't break yet.
+  // The RAINBOW fireball breaks ANYTHING in one hit: black bricks, boss bricks, even the rainbow brick.
+  const rb = rainbowTimer > 0;
+  if (fireTimer > 0 && (!br.rainbow || rb)) {
+    const dmg = rb ? 99 : br.black ? 1 : (br.max === 4 ? 2 : 99);
+    if (br.hp > dmg) {
+      if (br.cool > 0) return false;
+      br.cool = 6; br.hp -= dmg; score += 5;
+      bounceOff(br, ball); beep(200, 0.06, 'sawtooth', 0.05);
+      return true;
+    }
+    breakBrick(br, br.black ? '#8a7fb5' : '#ff7a1a');
     beep(180 + Math.random() * 80, 0.1, 'sawtooth', 0.05);
     // RAINBOW FIREBALL: also blows up every brick touching the one it hit
     if (rainbowTimer > 0) {
       for (const n of bricks) {
-        if (n.hp > 0 && !n.rainbow && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAP) breakBrick(n, rainbow(n.x));
+        if (n.hp > 0 && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAPY) breakBrick(n, rainbow(n.x));
       }
     }
     return false;   // keep going: it can hit more bricks right away
   }
 
-  const overlapX = Math.min(ball.x + ball.r - br.x, br.x + BW - (ball.x - ball.r));
-  const overlapY = Math.min(ball.y + ball.r - br.y, br.y + BH - (ball.y - ball.r));
-  if (overlapX < overlapY) ball.vx = -ball.vx; else ball.vy = -ball.vy;
+  bounceOff(br, ball);
   br.hp--;
   if (br.hp <= 0) {
-    breakBrick(br, br.rainbow ? rainbow() : COLORS[br.max]);
+    breakBrick(br, br.rainbow ? rainbow() : (br.black ? '#8a7fb5' : COLORS[br.max]));
     // nudge the ball up to the new speed, keeping its direction
     const len = Math.hypot(ball.vx, ball.vy) || 1;
     ball.vx = ball.vx / len * speed(); ball.vy = ball.vy / len * speed();
@@ -212,12 +505,40 @@ function hitBrick(br, ball) {
 function update() {
   if (keys.ArrowLeft) paddle.x -= 10;
   if (keys.ArrowRight) paddle.x += 10;
-  paddle.w = wideTimer > 0 ? 170 : 110;
+  paddle.w = Math.min(W / 2, paddleBase() + wideStacks * 70);   // grows with every Wide Paddle, max = half the screen
   paddle.x = Math.max(paddle.w / 2, Math.min(W - paddle.w / 2, paddle.x));
-  if (wideTimer > 0) wideTimer--;
+  if (wideTimer > 0 && --wideTimer === 0) wideStacks = 0;
   if (slowTimer > 0) slowTimer--;
   tick++;
+  // the wall creeps down! (level 7 and up)
+  if (state === 'play' && dropEvery() > 0 && --dropTimer <= 0) {
+    dropTimer = dropEvery();
+    for (const br of bricks) br.y += BH + GAPY;
+    beep(120, 0.2, 'sawtooth', 0.06);
+    if (bricks.some(br => br.y + BH >= paddle.y - 20)) { state = 'over'; beep(80, 0.6, 'sawtooth', 0.1); }
+  }
   if (rainbowTimer > 0) rainbowTimer--;
+  if (spikeTimer > 0 && --spikeTimer === 0) spikeEnds();
+  if (spikeCool > 0) { spikeCool--; if (spikeCool % 60 === 0) updateStore(); }
+  for (const r of spikeRings) r.life--;
+  spikeRings = spikeRings.filter(r => r.life > 0);
+  if (nukeFlash > 0) nukeFlash--;
+  for (const br of bricks) { if (br.cool > 0) br.cool--; if (br.topCool > 0) br.topCool--; }
+  for (const p of pops) { p.life--; p.y -= 0.7; }
+  pops = pops.filter(p => p.life > 0);
+  if (shake > 0) shake--;
+  if (nukeSlam) {
+    nukeSlam.t++;
+    if (nukeSlam.t === SLAM_FRAMES) destroyEverything(W / 2, H / 2);   // SLAM!
+    if (nukeSlam.t > SLAM_FRAMES + 45) nukeSlam = null;
+  }
+  if (nukeMissile) {   // the missile speeds up as it flies, with a smoky flame trail
+    nukeMissile.vy = Math.max(nukeMissile.vy - 0.35, -16);
+    nukeMissile.y += nukeMissile.vy;
+    for (let i = 0; i < 3; i++) sparks.push({ x: nukeMissile.x + (Math.random() - 0.5) * 8, y: nukeMissile.y + 22, vx: (Math.random() - 0.5) * 1.5, vy: 1 + Math.random() * 2, life: 20 + Math.random() * 15, color: ['#ff3b1a', '#ff7a1a', '#ffd23f', '#999'][Math.floor(Math.random() * 4)], g: 0 });
+    if (nukeMissile.y <= 190) nukeExplode();
+  }
+  for (const b of balls) b.r = spikeTimer > 0 ? 16 : 8;   // the spike ball is big
   if (fireTimer > 0) { fireTimer--; for (const b of balls) { flame(b.x, b.y); flame(b.x, b.y); if (rainbowTimer > 0) flame(b.x, b.y); } }
 
   for (const s of sparks) { s.x += s.vx; s.y += s.vy; s.vy += s.g; s.life--; }
@@ -233,6 +554,7 @@ function update() {
       if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx); beep(660, 0.03); }
       if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx); beep(660, 0.03); }
       if (b.y < b.r) { b.y = b.r; b.vy = Math.abs(b.vy); beep(660, 0.03); }
+      if (spikeTimer > 0 && b.y > H - b.r) { b.y = H - b.r; b.vy = -Math.abs(b.vy); }   // spike ball can't fall out the bottom
       // paddle: where you hit it decides the bounce angle
       if (b.vy > 0 && b.y + b.r >= paddle.y && b.y < paddle.y + paddle.h && Math.abs(b.x - paddle.x) <= paddle.w / 2 + b.r) {
         const hit = (b.x - paddle.x) / (paddle.w / 2);           // -1 (left edge) .. 1 (right edge)
@@ -244,12 +566,17 @@ function update() {
     }
   }
   bricks = bricks.filter(br => br.hp > 0);
+  for (const b of balls) {   // squash for a moment whenever the ball bounces (its direction flips)
+    if (b.lvx !== undefined && (Math.sign(b.vx) !== Math.sign(b.lvx) || Math.sign(b.vy) !== Math.sign(b.lvy))) b.squash = 10;
+    b.lvx = b.vx; b.lvy = b.vy;
+    if (b.squash > 0) b.squash--;
+  }
 
   const before = balls.length;
   balls = balls.filter(b => b.y - b.r < H);
   if (before && !balls.length) {
     lives--; beep(110, 0.4, 'sawtooth', 0.08);
-    if (lives <= 0) { state = 'over'; } else { resetBall(); state = 'ready'; wideTimer = slowTimer = fireTimer = rainbowTimer = 0; }
+    if (lives <= 0) { state = 'over'; } else { resetBall(); state = 'ready'; wideTimer = wideStacks = slowTimer = fireTimer = rainbowTimer = spikeTimer = 0; }
   }
 
   for (const d of drops) {
@@ -257,24 +584,12 @@ function update() {
     else d.y += 2.5;
     if (d.y > paddle.y && d.y < paddle.y + paddle.h + 10 && Math.abs(d.x - paddle.x) < paddle.w / 2 + 12) {
       d.got = true; beep(880, 0.12, 'sine', 0.08);
-      if (d.kind === 'W') wideTimer = 60 * 12;
-      if (d.kind === 'S') slowTimer = 60 * 10;
-      if (d.kind === '+') lives = Math.min(lives + 1, 6);
-      if (d.kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
-      if (d.kind === 'R') startRainbow();
-      if (d.kind === 'M') {
-        const extra = [];
-        for (const b of balls) if (!b.stuck) for (const t of [-0.5, 0.5]) {
-          const a = Math.atan2(b.vx, -b.vy) + t;
-          extra.push({ x: b.x, y: b.y, r: b.r, vx: Math.sin(a) * speed(), vy: -Math.cos(a) * speed() });
-        }
-        balls.push(...extra);
-      }
+      if (d.kind === 'R') startRainbow(); else givePower(d.kind);
     }
   }
   drops = drops.filter(d => !d.got && d.y < H + 20);
 
-  if (state === 'play' && !bricks.length) { state = 'clear'; score += 100; beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
+  if ((state === 'play' || state === 'ready') && !bricks.length && !nukeSlam && !nukeMissile) { state = level === LEVEL_COUNT - 1 ? 'won' : 'clear'; score += 100 + level * 20; addCoins(20 + level * 5); bossWon = isBoss(); if (bossWon) lives = Math.min(lives + 5, 99); beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
 }
 
 // ---------- drawing ----------
@@ -285,9 +600,11 @@ function text(str, x, y, size, color, align = 'center') {
 
 function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#0d0824'; ctx.fillRect(0, 0, c.width, c.height);
-  ctx.setTransform(scale, 0, 0, scale, offX, offY);
-  ctx.fillStyle = '#160f3a'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#1c0e06'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.setTransform(scale, 0, 0, scale, offX + (shake ? (Math.random() - 0.5) * shake * 1.2 * scale : 0), offY + (shake ? (Math.random() - 0.5) * shake * 1.2 * scale : 0));
+  // ---------- FALL THEME: the background is painted once (see makeBackground), ----------
+  if (!bgPic) bgPic = makeBackground();
+  ctx.drawImage(bgPic, 0, 0, W, H);
 
   for (const br of bricks) {
     if (br.rainbow) {
@@ -295,10 +612,26 @@ function draw() {
       const g = ctx.createLinearGradient(br.x, 0, br.x + BW, 0);
       for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rainbow(i * 70));
       ctx.fillStyle = g;
-    } else ctx.fillStyle = COLORS[br.hp];
+    } else if (br.black) ctx.fillStyle = '#14101e';
+    else {   // warm gradient, like a painted autumn leaf
+      const base = COLORS[br.hp], g = ctx.createLinearGradient(0, br.y, 0, br.y + BH);
+      g.addColorStop(0, shade(base, 0.3)); g.addColorStop(0.5, base); g.addColorStop(1, shade(base, -0.3));
+      ctx.fillStyle = g;
+    }
     roundRect(br.x, br.y, BW, BH, 8);
+    if (br.black) {   // black brick: dark with a shiny edge, and a number for the hits left
+      ctx.strokeStyle = '#8a7fb5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(br.x + 1, br.y + 1, BW - 2, BH - 2, 8); ctx.stroke();
+      text(br.hp, br.x + BW / 2, br.y + BH / 2 + 6, 16, '#f4f1ff');
+      continue;
+    }
     if (br.rainbow) text(br.hp, br.x + BW / 2, br.y + BH / 2 + 6, 16, '#160f3a');   // hits left
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'; roundRect(br.x + 6, br.y + 4, BW - 12, 5, 3);   // candy shine
+    if (!br.rainbow) {   // leaf veins and a little stem
+      ctx.strokeStyle = 'rgba(60, 20, 0, 0.3)'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.moveTo(br.x + 10, br.y + BH / 2); ctx.lineTo(br.x + BW - 10, br.y + BH / 2);
+      for (const k of [0.3, 0.5, 0.7]) { ctx.moveTo(br.x + BW * k, br.y + BH / 2); ctx.lineTo(br.x + BW * k + 6, br.y + 5); ctx.moveTo(br.x + BW * k, br.y + BH / 2); ctx.lineTo(br.x + BW * k + 6, br.y + BH - 5); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255, 240, 200, 0.35)'; roundRect(br.x + 6, br.y + 3, BW - 12, 4, 2);   // shine
   }
   for (const d of drops) {
     if (d.kind === 'R') {
@@ -310,15 +643,39 @@ function draw() {
     }
     ctx.fillStyle = DROP_COLORS[d.kind];
     roundRect(d.x - 14, d.y - 10, 28, 20, 10);
-    text(d.kind, d.x, d.y + 6, 14, '#160f3a');
+    text(ICONS[d.kind], d.x, d.y + 6, 15, '#160f3a');
   }
   for (const s of sparks) { ctx.globalAlpha = Math.max(0, s.life / 50); ctx.fillStyle = s.color; ctx.fillRect(s.x - 2, s.y - 2, 4, 4); }
   ctx.globalAlpha = 1;
 
-  ctx.fillStyle = wideTimer > 0 ? '#3ee6c1' : '#f4f1ff';
-  roundRect(paddle.x - paddle.w / 2, paddle.y, paddle.w, paddle.h, 7);
+  drawPaddle();
   for (const b of balls) {
-    if (fireTimer > 0) {
+    if (spikeTimer > 0) {
+      // SPIKE BALL: glowing purple aura, two spinning rings of spikes, and a shiny metal core
+      const ending = spikeTimer < 120 && Math.floor(spikeTimer / 8) % 2;
+      const hue = ending ? 0 : 280 + Math.sin(tick * 0.1) * 30;
+      ctx.shadowColor = ending ? '#fff' : `hsl(${hue}, 100%, 65%)`; ctx.shadowBlur = 28;
+      for (const [count, len, spin, col] of [[12, 15, 1, `hsl(${hue}, 90%, 55%)`], [12, 10, -1.6, `hsl(${hue + 40}, 95%, 72%)`]]) {
+        ctx.fillStyle = ending ? '#fff' : col;
+        ctx.beginPath();
+        for (let i = 0; i < count; i++) {
+          const a0 = i * Math.PI * 2 / count + tick * 0.06 * spin, w = Math.PI / count * 0.55;
+          ctx.moveTo(b.x + Math.cos(a0 - w) * b.r * 0.8, b.y + Math.sin(a0 - w) * b.r * 0.8);
+          ctx.lineTo(b.x + Math.cos(a0) * (b.r + len), b.y + Math.sin(a0) * (b.r + len));
+          ctx.lineTo(b.x + Math.cos(a0 + w) * b.r * 0.8, b.y + Math.sin(a0 + w) * b.r * 0.8);
+        }
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      const g = ctx.createRadialGradient(b.x - 5, b.y - 5, 2, b.x, b.y, b.r);
+      g.addColorStop(0, '#fff'); g.addColorStop(0.35, '#d9c2ff'); g.addColorStop(1, '#4b1d8f');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ff3b6b';   // angry eyes!
+      ctx.fillRect(b.x - 8, b.y - 4, 6, 4); ctx.fillRect(b.x + 2, b.y - 4, 6, 4);
+      if (!(tick % 2)) sparks.push({ x: b.x + (Math.random() - 0.5) * 20, y: b.y + (Math.random() - 0.5) * 20, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, life: 18, color: `hsl(${hue + Math.random() * 60}, 100%, 70%)`, g: 0 });
+      continue;
+    }
+    if (fireTimer > 0 && !(SKINS.find(x => x.id === skinNow) || {}).emoji) {   // (animal balls turn red instead, see drawAnimal)
       // glowing fireball; it flickers in its last 2 seconds so you know it's ending
       const ending = fireTimer < 120 && Math.floor(fireTimer / 8) % 2;
       const rb = rainbowTimer > 0;
@@ -328,14 +685,36 @@ function draw() {
       ctx.fillStyle = rb ? rainbow(180) : '#ffd23f'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 3, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
     } else {
-      ctx.fillStyle = slowTimer > 0 ? '#8ab4ff' : '#fff';
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+      drawSkinBall(b);
     }
   }
 
+  for (const r of spikeRings) {
+    ctx.globalAlpha = r.life / 30; ctx.strokeStyle = '#c77dff'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(r.x, r.y, (30 - r.life) * 7, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const p of pops) { ctx.globalAlpha = Math.min(1, p.life / 25); text('+10 🍬', p.x, p.y - 4, 18, '#ffd23f'); ctx.globalAlpha = 1; }
+  if (nukeMissile) {   // the missile: body, red nose, fins, and a flame
+    const m = nukeMissile;
+    ctx.fillStyle = '#e8e4ff'; roundRect(m.x - 7, m.y - 14, 14, 34, 4);
+    ctx.fillStyle = '#ff3b1a'; ctx.beginPath(); ctx.moveTo(m.x - 7, m.y - 14); ctx.lineTo(m.x, m.y - 30); ctx.lineTo(m.x + 7, m.y - 14); ctx.fill();
+    ctx.fillStyle = '#ff5d8f'; ctx.beginPath(); ctx.moveTo(m.x - 7, m.y + 8); ctx.lineTo(m.x - 15, m.y + 24); ctx.lineTo(m.x - 7, m.y + 20); ctx.moveTo(m.x + 7, m.y + 8); ctx.lineTo(m.x + 15, m.y + 24); ctx.lineTo(m.x + 7, m.y + 20); ctx.fill();
+    text('☢️', m.x, m.y + 8, 12, '#160f3a');
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(m.x - 5, m.y + 20); ctx.lineTo(m.x, m.y + 40 + Math.random() * 14); ctx.lineTo(m.x + 5, m.y + 20); ctx.fill();
+  }
+  if (nukeSlam) drawSlamScene(nukeSlam);
+  if (nukeFlash > 0) {   // big white-orange flash that fades out
+    ctx.globalAlpha = nukeFlash / 45; ctx.fillStyle = nukeFlash > 30 ? '#fff' : '#ffb347'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+  }
   text('SCORE ' + score, 20, 40, 20, '#f4f1ff', 'left');
-  text('LEVEL ' + (level + 1), W / 2, 40, 20, '#a99ee0');
-  text('❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
+  text((isBoss() ? '👹 BOSS ' : 'LEVEL ') + (level + 1) + ' / ' + LEVEL_COUNT, W / 2, 40, 20, isBoss() ? '#ff5d8f' : '#a99ee0');
+  if (dropEvery() > 0 && state === 'play') {   // countdown bar until the wall creeps down
+    ctx.fillStyle = '#2d1f6b'; ctx.fillRect(W / 2 - 80, 52, 160, 8);
+    ctx.fillStyle = dropTimer < 180 ? '#ff5d8f' : '#ffd23f'; ctx.fillRect(W / 2 - 80, 52, 160 * dropTimer / dropEvery(), 8);
+    text('⬇ wall drops', W / 2, 76, 12, '#a99ee0');
+  }
+  text(lives > 8 ? '❤️ x' + lives : '❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
+  text('🍬 ' + (operator ? '∞' : coins), 20, 68, 18, '#ffd23f', 'left');
 
   if (paused) {
     ctx.fillStyle = 'rgba(13, 8, 36, 0.7)'; ctx.fillRect(0, 0, W, H);
@@ -343,10 +722,324 @@ function draw() {
     text('Click, or press P, Esc, or space to keep playing', W / 2, H / 2 + 44, 22, '#f4f1ff');
     return;
   }
-  if (state === 'ready') text('Click, tap, or press space to launch!', W / 2, H / 2 + 60, 22, '#f4f1ff');
-  if (state === 'clear') { text('LEVEL CLEAR!', W / 2, H / 2, 52, '#ffd23f'); text('Click for the next level', W / 2, H / 2 + 44, 22, '#f4f1ff'); }
+  if (state === 'ready') {
+    text('Click, tap, or press space to launch!', W / 2, H / 2 + 60, 22, '#f4f1ff');
+    if (isBoss()) text('BOSS LEVEL! Beat it for +5 hearts ❤️', W / 2, H / 2 + 100, 26, '#ff5d8f');
+    else if (dropEvery() > 0) text('Careful: the wall creeps down!', W / 2, H / 2 + 100, 20, '#ffd23f');
+  }
+  if (state === 'won') {
+    text('YOU MASTERED JAW BREAKER! 🏆', W / 2, H / 2 - 10, 40, rainbow());
+    text('All 100 levels beaten!  Score: ' + score, W / 2, H / 2 + 34, 22, '#f4f1ff');
+    text('Click to play again', W / 2, H / 2 + 68, 20, '#a99ee0');
+  }
+  if (state === 'clear') {
+    text(bossWon ? '👹 BOSS BEATEN!' : 'LEVEL CLEAR!', W / 2, H / 2, 52, '#ffd23f');
+    if (bossWon) text('+5 hearts! ❤️❤️❤️❤️❤️', W / 2, H / 2 + 44, 28, '#ff5d8f');
+    text('Click for the next level', W / 2, H / 2 + (bossWon ? 84 : 44), 22, '#f4f1ff');
+  }
   if (state === 'over') { text('GAME OVER', W / 2, H / 2, 56, '#ff5d8f'); text('Score: ' + score + '  ·  Click to play again', W / 2, H / 2 + 44, 22, '#f4f1ff'); }
 }
+
+// ---------- coins and the power-up store ----------
+let coins = 0;
+try { coins = Math.max(0, parseInt(localStorage.getItem('jawbreaker.coins.v2'), 10) || 0); } catch (e) {}
+function addCoins(n) { coins += n; saveCoins(); updateStore(); }
+function saveCoins() { try { localStorage.setItem('jawbreaker.coins.v2', coins); } catch (e) {} }
+
+// ---------- operator mode: type the secret code to unlock infinite candy and the test keys (F, M, B, N, C) ----------
+// It is never saved, so you have to type the code again every time the game loads.
+const OPERATOR_CODE = 'JAW123';
+let operator = false;
+try { localStorage.removeItem('jawbreaker.operator'); } catch (e) {}   // forget the old saved login
+let multiBuys = 0;   // how many Multiballs you bought (each one costs 50 more)
+const STORE = [
+  { kind: 'W', name: 'Wide Paddle', price: 100 },
+  { kind: 'S', name: 'Slow Ball', price: 75 },
+  { kind: 'M', name: 'Multiball', price: 100 },
+  { kind: 'F', name: 'Fireball', price: 200 },
+  { kind: '+', name: 'Extra Life', price: 300 },
+  { kind: 'X', name: 'Spike Ball', price: 1000000 },
+  { kind: 'R', name: 'Rainbow Fireball', price: 10000000 },
+  { kind: 'N', name: 'Nuke Ball', price: 2000000 },
+];
+STORE.sort((a, b) => a.price - b.price);   // cheapest at the top, most expensive at the bottom
+const storeEl = document.getElementById('store'), itemsEl = document.getElementById('items');
+const msgEl = document.getElementById('storeMsg'), tabEl = document.getElementById('storeTab');
+for (const it of STORE) {
+  const b = document.createElement('button');
+  b.className = 'item'; b.dataset.kind = it.kind;
+  b.innerHTML = `<span class="icon" style="background:${DROP_COLORS[it.kind]}">${ICONS[it.kind]}</span><span>${it.name}<span class="price">🍬 ${priceOf(it).toLocaleString()}</span></span>`;
+  b.addEventListener('click', () => { buy(it); b.blur(); });
+  itemsEl.appendChild(b);
+}
+// ---------- the bag: power-ups you bought in advance ----------
+let inv = {};
+try { inv = JSON.parse(localStorage.getItem('jawbreaker.inv') || '{}') || {}; } catch (e) { inv = {}; }
+function saveInv() { try { localStorage.setItem('jawbreaker.inv', JSON.stringify(inv)); } catch (e) {} }
+const invEl = document.getElementById('inv'), invMsgEl = document.getElementById('invMsg');
+let invMsgTimer = 0;
+function invSay(t) { invMsgEl.textContent = t; clearTimeout(invMsgTimer); invMsgTimer = setTimeout(() => { invMsgEl.textContent = ''; }, 2200); }
+function slotWait(kind) {   // is this power-up not usable yet? (the spike ball has a cool down)
+  if (kind === 'X') return spikeTimer > 0 ? '⚡' : spikeCool > 0 ? Math.ceil(spikeCool / 60) + 's' : '';
+  return '';
+}
+function updateInv() {
+  invEl.innerHTML = '';
+  STORE.forEach((it, i) => {
+    if (!(inv[it.kind] > 0)) return;
+    const b = document.createElement('button');
+    b.className = 'slot'; b.title = it.name + ' (press ' + (i + 1) + ')';
+    const wait = slotWait(it.kind);
+    b.innerHTML = '<span class="key">' + (i + 1) + '</span>' + ICONS[it.kind] + '<span class="count">' + inv[it.kind] + '</span>' + (wait ? '<span class="wait">' + wait + '</span>' : '');
+    b.addEventListener('click', () => { useItem(it.kind); b.blur(); });
+    b.addEventListener('pointerdown', e => e.stopPropagation());   // don't launch the ball
+    invEl.appendChild(b);
+  });
+}
+function useItem(kind) {
+  const it = STORE.find(i => i.kind === kind);
+  if (!(inv[kind] > 0) || paused) return;
+  if (state !== 'play' && state !== 'ready') return invSay('Start a level first!');
+  if (kind === '+' && lives >= 99) return invSay('You already have max lives!');
+  if (kind === 'X' && spikeTimer > 0) return invSay('The Spike Ball is already active!');
+  if (kind === 'X' && spikeCool > 0) return invSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
+  if (kind === 'R' && !rainbowAllowed()) return invSay('The Rainbow Fireball is disabled on level 100!');
+  if (kind === 'N' && !nukeAllowed()) return invSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
+  if (kind === 'N' && (nukeMissile || nukeSlam)) return invSay('A nuke is already on its way!');
+  if (kind === 'M' && !balls.some(b => !b.stuck)) return invSay('Launch the ball first!');   // (the nuke can go off before launching)
+  inv[kind]--; saveInv();
+  givePower(kind); beep(880, 0.12, 'sine', 0.08);
+  invSay('Used ' + it.name + '! ✨');
+  updateInv();
+}
+
+// ---------- ball designs (just for looks) ----------
+const SKINS = [
+  { id: 'classic', name: 'Classic White', color: '#ffffff', price: 0 },
+  { id: 'black', name: 'Black Ball', color: '#1a1a1a', price: 50 },
+  { id: 'green', name: 'Green Ball', color: '#2ecc40', price: 50 },
+  { id: 'red', name: 'Red Ball', color: '#ff3b3b', price: 75 },
+  { id: 'blue', name: 'Blue Ball', color: '#3b82f6', price: 75 },
+  { id: 'pink', name: 'Pink Ball', color: '#ff7ad9', price: 100 },
+  { id: 'gold', name: 'Gold Ball', color: '#ffd23f', price: 150 },
+  { id: 'rainbow', name: 'Rainbow Ball', color: '#ffffff', price: 500 },
+  // animal balls: a colored ball with an animal face that spins as it flies
+  { id: 'cat', name: 'Cat Ball', color: '#ffd9a8', emoji: '🐱', price: 100 },
+  { id: 'dog', name: 'Dog Ball', color: '#d9a066', emoji: '🐶', price: 100 },
+  { id: 'frog', name: 'Frog Ball', color: '#8fdc5a', emoji: '🐸', price: 100 },
+  { id: 'panda', name: 'Panda Ball', color: '#ffffff', emoji: '🐼', price: 150 },
+  { id: 'fox', name: 'Fox Ball', color: '#ff9a3c', emoji: '🦊', price: 150 },
+  { id: 'pig', name: 'Pig Ball', color: '#ffb3c7', emoji: '🐷', price: 150 },
+  { id: 'monkey', name: 'Monkey Ball', color: '#b9803f', emoji: '🐵', price: 200 },
+  { id: 'tiger', name: 'Tiger Ball', color: '#ffc04d', emoji: '🐯', price: 200 },
+  { id: 'penguin', name: 'Penguin Ball', color: '#9ad1ff', emoji: '🐧', price: 250 },
+  { id: 'unicorn', name: 'Unicorn Ball', color: '#f3d9ff', emoji: '🦄', price: 400 },
+];
+let skinsOwned = ['classic'], skinNow = 'classic';
+try {
+  const saved = JSON.parse(localStorage.getItem('jawbreaker.skins') || 'null');
+  if (saved && Array.isArray(saved.owned) && SKINS.some(k => k.id === saved.now)) { skinsOwned = saved.owned.filter(id => SKINS.some(k => k.id === id)); skinNow = saved.now; }
+} catch (e) {}
+if (!skinsOwned.includes('classic')) skinsOwned.push('classic');
+function saveSkins() { try { localStorage.setItem('jawbreaker.skins', JSON.stringify({ owned: skinsOwned, now: skinNow })); } catch (e) {} }
+const skinsEl = document.getElementById('skins');
+for (const k of SKINS) {
+  const b = document.createElement('button');
+  b.className = 'item skin'; b.dataset.id = k.id;
+  const bg = k.id === 'rainbow' ? 'linear-gradient(135deg,#ff3b3b,#ffd23f,#3ee6c1,#3b82f6,#c77dff)' : k.color;
+  b.innerHTML = `<span class="icon" style="background:${bg};border:2px solid #f4f1ff;font-size:20px">${k.emoji || ''}</span><span>${k.name}<span class="price"></span></span>`;
+  b.addEventListener('click', () => { pickSkin(k); b.blur(); });
+  skinsEl.appendChild(b);
+}
+function pickSkin(k) {
+  if (!skinsOwned.includes(k.id)) {
+    if (!operator && coins < k.price) return storeSay('Not enough candy yet!');
+    if (!operator) { coins -= k.price; saveCoins(); }
+    skinsOwned.push(k.id); storeSay('Bought the ' + k.name + '! 🎨');
+  } else storeSay('Now using the ' + k.name + '!');
+  skinNow = k.id; saveSkins(); beep(880, 0.1, 'sine', 0.08); updateStore();
+}
+function updateSkins() {
+  for (const b of skinsEl.children) {
+    const k = SKINS.find(x => x.id === b.dataset.id), owned = skinsOwned.includes(k.id);
+    b.classList.toggle('equipped', k.id === skinNow);
+    b.disabled = !owned && !operator && coins < k.price;
+    b.querySelector('.price').textContent = k.id === skinNow ? '✓ Using' : owned ? 'Tap to use' : '🍬 ' + k.price.toLocaleString();
+  }
+}
+// ---------- paddle colors (just for looks) ----------
+const PADDLES = [
+  { id: 'classic', name: 'Classic White', color: '#f4f1ff', price: 0 },
+  { id: 'red', name: 'Red Paddle', color: '#ff3b3b', price: 50 },
+  { id: 'orange', name: 'Orange Paddle', color: '#ff8c1a', price: 50 },
+  { id: 'green', name: 'Green Paddle', color: '#2ecc40', price: 75 },
+  { id: 'blue', name: 'Blue Paddle', color: '#3b82f6', price: 75 },
+  { id: 'pink', name: 'Pink Paddle', color: '#ff7ad9', price: 100 },
+  { id: 'black', name: 'Black Paddle', color: '#222222', price: 100 },
+  { id: 'gold', name: 'Gold Paddle', color: '#ffd23f', price: 200 },
+  { id: 'rainbow', name: 'Rainbow Paddle', color: '#ffffff', price: 500 },
+];
+let padsOwned = ['classic'], padNow = 'classic';
+try {
+  const saved = JSON.parse(localStorage.getItem('jawbreaker.paddles') || 'null');
+  if (saved && Array.isArray(saved.owned) && PADDLES.some(k => k.id === saved.now)) { padsOwned = saved.owned.filter(id => PADDLES.some(k => k.id === id)); padNow = saved.now; }
+} catch (e) {}
+if (!padsOwned.includes('classic')) padsOwned.push('classic');
+function savePads() { try { localStorage.setItem('jawbreaker.paddles', JSON.stringify({ owned: padsOwned, now: padNow })); } catch (e) {} }
+const padsEl = document.getElementById('paddles');
+for (const k of PADDLES) {
+  const b = document.createElement('button');
+  b.className = 'item pad'; b.dataset.id = k.id;
+  const bg = k.id === 'rainbow' ? 'linear-gradient(135deg,#ff3b3b,#ffd23f,#3ee6c1,#3b82f6,#c77dff)' : k.color;
+  b.innerHTML = `<span class="icon" style="background:${bg};border:2px solid #f4f1ff;border-radius:8px"></span><span>${k.name}<span class="price"></span></span>`;
+  b.addEventListener('click', () => { pickPad(k); b.blur(); });
+  padsEl.appendChild(b);
+}
+function pickPad(k) {
+  if (!padsOwned.includes(k.id)) {
+    if (!operator && coins < k.price) return storeSay('Not enough candy yet!');
+    if (!operator) { coins -= k.price; saveCoins(); }
+    padsOwned.push(k.id); storeSay('Bought the ' + k.name + '! 🏓');
+  } else storeSay('Now using the ' + k.name + '!');
+  padNow = k.id; savePads(); beep(880, 0.1, 'sine', 0.08); updateStore();
+}
+function updatePads() {
+  for (const b of padsEl.children) {
+    const k = PADDLES.find(x => x.id === b.dataset.id), owned = padsOwned.includes(k.id);
+    b.classList.toggle('equipped', k.id === padNow);
+    b.disabled = !owned && !operator && coins < k.price;
+    b.querySelector('.price').textContent = k.id === padNow ? '✓ Using' : owned ? 'Tap to use' : '🍬 ' + k.price.toLocaleString();
+  }
+}
+// draw the paddle in the chosen color (with a teal glow while a Wide Paddle is active)
+function drawPaddle() {
+  const k = PADDLES.find(x => x.id === padNow) || PADDLES[0];
+  const x = paddle.x - paddle.w / 2, y = paddle.y;
+  let g;
+  if (k.id === 'rainbow') { g = ctx.createLinearGradient(x, 0, x + paddle.w, 0); for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rainbow(i * 70)); }
+  else { g = ctx.createLinearGradient(0, y, 0, y + paddle.h); g.addColorStop(0, shade(k.color, 0.4)); g.addColorStop(0.5, k.color); g.addColorStop(1, shade(k.color, -0.3)); }
+  if (wideTimer > 0) { ctx.shadowColor = '#3ee6c1'; ctx.shadowBlur = 18; }
+  ctx.fillStyle = g; roundRect(x, y, paddle.w, paddle.h, 7);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(x, y, paddle.w, paddle.h, 7); ctx.stroke();   // light edge so the black one shows up
+}
+
+// switching between the store tabs
+for (const t of document.querySelectorAll('#tabs .tab')) t.addEventListener('click', () => {
+  for (const o of document.querySelectorAll('#tabs .tab')) o.classList.toggle('on', o === t);
+  itemsEl.style.display = t.dataset.tab === 'items' ? '' : 'none';
+  skinsEl.style.display = t.dataset.tab === 'skins' ? '' : 'none';
+  padsEl.style.display = t.dataset.tab === 'paddles' ? '' : 'none';
+  storeSay(''); t.blur();
+});
+// draw a normal ball in the chosen design
+// An ANIMAL ball: the ball IS the animal. It stretches when it zooms, squashes when it bounces, and wiggles.
+function drawAnimal(b, k) {
+  const speedNow = Math.hypot(b.vx || 0, b.vy || 0), ang = Math.atan2(b.vy || 0, b.vx || 1);
+  const hit = b.squash > 0 ? b.squash / 10 : 0;                          // 1 right after a bounce, fading to 0
+  const along = 1 + Math.min(0.3, speedNow * 0.025) - hit * 0.35;        // long when fast, flat when it just hit something
+  const across = 1 / along;
+  const wiggle = Math.sin(tick * 0.2 + b.x * 0.02) * 0.25;
+  const bob = b.stuck ? Math.sin(tick * 0.15) * 2 : 0;                   // hops on the paddle while waiting to launch
+  ctx.save(); ctx.translate(b.x, b.y + bob);
+  if (slowTimer > 0) { ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, b.r + 6, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.rotate(ang); ctx.scale(along, across); ctx.rotate(-ang + wiggle);   // stretch along the way it's flying, but keep the face upright-ish
+  const size = Math.round(b.r * 3.2);
+  if (fireTimer > 0) {
+    // ON FIRE: the animal turns RED and glows (rainbow colors during the Rainbow Fireball, and it blinks white at the end)
+    const ending = fireTimer < 120 && Math.floor(fireTimer / 8) % 2;
+    tintCv.width = tintCv.height = size * 2;
+    const t = tintCv.getContext('2d');
+    t.font = size + 'px system-ui'; t.textAlign = 'center'; t.textBaseline = 'middle';
+    t.fillText(k.emoji, size, size + 1);
+    t.globalCompositeOperation = 'source-atop';
+    t.fillStyle = ending ? 'rgba(255,255,255,0.85)' : rainbowTimer > 0 ? rainbow(b.x) : 'rgba(255, 25, 10, 0.75)';
+    t.fillRect(0, 0, size * 2, size * 2);
+    ctx.shadowColor = rainbowTimer > 0 ? rainbow() : '#ff4a1a'; ctx.shadowBlur = 24;
+    ctx.drawImage(tintCv, -size, -size);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.font = size + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(k.emoji, 0, 1);
+  }
+  ctx.restore();
+}
+const tintCv = document.createElement('canvas');   // a scratch picture used to paint the animal red
+
+function drawSkinBall(b) {
+  const k = SKINS.find(x => x.id === skinNow) || SKINS[0];
+  if (k.emoji) { drawAnimal(b, k); return; }
+  const col = k.id === 'rainbow' ? rainbow(b.x) : k.color;
+  const g = ctx.createRadialGradient(b.x - b.r * 0.35, b.y - b.r * 0.35, 1, b.x, b.y, b.r);
+  if (k.id === 'rainbow') { g.addColorStop(0, '#fff'); g.addColorStop(0.4, col); g.addColorStop(1, rainbow(b.x + 90)); }
+  else { g.addColorStop(0, shade(col, 0.55)); g.addColorStop(0.5, col); g.addColorStop(1, shade(col, -0.35)); }
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+  if (k.emoji) {   // animal face, spinning as the ball flies
+    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(tick * 0.08);
+    ctx.font = Math.round(b.r * 1.7) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(k.emoji, 0, 1); ctx.restore(); ctx.textBaseline = 'alphabetic';
+  }
+  ctx.strokeStyle = slowTimer > 0 ? '#8ab4ff' : 'rgba(255,255,255,0.7)'; ctx.lineWidth = slowTimer > 0 ? 3 : 1.5;   // light edge so the black ball shows up; blue while slowed
+  ctx.stroke();
+}
+
+// Multiball costs 50 more coins every time you buy it (the count starts over with a new game)
+function priceOf(it) { return it.kind === 'M' ? it.price + multiBuys * 50 : it.price; }
+function updateStore() {
+  document.getElementById('coinBal').textContent = '🍬 ' + (operator ? '∞' : coins);
+  for (const b of itemsEl.children) {
+    const it = STORE.find(i => i.kind === b.dataset.kind);
+    b.disabled = (!operator && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed());
+    b.querySelector('.price').textContent = '🍬 ' + priceOf(it).toLocaleString();
+  }
+  updateSkins(); updatePads(); updateInv();
+}
+function storeSay(t) { msgEl.textContent = t; }
+// Buying puts the power-up in your bottom-right bag. Use it later: click it, or press its number key.
+function buy(it) {
+  if (!operator && coins < priceOf(it)) return storeSay('Not enough candy yet!');
+  if (it.kind === 'R' && !rainbowAllowed()) return storeSay('The Rainbow Fireball is disabled on level 100!');
+  if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
+  if (!operator) { coins -= priceOf(it); saveCoins(); }   // operators buy for free
+  if (it.kind === 'M') multiBuys++;   // Multiball gets pricier every time
+  inv[it.kind] = (inv[it.kind] || 0) + 1; saveInv();
+  updateStore(); beep(880, 0.12, 'sine', 0.08);
+  const before = inv[it.kind];
+  if (state === 'play') useItem(it.kind);   // bought in the middle of a round? Use it right away!
+  if (inv[it.kind] < before) storeSay('Bought and used ' + it.name + '! ✨');
+  else storeSay('Got ' + it.name + '! It is in the bottom right ↘');
+}
+function setStoreOpen(open) {
+  document.body.classList.toggle('store-open', open);
+  resize(); updateStore(); storeSay('');
+}
+tabEl.addEventListener('click', () => { setStoreOpen(!document.body.classList.contains('store-open')); tabEl.blur(); });
+// clicking the store shouldn't launch the ball or move the paddle
+for (const el of [storeEl, tabEl]) el.addEventListener('pointerdown', e => e.stopPropagation());
+for (const el of [storeEl, tabEl]) el.addEventListener('pointermove', e => e.stopPropagation());
+const opBtn = document.getElementById('opBtn'), opBox = document.getElementById('opBox');
+const opInput = document.getElementById('opInput'), opMsg = document.getElementById('opMsg');
+function showOp() { opBtn.textContent = operator ? '🔓 Operator' : '🔑'; updateStore(); }
+function setOperator(on) {
+  operator = on;
+  opBox.classList.remove('open'); showOp();
+}
+opBtn.addEventListener('click', () => {
+  opBtn.blur();
+  if (operator) { setOperator(false); return; }              // click again to turn operator mode off
+  opBox.classList.toggle('open'); opMsg.textContent = ''; opInput.value = ''; opInput.focus();
+});
+opInput.addEventListener('keydown', e => {
+  e.stopPropagation();                                       // typing the code must not move the paddle or press cheat keys
+  if (e.key === 'Enter') {
+    if (opInput.value.trim().toUpperCase() === OPERATOR_CODE) setOperator(true);
+    else { opMsg.textContent = 'Wrong code! Try again.'; opInput.value = ''; }
+  }
+  if (e.key === 'Escape') opBox.classList.remove('open');
+});
+opInput.addEventListener('keyup', e => e.stopPropagation());
+for (const el of [opBtn, opBox]) { el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('pointermove', e => e.stopPropagation()); }
+showOp();
 
 newGame();
 // Run the game logic exactly 60 times a second, no matter how fast the screen refreshes

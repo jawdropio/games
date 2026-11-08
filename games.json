@@ -9,6 +9,12 @@
     "slug": "jaw-breaker",
     "title": "Jaw Breaker",
     "emoji": "🍬",
-    "description": "Smash candy bricks! Catch power-ups, light the ball on fire, and hunt for the rainbow brick."
+    "description": "Smash candy bricks! Catch power-ups, light the ball on fire, and hunt for the rainbow brick, spend your coins in the power-up store, and survive 100 levels and beat a boss every 10 levels for 5 bonus hearts."
+  },
+  {
+    "slug": "jaw-battle",
+    "title": "JAW BATTLE",
+    "emoji": "🎮",
+    "description": "Shoot it out with a sneaky bot! 4 difficulties, 4 guns, and build your own walls."
   }
 ]
