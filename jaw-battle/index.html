@@ -269,7 +269,7 @@
     const ci = document.createElement('input'); ci.placeholder = 'Secret code'; ci.maxLength = 12;
     const cb = document.createElement('button'); cb.textContent = 'Enter code';
     const cm = document.createElement('div');
-    ci.addEventListener('keydown', e => e.stopPropagation());
+    ci.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') cb.click(); });
     cb.onclick = () => {
       if (/^JAW-?123$/i.test(ci.value.trim())) {
         aimbot = !aimbot; try { localStorage.setItem('jawBattleAimbot', aimbot ? '1' : '0'); } catch (e) {}
@@ -432,10 +432,10 @@
   function update() {
     // player
     let mx = 0, my = 0;
-    if (keys['a'] || (mode === '1p' && keys['arrowleft'])) mx--;
-    if (keys['d'] || (mode === '1p' && keys['arrowright'])) mx++;
-    if (keys['w'] || (mode === '1p' && keys['arrowup'])) my--;
-    if (keys['s'] || (mode === '1p' && keys['arrowdown'])) my++;
+    if (keys['a'] || (mode !== '2p' && keys['arrowleft'])) mx--;
+    if (keys['d'] || (mode !== '2p' && keys['arrowright'])) mx++;
+    if (keys['w'] || (mode !== '2p' && keys['arrowup'])) my--;
+    if (keys['s'] || (mode !== '2p' && keys['arrowdown'])) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
     const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
