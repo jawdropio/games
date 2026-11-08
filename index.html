@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JawDrop Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#120b2e; --card:#1e1450; --ink:#f4f1ff; --muted:#a99ee0; --pop:#ffd23f; --hot:#ff5d8f; --cool:#3ee6c1; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:radial-gradient(circle at 50% -20%, #3a1f8f 0%, var(--bg) 60%); color:var(--ink); font-family:Nunito, system-ui, sans-serif; }
+  header { text-align:center; padding:56px 16px 24px; }
+  h1 { font-family:"Press Start 2P", monospace; font-size:clamp(22px, 6vw, 44px); margin:0; color:var(--pop); text-shadow:4px 4px 0 var(--hot); letter-spacing:2px; }
+  header p { color:var(--muted); font-weight:800; margin-top:18px; }
+  main { max-width:960px; margin:0 auto; padding:16px; display:grid; gap:20px; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); }
+  a.game { display:block; text-decoration:none; color:inherit; background:var(--card); border:3px solid #33267a; border-radius:18px; padding:22px; transition:transform .12s, border-color .12s; }
+  a.game:hover { transform:translateY(-4px) rotate(-1deg); border-color:var(--cool); }
+  .emoji { font-size:48px; }
+  .title { font-family:"Press Start 2P", monospace; font-size:14px; line-height:1.5; margin:14px 0 8px; color:var(--cool); }
+  .desc { color:var(--muted); margin:0; }
+  .empty { grid-column:1/-1; text-align:center; color:var(--muted); }
+  footer { text-align:center; color:var(--muted); padding:40px 16px; font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>JAWDROP ARCADE</h1>
+  <p>Games so good your jaw drops.</p>
+</header>
+<main id="games"><p class="empty">Loading games…</p></main>
+<footer>Made at the JawDrop studio 🕹️</footer>
+<script>
+  fetch('games.json', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(games => {
+      const el = document.getElementById('games');
+      if (!games.length) { el.innerHTML = '<p class="empty">No games yet. Coming soon!</p>'; return; }
+      el.innerHTML = '';
+      for (const g of games) {
+        const a = document.createElement('a');
+        a.className = 'game';
+        a.href = g.slug + '/';
+        a.innerHTML = '<div class="emoji"></div><div class="title"></div><p class="desc"></p>';
+        a.querySelector('.emoji').textContent = g.emoji || '🎮';
+        a.querySelector('.title').textContent = g.title;
+        a.querySelector('.desc').textContent = g.description || '';
+        el.appendChild(a);
+      }
+    })
+    .catch(() => { document.getElementById('games').innerHTML = '<p class="empty">Couldn\'t load the game list.</p>'; });
+</script>
+</body>
+</html>
