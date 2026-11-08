@@ -398,11 +398,11 @@ function addCoins(n) { coins += n; saveCoins(); updateStore(); }
 function saveCoins() { try { localStorage.setItem('jawbreaker.coins', coins); } catch (e) {} }
 
 const STORE = [
-  { kind: 'W', name: 'Wide Paddle', price: 15 },
-  { kind: 'S', name: 'Slow Ball', price: 15 },
-  { kind: 'M', name: 'Multiball', price: 25 },
-  { kind: 'F', name: 'Fireball', price: 30 },
-  { kind: '+', name: 'Extra Life', price: 40 },
+  { kind: 'W', name: 'Wide Paddle', price: 100 },
+  { kind: 'S', name: 'Slow Ball', price: 75 },
+  { kind: 'M', name: 'Multiball', price: 100 },
+  { kind: 'F', name: 'Fireball', price: 200 },
+  { kind: '+', name: 'Extra Life', price: 300 },
 ];
 const storeEl = document.getElementById('store'), itemsEl = document.getElementById('items');
 const msgEl = document.getElementById('storeMsg'), tabEl = document.getElementById('storeTab');
