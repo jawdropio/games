@@ -129,8 +129,8 @@ function dropEvery() {   // frames between wall drops (0 = the wall stays put)
 const COLS = 10, BW = 70, BH = 24, GAP = 6, GAPY = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
 const COLORS = { 1: '#3ee6c1', 2: '#ffd23f', 3: '#ff5d8f', 4: '#c77dff', 5: '#ff9a3c' };
 const POWERUPS = ['W', 'M', 'S', '+', 'F'];
-const ICONS = { W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '🔥', X: '🦔', N: '☢️' };   // what each power-up looks like
-const DROP_COLORS = { N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
+const ICONS = { R: '🌈', W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '🔥', X: '🦔', N: '☢️' };   // what each power-up looks like
+const DROP_COLORS = { R: '#ff7ad9', N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
 
 let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0, wideStacks = 0, spikeCool = 0, spikeRings = [];
 let tick = 0;   // counts up every update; used to animate rainbow colors
@@ -225,6 +225,7 @@ function givePower(kind) {
   if (kind === '+') lives = Math.min(lives + 1, 99);
   if (kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
   if (kind === 'M') multiball();
+  if (kind === 'R') startRainbow();
   if (kind === 'N') nuke();
   if (kind === 'X') { spikeTimer = 60 * 30; beep(90, 0.5, 'sawtooth', 0.08); updateStore(); }
 }
@@ -297,7 +298,9 @@ function breakBrick(br, color) {
   else if (Math.random() < 0.15) drops.push({ x, y, kind: POWERUPS[Math.floor(Math.random() * POWERUPS.length)] });
 }
 
+function rainbowAllowed() { return level < LEVEL_COUNT - 1; }   // the rainbow fireball is disabled on level 100
 function startRainbow() {
+  if (!rainbowAllowed()) return;
   rainbowTimer = fireTimer = 60 * 12;
   [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'sine', 0.08), i * 90));
 }
@@ -316,7 +319,7 @@ function hitBrick(br, ball) {
 
   // SPIKE BALL (OP!): it plows straight through and EXPLODES every brick around it, even the rainbow one.
   // The ONE thing it can't break is a black brick: it just bounces off those.
-  if (spikeTimer > 0) {
+  if (spikeTimer > 0 && rainbowTimer <= 0) {   // (the rainbow fireball beats the spike ball, so it can break black bricks too)
     if (br.black) { if (br.cool > 0) return false; br.cool = 6; bounceOff(br, ball); beep(150, 0.05, 'square'); return true; }
     for (const n of bricks) {
       if (n.hp > 0 && !n.black && Math.hypot(n.x + BW / 2 - ball.x, n.y + BH / 2 - ball.y) < 130) breakBrick(n, n.rainbow ? rainbow() : '#c77dff');
@@ -327,8 +330,10 @@ function hitBrick(br, ball) {
 
   // FIREBALL: burns straight through most bricks (one hit). Purple bricks need 2 fire hits and
   // black bricks need 5; the fireball bounces off a brick it didn't break yet.
-  if (fireTimer > 0 && !br.rainbow) {
-    const dmg = br.black ? 1 : (br.max === 4 ? 2 : 99);
+  // The RAINBOW fireball breaks ANYTHING in one hit: black bricks, boss bricks, even the rainbow brick.
+  const rb = rainbowTimer > 0;
+  if (fireTimer > 0 && (!br.rainbow || rb)) {
+    const dmg = rb ? 99 : br.black ? 1 : (br.max === 4 ? 2 : 99);
     if (br.hp > dmg) {
       if (br.cool > 0) return false;
       br.cool = 6; br.hp -= dmg; score += 5;
@@ -340,7 +345,7 @@ function hitBrick(br, ball) {
     // RAINBOW FIREBALL: also blows up every brick touching the one it hit
     if (rainbowTimer > 0) {
       for (const n of bricks) {
-        if (n.hp > 0 && !n.rainbow && !n.black && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAPY) breakBrick(n, rainbow(n.x));
+        if (n.hp > 0 && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAPY) breakBrick(n, rainbow(n.x));
       }
     }
     return false;   // keep going: it can hit more bricks right away
@@ -587,6 +592,7 @@ const STORE = [
   { kind: 'F', name: 'Fireball', price: 200 },
   { kind: '+', name: 'Extra Life', price: 300 },
   { kind: 'X', name: 'Spike Ball', price: 1000000 },
+  { kind: 'R', name: 'Rainbow Fireball', price: 10000000 },
   { kind: 'N', name: 'Nuke Ball', price: 2000000 },
 ];
 const storeEl = document.getElementById('store'), itemsEl = document.getElementById('items');
@@ -605,7 +611,7 @@ function updateStore() {
   for (const b of itemsEl.children) {
     const it = STORE.find(i => i.kind === b.dataset.kind);
     const cooling = it.kind === 'X' && (spikeCool > 0 || spikeTimer > 0);
-    b.disabled = (!INFINITE_COINS && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || cooling;
+    b.disabled = (!INFINITE_COINS && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed()) || cooling;
     if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🪙 ' + priceOf(it).toLocaleString();
     else b.querySelector('.price').textContent = '🪙 ' + priceOf(it).toLocaleString();
   }
@@ -617,6 +623,7 @@ function buy(it) {
   if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
   if (it.kind === 'X' && spikeTimer > 0) return storeSay('The Spike Ball is already active!');
   if (it.kind === 'X' && spikeCool > 0) return storeSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
+  if (it.kind === 'R' && !rainbowAllowed()) return storeSay('The Rainbow Fireball is disabled on level 100!');
   if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
   if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
