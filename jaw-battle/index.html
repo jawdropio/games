@@ -116,7 +116,7 @@
   try { const d = localStorage.getItem('jawBattleDiff'); if (DIFFS[d]) diffName = d; } catch (e) {}
   const diff = () => DIFFS[diffName];
   // coins + owned guns (saved in the browser)
-  let coins = 0, owned = [true, false, false, false], startMap = 0;
+  let mode = '1p', score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false], startMap = 0;
   try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o) && o.length === 4) owned = o.map(Boolean); owned[0] = true; } catch (e) {}
   function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
@@ -184,14 +184,17 @@
       'Beat the bot before it beats you! Pick your difficulty:<br>' +
       '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
       '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
-      '<b>Pause:</b> P or Esc<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
-      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame, true, menuLinks);
+      '<b>Pause:</b> P or Esc<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
+      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame1P, true, menuLinks);
   }
+  function newGame1P() { mode = '1p'; newGame(); }
+  function newGame2P() { mode = '2p'; score1 = score2 = 0; newGame(); }
   function menuLinks(p) {
     const row = document.createElement('div'); row.className = 'row';
     const a = document.createElement('button'); a.textContent = '🛒 Gun Shop'; a.onclick = showShop;
     const b = document.createElement('button'); b.textContent = '🎲 Make / Join a Game'; b.onclick = showSetup;
-    row.append(a, b); p.appendChild(row);
+    const c = document.createElement('button'); c.textContent = '👥 2 Players'; c.onclick = newGame2P;
+    row.append(a, b, c); p.appendChild(row);
   }
 
   // ---------- gun shop ----------
@@ -224,16 +227,17 @@
       });
       const code = document.createElement('div'); code.innerHTML = 'Your game code:<br><span class="code">' + makeCode() + '</span>';
       const join = document.createElement('div'); join.className = 'row';
-      const inp = document.createElement('input'); inp.placeholder = 'JAW-H2'; inp.maxLength = 8;
+      const inp = document.createElement('input'); inp.placeholder = 'JAW-H2'; inp.maxLength = 10;
       const go = document.createElement('button'); go.textContent = 'Join!';
       const msg = document.createElement('div');
       inp.addEventListener('keydown', e => e.stopPropagation());
       go.onclick = () => {
+        if (/^JAW-?MONEY$/i.test(inp.value.trim())) { coins += 1000; saveStuff(); msg.textContent = '💰 +1000 coins! You have ' + coins + '.'; inp.value = ''; return; }
         const m = /^JAW-?([EMHI])([1-3])$/i.exec(inp.value.trim());
         if (!m) { msg.textContent = '🤔 That code doesn\'t look right. Try one like JAW-H2.'; return; }
         diffName = Object.keys(DL).find(k => DL[k] === m[1].toUpperCase()); startMap = +m[2] - 1; loadBest();
         try { localStorage.setItem('jawBattleDiff', diffName); } catch (e) {}
-        newGame();
+        newGame1P();
       };
       join.append(inp, go); p.append(maps, code, join, msg);
     }, draw);
@@ -254,11 +258,15 @@
   addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'p' || k === 'escape') { state === 'paused' ? resume() : pause(); return; }
-    if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+    if ([' ', '/', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
     keys[k] = true;
     if (state === 'play') {
       if (k >= '1' && k <= '4' && owned[+k - 1]) player.gun = +k - 1;
       if (k === 'b' && !e.repeat) tryBuild();
+      if (mode === '2p' && !e.repeat) {
+        if (k === 'shift') tryBuild(bot, bot.x + Math.cos(bot.aim) * 60, bot.y + Math.sin(bot.aim) * 60);
+        if (k === '/') for (let i = 1; i <= 4; i++) { const g = (bot.gun + i) % 4; if (owned[g]) { bot.gun = g; break; } }
+      }
     }
   });
   addEventListener('wheel', e => {
@@ -334,10 +342,9 @@
   }
   const botCdMul = () => diff().cd * Math.max(0.6, 1 - (round - 1) * 0.05);
 
-  function tryBuild() {
-    const p = player;
+  function tryBuild(p = player, tx = mouse.x, ty = mouse.y) {
     if (p.blocks < 1) return;
-    const gx = Math.floor(mouse.x / GRID) * GRID, gy = Math.floor(mouse.y / GRID) * GRID;
+    const gx = Math.floor(tx / GRID) * GRID, gy = Math.floor(ty / GRID) * GRID;
     if (gx < 0 || gy < 0 || gx + GRID > W || gy + GRID > H) return;
     if (Math.hypot(gx + GRID / 2 - p.x, gy + GRID / 2 - p.y) > BUILD_RANGE) return;
     const box = { x: gx, y: gy, w: GRID, h: GRID };
@@ -358,10 +365,10 @@
   function update() {
     // player
     let mx = 0, my = 0;
-    if (keys['a'] || keys['arrowleft']) mx--;
-    if (keys['d'] || keys['arrowright']) mx++;
-    if (keys['w'] || keys['arrowup']) my--;
-    if (keys['s'] || keys['arrowdown']) my++;
+    if (keys['a'] || (mode === '1p' && keys['arrowleft'])) mx--;
+    if (keys['d'] || (mode === '1p' && keys['arrowright'])) mx++;
+    if (keys['w'] || (mode === '1p' && keys['arrowup'])) my--;
+    if (keys['s'] || (mode === '1p' && keys['arrowdown'])) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
     moveFighter(player, mx * 3.2, my * 3.2);
@@ -370,7 +377,8 @@
     if ((mouse.down || keys[' ']) && player.cd <= 0) fire(player, 'p', player.gun);
     if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
 
-    updateBot();
+    if (mode === '1p') updateBot(); else updateP2();
+    if (bot.blocks < MAX_BLOCKS && ++bot.blockT >= 150) { bot.blocks++; bot.blockT = 0; }
 
     // bullets
     for (const b of bullets) {
@@ -404,6 +412,15 @@
     else if (player.hp <= 0) endRound(false);
   }
 
+  function updateP2() {
+    let mx = 0, my = 0;
+    if (keys['arrowleft']) mx--; if (keys['arrowright']) mx++;
+    if (keys['arrowup']) my--; if (keys['arrowdown']) my++;
+    if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; bot.aim = Math.atan2(my, mx); }
+    moveFighter(bot, mx * 3.2, my * 3.2);
+    if (bot.cd > 0) bot.cd--;
+    if (keys['enter'] && bot.cd <= 0) fire(bot, 'p2', bot.gun);
+  }
   function updateBot() {
     const b = bot;
     if (b.cd > 0) b.cd--;
@@ -457,6 +474,13 @@
 
   function endRound(won) {
     state = 'over';
+    if (mode === '2p') {
+      won ? score1++ : score2++; layoutIdx++; sfx.win();
+      showOverlay(true, '🏆 Player ' + (won ? '1' : '2') + ' wins!', 'Score: P1 <b>' + score1 + '</b> – <b>' + score2 + '</b> P2', 'Next round', startRound, false, p => {
+        const b = document.createElement('button'); b.textContent = '🏠 Main menu'; b.onclick = showMenu; p.appendChild(b);
+      });
+      return;
+    }
     if (won) {
       const gain = 10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName]; coins += gain; saveStuff();
       wins++; round++; layoutIdx++;
@@ -543,11 +567,11 @@
         }
         ctx.globalAlpha = 1; ctx.font = '700 20px system-ui, sans-serif';
       };
-      bar(16, 150, player, '#4fd1ff', 'YOU', false);
-      bar(W - 166, 150, bot, '#ff6b9a', 'BOT', true);
+      bar(16, 150, player, '#4fd1ff', mode === '2p' ? 'P1' : 'YOU', false);
+      bar(W - 166, 150, bot, '#ff6b9a', mode === '2p' ? 'P2' : 'BOT', true);
       ctx.textAlign = 'center'; ctx.fillStyle = '#cfc8f5';
-      ctx.fillText('Round ' + round + '  •  Streak ' + wins, W / 2, 12);
-      ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(diff().label, W / 2, 38);
+      ctx.fillText(mode === '2p' ? 'P1 ' + score1 + ' – ' + score2 + ' P2' : 'Round ' + round + '  •  Streak ' + wins, W / 2, 12);
+      ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(mode === '2p' ? '👥 2 Players' : diff().label, W / 2, 38);
       // gun slots + wall blocks
       ctx.textBaseline = 'middle';
       for (let i = 0; i < GUNS.length; i++) {
