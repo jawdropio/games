@@ -77,7 +77,15 @@ function draw() {
   }
 }
 
-(function loop() { update(); draw(); requestAnimationFrame(loop); })();
+// Run the game logic 60 times a second no matter how fast the screen refreshes.
+const STEP = 1000 / 60;
+let last = performance.now(), acc = 0;
+(function loop(now = performance.now()) {
+  acc += Math.min(now - last, 250); last = now;
+  while (acc >= STEP) { update(); acc -= STEP; }
+  draw();
+  requestAnimationFrame(loop);
+})();
 </script>
 </body>
 </html>
