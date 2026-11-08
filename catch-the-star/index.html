@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catch the Star</title>
+<style>
+  html, body { margin:0; height:100%; background:#120b2e; overflow:hidden; font-family:system-ui, sans-serif; }
+  canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
+</style>
+</head>
+<body>
+<a href="../">← Arcade</a>
+<canvas id="c"></canvas>
+<script>
+// Catch the Star: move the basket (mouse, touch, or arrow keys) and catch falling stars.
+// Miss 3 and it's game over. Click or press space to play again.
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let W, H;
+function resize() { W = c.width = innerWidth; H = c.height = innerHeight; }
+addEventListener('resize', resize); resize();
+
+const basket = { x: W / 2, w: 110, h: 18, speed: 9 };
+let stars, score, lives, over, spawnTimer, keys = {};
+
+function reset() { stars = []; score = 0; lives = 3; over = false; spawnTimer = 0; }
+reset();
+
+addEventListener('keydown', e => { keys[e.key] = true; if (over && (e.key === ' ' || e.key === 'Enter')) reset(); });
+addEventListener('keyup', e => { keys[e.key] = false; });
+addEventListener('pointermove', e => { basket.x = e.clientX; });
+addEventListener('pointerdown', e => { basket.x = e.clientX; if (over) reset(); });
+
+function drawStar(x, y, r, color) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const rr = i % 2 ? r / 2.3 : r;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+
+function update() {
+  if (over) return;
+  if (keys.ArrowLeft) basket.x -= basket.speed;
+  if (keys.ArrowRight) basket.x += basket.speed;
+  basket.x = Math.max(basket.w / 2, Math.min(W - basket.w / 2, basket.x));
+
+  if (--spawnTimer <= 0) {
+    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 2.5 + Math.random() * 2 + score * 0.08, r: 16 });
+    spawnTimer = Math.max(22, 60 - score);
+  }
+  const by = H - 50;
+  for (const s of stars) {
+    s.y += s.vy;
+    if (!s.done && s.y + s.r > by && s.y < by + basket.h && Math.abs(s.x - basket.x) < basket.w / 2 + s.r / 2) { s.done = true; score++; }
+    else if (!s.done && s.y - s.r > H) { s.done = true; if (--lives <= 0) over = true; }
+  }
+  stars = stars.filter(s => !s.done);
+}
+
+function draw() {
+  ctx.fillStyle = '#120b2e'; ctx.fillRect(0, 0, W, H);
+  for (const s of stars) drawStar(s.x, s.y, s.r, '#ffd23f');
+  ctx.fillStyle = '#3ee6c1';
+  ctx.fillRect(basket.x - basket.w / 2, H - 50, basket.w, basket.h);
+  ctx.fillStyle = '#f4f1ff'; ctx.font = 'bold 22px system-ui'; ctx.textAlign = 'right';
+  ctx.fillText('⭐ ' + score + '   ' + '❤️'.repeat(lives), W - 16, 34);
+  if (over) {
+    ctx.textAlign = 'center'; ctx.font = 'bold 48px system-ui'; ctx.fillStyle = '#ff5d8f';
+    ctx.fillText('GAME OVER', W / 2, H / 2 - 10);
+    ctx.font = 'bold 22px system-ui'; ctx.fillStyle = '#f4f1ff';
+    ctx.fillText('You caught ' + score + ' stars. Click or press space to play again.', W / 2, H / 2 + 30);
+  }
+}
+
+(function loop() { update(); draw(); requestAnimationFrame(loop); })();
+</script>
+</body>
+</html>
