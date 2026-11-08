@@ -132,7 +132,7 @@ const POWERUPS = ['W', 'M', 'S', '+', 'F'];
 const ICONS = { W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '🔥', X: '🦔', N: '☢️' };   // what each power-up looks like
 const DROP_COLORS = { N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
 
-let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0;
+let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0, wideStacks = 0;
 let tick = 0;   // counts up every update; used to animate rainbow colors
 function rainbow(offset = 0) { return `hsl(${(tick * 4 + offset) % 360}, 95%, 62%)`; }
 
@@ -159,7 +159,7 @@ function loadLevel() {
   const special = topRow[Math.floor(Math.random() * topRow.length)];
   special.rainbow = true; special.hp = 6; special.max = 6;
   paddle = { x: W / 2, y: H - 40, w: paddleBase(), h: 14 };
-  nukeMissile = null; updateStore(); drops = []; sparks = []; wideTimer = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
+  nukeMissile = null; updateStore(); drops = []; sparks = []; wideTimer = 0; wideStacks = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
   resetBall();
   state = 'ready';
 }
@@ -219,7 +219,7 @@ addEventListener('keyup', e => { keys[e.key] = false; });
 // ---------- game logic ----------
 // switch on a power-up (used by falling power-ups AND the store)
 function givePower(kind) {
-  if (kind === 'W') wideTimer = 60 * 12;
+  if (kind === 'W') { wideStacks++; wideTimer = 60 * 12; }   // every Wide Paddle makes it bigger, up to half the screen
   if (kind === 'S') slowTimer = 60 * 10;
   if (kind === '+') lives = Math.min(lives + 1, 99);
   if (kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
@@ -348,9 +348,9 @@ function hitBrick(br, ball) {
 function update() {
   if (keys.ArrowLeft) paddle.x -= 10;
   if (keys.ArrowRight) paddle.x += 10;
-  paddle.w = paddleBase() + (wideTimer > 0 ? 60 : 0);
+  paddle.w = Math.min(W / 2, paddleBase() + wideStacks * 70);   // grows with every Wide Paddle, max = half the screen
   paddle.x = Math.max(paddle.w / 2, Math.min(W - paddle.w / 2, paddle.x));
-  if (wideTimer > 0) wideTimer--;
+  if (wideTimer > 0 && --wideTimer === 0) wideStacks = 0;
   if (slowTimer > 0) slowTimer--;
   tick++;
   // the wall creeps down! (level 7 and up)
@@ -403,7 +403,7 @@ function update() {
   balls = balls.filter(b => b.y - b.r < H);
   if (before && !balls.length) {
     lives--; beep(110, 0.4, 'sawtooth', 0.08);
-    if (lives <= 0) { state = 'over'; } else { resetBall(); state = 'ready'; wideTimer = slowTimer = fireTimer = rainbowTimer = spikeTimer = 0; }
+    if (lives <= 0) { state = 'over'; } else { resetBall(); state = 'ready'; wideTimer = wideStacks = slowTimer = fireTimer = rainbowTimer = spikeTimer = 0; }
   }
 
   for (const d of drops) {
