@@ -47,11 +47,8 @@ function beep(freq, len = 0.06, type = 'square', vol = 0.06) {
 
 // ---------- levels: each number is how many hits a brick takes ----------
 const LEVELS = [
-  ['1111111111',
-   '1111111111',
-   '2222222222',
-   '1111111111',
-   '1111111111'],
+  // 100 tiny rows! every 5th row takes 2 hits
+  Array.from({ length: 100 }, (_, r) => (r % 5 === 2 ? '2' : '1').repeat(10)),
   ['..222222..',
    '.21111112.',
    '2113333112',
@@ -64,7 +61,7 @@ const LEVELS = [
    '.3.3.3.3.3',
    '1111111111'],
 ];
-const COLS = 10, BW = 70, BH = 24, GAP = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
+const COLS = 40, BW = 18, BH = 3, GAP = 2, GAPY = 1, TOP = 30, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;   // tiny bricks!
 const COLORS = { 1: '#3ee6c1', 2: '#ffd23f', 3: '#ff5d8f' };
 const POWERUPS = ['W', 'M', 'S', '+', 'F'];
 const DROP_COLORS = { W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
@@ -77,10 +74,14 @@ function newGame() { score = 0; lives = 3; level = 0; loadLevel(); }
 function loadLevel() {
   const pattern = LEVELS[level % LEVELS.length];
   bricks = [];
-  pattern.forEach((row, r) => [...row].forEach((ch, col) => {
-    if (ch === '.') return;
-    bricks.push({ x: LEFT + col * (BW + GAP), y: TOP + r * (BH + GAP), hp: +ch, max: +ch });
-  }));
+  pattern.forEach((row0, r) => {
+    // patterns are written 10 wide; stretch each one to fill all the columns
+    const row = [...row0].map(ch => ch.repeat(COLS / row0.length)).join('');
+    [...row].forEach((ch, col) => {
+      if (ch === '.') return;
+      bricks.push({ x: LEFT + col * (BW + GAP), y: TOP + r * (BH + GAPY), hp: +ch, max: +ch });
+    });
+  });
   // one brick per level is the RAINBOW brick, and it's HARD to get:
   //  - it's always in the top row (the farthest away)
   //  - it takes 6 hits, and fireballs can't burn through it (they only chip it)
@@ -199,7 +200,7 @@ function hitBrick(br, ball) {
     // RAINBOW FIREBALL: also blows up every brick touching the one it hit
     if (rainbowTimer > 0) {
       for (const n of bricks) {
-        if (n.hp > 0 && !n.rainbow && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAP) breakBrick(n, rainbow(n.x));
+        if (n.hp > 0 && !n.rainbow && Math.abs(n.x - br.x) <= BW + GAP && Math.abs(n.y - br.y) <= BH + GAPY) breakBrick(n, rainbow(n.x));
       }
     }
     return false;   // keep going: it can hit more bricks right away
@@ -301,9 +302,7 @@ function draw() {
       for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rainbow(i * 70));
       ctx.fillStyle = g;
     } else ctx.fillStyle = COLORS[br.hp];
-    roundRect(br.x, br.y, BW, BH, 8);
-    if (br.rainbow) text(br.hp, br.x + BW / 2, br.y + BH / 2 + 6, 16, '#160f3a');   // hits left
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'; roundRect(br.x + 6, br.y + 4, BW - 12, 5, 3);   // candy shine
+    roundRect(br.x, br.y, BW, BH, 1);
   }
   for (const d of drops) {
     if (d.kind === 'R') {
