@@ -273,7 +273,7 @@
     cb.onclick = () => {
       if (/^JAW-?123$/i.test(ci.value.trim())) {
         aimbot = !aimbot; try { localStorage.setItem('jawBattleAimbot', aimbot ? '1' : '0'); } catch (e) {}
-        cm.textContent = aimbot ? '🎯 Aimbot ON! Your shots now aim at the bot. Enter the code again to turn it off.' : '🎯 Aimbot OFF.';
+        cm.textContent = aimbot ? '🎯 Aimbot ON! You auto-fire, lead your shots, and bullets curve to the target. Enter the code again to turn it off.' : '🎯 Aimbot OFF.';
         beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
       } else cm.textContent = '🤔 Hmm, that code does not do anything.';
       ci.value = '';
@@ -441,9 +441,18 @@
     const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
     if (!player.dead) moveFighter(player, mx * psp, my * psp);
     player.aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-    if (aimbot && !bot.dead) player.aim = Math.atan2(bot.y - player.y, bot.x - player.x);
+    const bvx = bot.x - (bot.lx ?? bot.x), bvy = bot.y - (bot.ly ?? bot.y); bot.lx = bot.x; bot.ly = bot.y;
+    let autoFire = false;
+    if (aimbot && !bot.dead) {
+      // OP aim: predict where the target will be when the bullet arrives
+      const spd = GUNS[player.gun].speed;
+      let tx = bot.x, ty = bot.y;
+      for (let i = 0; i < 4; i++) { const t = Math.hypot(tx - player.x, ty - player.y) / spd; tx = bot.x + bvx * t; ty = bot.y + bvy * t; }
+      player.aim = Math.atan2(ty - player.y, tx - player.x);
+      autoFire = lineClear(player.x, player.y, bot.x, bot.y);
+    }
     if (player.cd > 0) player.cd--;
-    if ((mouse.down || keys[' ']) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
+    if ((mouse.down || keys[' '] || autoFire) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
     if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
 
     if (mode === '2p') updateP2(); else if (!bot.dead) updateBot();
@@ -451,6 +460,11 @@
 
     // bullets
     for (const b of bullets) {
+      if (aimbot && b.owner === 'p' && !bot.dead) { // OP: bullets curve toward the target
+        const sp = Math.hypot(b.vx, b.vy), cur = Math.atan2(b.vy, b.vx);
+        let d = Math.atan2(bot.y - b.y, bot.x - b.x) - cur; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
+        const na = cur + Math.max(-0.07, Math.min(0.07, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
+      }
       b.x += b.vx; b.y += b.vy; b.life--;
       if (b.life <= 0) { b.dead = true; continue; }
       if (b.x < 0 || b.x > W) { if (b.bounce > 0) { b.vx *= -1; b.x = b.x < 0 ? 0 : W; b.bounce--; } else { b.dead = true; continue; } }
