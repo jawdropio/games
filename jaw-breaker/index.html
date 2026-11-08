@@ -312,7 +312,7 @@ function spikeEnds() {
 let nukeFlash = 0;
 let nukeMissile = null;
 const NUKE_LAST_LEVEL = 75;   // after this level the nuke stops working
-function nukeAllowed() { return operator && level < NUKE_LAST_LEVEL; }   // only operators can nuke   // level counts from 0, so levels 1-75
+function nukeAllowed() { return level < NUKE_LAST_LEVEL; }   // level counts from 0, so levels 1-75
 function nuke() {   // launch a missile from the paddle; it explodes up high (see update)
   if (nukeMissile || !nukeAllowed()) return;
   nukeMissile = { x: paddle.x, y: paddle.y - 10, vy: -4 };
@@ -638,7 +638,7 @@ function draw() {
     text('⬇ wall drops', W / 2, 76, 12, '#a99ee0');
   }
   text(lives > 8 ? '❤️ x' + lives : '❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
-  text('🪙 ' + (operator ? '∞' : coins), 20, 68, 18, '#ffd23f', 'left');
+  text('🪙 ' + coins, 20, 68, 18, '#ffd23f', 'left');
 
   if (paused) {
     ctx.fillStyle = 'rgba(13, 8, 36, 0.7)'; ctx.fillRect(0, 0, W, H);
@@ -666,14 +666,15 @@ function draw() {
 
 // ---------- coins and the power-up store ----------
 let coins = 0;
-try { coins = Math.max(0, parseInt(localStorage.getItem('jawbreaker.coins'), 10) || 0); } catch (e) {}
+try { coins = Math.max(0, parseInt(localStorage.getItem('jawbreaker.coins.v2'), 10) || 0); } catch (e) {}
 function addCoins(n) { coins += n; saveCoins(); updateStore(); }
-function saveCoins() { try { localStorage.setItem('jawbreaker.coins', coins); } catch (e) {} }
+function saveCoins() { try { localStorage.setItem('jawbreaker.coins.v2', coins); } catch (e) {} }
 
-// ---------- operator mode: type the secret code to unlock the cheat keys, infinite coins, and the Nuke ----------
+// ---------- operator mode: type the secret code to unlock the test keys (F, M, B, N, C) ----------
+// It is never saved, so you have to type the code again every time the game loads.
 const OPERATOR_CODE = 'JAW123';
 let operator = false;
-try { operator = localStorage.getItem('jawbreaker.operator') === '1'; } catch (e) {}
+try { localStorage.removeItem('jawbreaker.operator'); } catch (e) {}   // forget the old saved login
 let multiBuys = 0;   // how many Multiballs you bought (each one costs 50 more)
 const STORE = [
   { kind: 'W', name: 'Wide Paddle', price: 100 },
@@ -698,12 +699,11 @@ for (const it of STORE) {
 // Multiball costs 50 more coins every time you buy it (the count starts over with a new game)
 function priceOf(it) { return it.kind === 'M' ? it.price + multiBuys * 50 : it.price; }
 function updateStore() {
-  document.getElementById('coinBal').textContent = '🪙 ' + (operator ? '∞' : coins);
+  document.getElementById('coinBal').textContent = '🪙 ' + coins;
   for (const b of itemsEl.children) {
     const it = STORE.find(i => i.kind === b.dataset.kind);
-    b.style.display = it.kind === 'N' && !operator ? 'none' : '';   // regular players don't even see the nuke
     const cooling = it.kind === 'X' && (spikeCool > 0 || spikeTimer > 0);
-    b.disabled = (!operator && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed()) || cooling;
+    b.disabled = coins < priceOf(it) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed()) || cooling;
     if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🪙 ' + priceOf(it).toLocaleString();
     else b.querySelector('.price').textContent = '🪙 ' + priceOf(it).toLocaleString();
   }
@@ -711,7 +711,7 @@ function updateStore() {
 function storeSay(t) { msgEl.textContent = t; }
 function buy(it) {
   if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
-  if (!operator && coins < priceOf(it)) return storeSay('Not enough coins yet!');
+  if (coins < priceOf(it)) return storeSay('Not enough coins yet!');
   if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
   if (it.kind === 'X' && spikeTimer > 0) return storeSay('The Spike Ball is already active!');
   if (it.kind === 'X' && spikeCool > 0) return storeSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
@@ -719,7 +719,7 @@ function buy(it) {
   if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
   if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
-  if (!operator) { coins -= priceOf(it); saveCoins(); }
+  coins -= priceOf(it); saveCoins();
   if (it.kind === 'M') multiBuys++;   // Multiball gets pricier every time
   updateStore();
   givePower(it.kind); beep(880, 0.12, 'sine', 0.08);
@@ -738,7 +738,6 @@ const opInput = document.getElementById('opInput'), opMsg = document.getElementB
 function showOp() { opBtn.textContent = operator ? '🔓 Operator' : '🔑'; updateStore(); }
 function setOperator(on) {
   operator = on;
-  try { localStorage.setItem('jawbreaker.operator', on ? '1' : '0'); } catch (e) {}
   opBox.classList.remove('open'); showOp();
 }
 opBtn.addEventListener('click', () => {
