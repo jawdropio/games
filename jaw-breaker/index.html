@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Jaw Breaker</title>
 <style>
-  html, body { margin:0; height:100%; background:#0d0824; overflow:hidden; font-family:system-ui, sans-serif; }
+  html, body { margin:0; height:100%; background:#1c0e06; overflow:hidden; font-family:system-ui, sans-serif; }
   canvas { display:block; width:100vw; height:100vh; touch-action:none; cursor:none; }
   a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; z-index:1; }
   #pause { position:fixed; bottom:16px; right:16px; z-index:1; width:56px; height:56px; border-radius:50%;
@@ -133,6 +133,10 @@ const ICONS = { R: '🌈', W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '�
 const DROP_COLORS = { R: '#ff7ad9', N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
 
 let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0, wideStacks = 0, spikeCool = 0, spikeRings = [];
+const leaves = Array.from({ length: 28 }, () => ({
+  x: Math.random() * W, y: Math.random() * H, vy: 0.5 + Math.random() * 1.2, phase: Math.random() * 6,
+  rot: Math.random() * 6, spin: (Math.random() - 0.5) * 0.04, size: 14 + Math.random() * 14, emoji: ['🍂', '🍁', '🍃'][Math.floor(Math.random() * 3)],
+}));
 let tick = 0;   // counts up every update; used to animate rainbow colors
 function rainbow(offset = 0) { return `hsl(${(tick * 4 + offset) % 360}, 95%, 62%)`; }
 
@@ -373,6 +377,10 @@ function update() {
   if (wideTimer > 0 && --wideTimer === 0) wideStacks = 0;
   if (slowTimer > 0) slowTimer--;
   tick++;
+  for (const l of leaves) {   // fall themed leaves drift down, swaying side to side
+    l.y += l.vy; l.x += Math.sin(tick / 40 + l.phase) * 0.8; l.rot += l.spin;
+    if (l.y > H + 20) { l.y = -20; l.x = Math.random() * W; }
+  }
   // the wall creeps down! (level 7 and up)
   if (state === 'play' && dropEvery() > 0 && --dropTimer <= 0) {
     dropTimer = dropEvery();
@@ -450,9 +458,27 @@ function text(str, x, y, size, color, align = 'center') {
 
 function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#0d0824'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = '#1c0e06'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.setTransform(scale, 0, 0, scale, offX, offY);
-  ctx.fillStyle = '#160f3a'; ctx.fillRect(0, 0, W, H);
+  // ---------- FALL THEME: dusky orange sky, harvest moon, hills, and falling leaves ----------
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#2b1408'); sky.addColorStop(0.6, '#5a280e'); sky.addColorStop(1, '#8a4414');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 40; ctx.fillStyle = 'rgba(255, 190, 90, 0.4)';
+  ctx.beginPath(); ctx.arc(660, 150, 55, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;   // harvest moon
+  ctx.fillStyle = '#3a1a0a';   // rolling hills
+  ctx.beginPath(); ctx.ellipse(150, H + 20, 330, 120, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(620, H + 40, 380, 100, 0, 0, Math.PI * 2); ctx.fill();
+  for (const t of [[70, 505], [180, 520], [700, 515], [770, 500]]) {   // little autumn trees
+    ctx.fillStyle = '#2a1206'; ctx.fillRect(t[0] - 3, t[1], 6, 30);
+    ctx.fillStyle = ['#c2410c', '#d97706', '#b91c1c'][t[0] % 3]; ctx.beginPath(); ctx.arc(t[0], t[1] - 8, 20, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const l of leaves) {
+    ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.rot); ctx.globalAlpha = 0.85;
+    ctx.font = l.size + 'px system-ui'; ctx.textAlign = 'center'; ctx.fillText(l.emoji, 0, 0);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
 
   for (const br of bricks) {
     if (br.rainbow) {
