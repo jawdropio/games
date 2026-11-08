@@ -273,7 +273,7 @@
     cb.onclick = () => {
       if (/^JAW-?123$/i.test(ci.value.trim())) {
         aimbot = !aimbot; try { localStorage.setItem('jawBattleAimbot', aimbot ? '1' : '0'); } catch (e) {}
-        cm.textContent = aimbot ? '🎯 Aimbot ON! You auto-fire, lead your shots, and bullets curve to the target. Enter the code again to turn it off.' : '🎯 Aimbot OFF.';
+        cm.textContent = aimbot ? '🎯 Aimbot ON! It never misses, and when you hold shoot it moves your body for you. Enter the code again to turn it off.' : '🎯 Aimbot OFF.';
         beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
       } else cm.textContent = '🤔 Hmm, that code does not do anything.';
       ci.value = '';
@@ -438,8 +438,15 @@
     if (keys['s'] || (mode !== '2p' && keys['arrowdown'])) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
+    const auto = aimbot && (mouse.down || keys[' ']) && !bot.dead && !player.dead;
+    if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
     const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
+    const ox0 = player.x, oy0 = player.y;
     if (!player.dead) moveFighter(player, mx * psp, my * psp);
+    if (auto) {
+      if (Math.hypot(player.x - ox0, player.y - oy0) < psp * 0.4) { if (++player.stuck > 8) { player.stuck = 0; player.strafe *= -1; player.detour = Math.random() < 0.5 ? -1 : 1; player.detourT = 50; } }
+      else player.stuck = 0;
+    }
     player.aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
     const bvx = bot.x - (bot.lx ?? bot.x), bvy = bot.y - (bot.ly ?? bot.y); bot.lx = bot.x; bot.ly = bot.y;
     let autoFire = false;
@@ -463,7 +470,7 @@
       if (aimbot && b.owner === 'p' && !bot.dead) { // OP: bullets curve toward the target
         const sp = Math.hypot(b.vx, b.vy), cur = Math.atan2(b.vy, b.vx);
         let d = Math.atan2(bot.y - b.y, bot.x - b.x) - cur; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
-        const na = cur + Math.max(-0.07, Math.min(0.07, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
+        const na = cur + Math.max(-0.35, Math.min(0.35, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
       }
       b.x += b.vx; b.y += b.vy; b.life--;
       if (b.life <= 0) { b.dead = true; continue; }
@@ -496,6 +503,26 @@
     if (mode === 'ctf') ctfTick();
     else if (bot.hp <= 0) endRound(true);
     else if (player.hp <= 0) endRound(false);
+  }
+
+  // Aimbot autopilot: while you hold shoot, it dodges bullets, finds a clear shot and keeps a good distance
+  function autoMove() {
+    const p = player, dx = bot.x - p.x, dy = bot.y - p.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
+    for (const bl of bullets) {
+      if (bl.owner === 'p') continue;
+      const rx = p.x - bl.x, ry = p.y - bl.y, sp = Math.hypot(bl.vx, bl.vy) || 1;
+      const along = (rx * bl.vx + ry * bl.vy) / sp, cross = (rx * bl.vy - ry * bl.vx) / sp;
+      if (along > 0 && along < 280 && Math.abs(cross) < 36) { const sg = cross >= 0 ? 1 : -1; return [bl.vy / sp * sg, -bl.vx / sp * sg]; }
+    }
+    if (!lineClear(p.x, p.y, bot.x, bot.y)) {
+      let vx = ux, vy = uy;
+      if (p.detourT > 0) { p.detourT--; vx += -uy * p.detour * 1.6; vy += ux * p.detour * 1.6; }
+      const m = Math.hypot(vx, vy) || 1; return [vx / m, vy / m];
+    }
+    if (--p.strafeT <= 0) { p.strafe = Math.random() < 0.5 ? -1 : 1; p.strafeT = 40 + Math.random() * 60; }
+    const push = dist > 320 ? 1 : dist < 200 ? -1 : 0;
+    const vx = ux * push - uy * p.strafe * 0.9, vy = uy * push + ux * p.strafe * 0.9;
+    const m = Math.hypot(vx, vy) || 1; return [vx / m, vy / m];
   }
 
   function updateP2() {
