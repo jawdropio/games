@@ -119,18 +119,15 @@
   let mode = '1p', score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false, false, false, false, false], startMap = 0;
   try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o)) owned = owned.map((_, i) => !!o[i]); owned[0] = true; } catch (e) {}
   // gun levels: guns level up by dealing damage with them
-  const XP_AT = [0, 40, 100, 200, 400];
-  let gunXP = Array(8).fill(0), toast = null;
-  try { const x = JSON.parse(localStorage.getItem('jawBattleXP') || 'null'); if (Array.isArray(x)) gunXP = gunXP.map((_, i) => +x[i] || 0); } catch (e) {}
-  function gunLevel(i) { let l = 1; for (let k = 1; k < XP_AT.length; k++) if (gunXP[i] >= XP_AT[k]) l = k + 1; return l; }
-  function gainXP(i, amt) {
-    const before = gunLevel(i); gunXP[i] += amt;
-    if (gunLevel(i) > before) {
-      toast = { text: '⬆️ ' + GUNS[i].name + ' Level ' + gunLevel(i) + '!', t: 130 };
-      [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80));
-      saveStuff();
-    }
-  }
+  const XP_AT = [0, 40, 100, 200, 400]; // only used to carry over levels earned before upgrades were for sale
+  let gunLv = Array(8).fill(1), toast = null;
+  try {
+    const lv = JSON.parse(localStorage.getItem('jawBattleLv') || 'null'), x = JSON.parse(localStorage.getItem('jawBattleXP') || 'null');
+    if (Array.isArray(lv)) gunLv = gunLv.map((_, i) => Math.max(1, Math.min(5, +lv[i] || 1)));
+    else if (Array.isArray(x)) gunLv = gunLv.map((_, i) => { let l = 1; for (let k = 1; k < XP_AT.length; k++) if ((+x[i] || 0) >= XP_AT[k]) l = k + 1; return l; });
+  } catch (e) {}
+  const gunLevel = i => gunLv[i];
+  const upCost = lv => [30, 60, 100, 150][lv - 1];
   let aimbot = false, aimPro = false, aimShots = 0;
   try { const v = localStorage.getItem('jawBattleAimbot'); aimbot = v === '1' || v === '2'; aimPro = v === '2'; } catch (e) {}
   let daily = { last: '', streak: 0 };
@@ -148,7 +145,7 @@
     [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'square', 0.07), i * 90));
     showMenu('🎁 You got ' + gain + ' coins! Day ' + streak + ' in a row.');
   }
-  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleXP', JSON.stringify(gunXP)); } catch (e) {} }
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
   loadBest();
 
@@ -207,6 +204,7 @@
   function showOverlay(show, title, text, btn, action, showDiff, build, diffHook) {
     overlay.classList.toggle('hide', !show);
     if (!show) return;
+    onMenu = false;
     diffRow.style.display = showDiff ? 'flex' : 'none';
     onDiff = diffHook || null;
     if (showDiff) renderDiff();
@@ -221,6 +219,7 @@
       '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
       '<b>Pause:</b> P or Esc<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins!<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
       (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame1P, true, menuLinks);
+    onMenu = true;
   }
   // ---------- capture the flag ----------
   const BASE_P = { x: 60, y: 300 }, BASE_B = { x: 900, y: 300 }, BASE_R = 46, CTF_WIN = 3;
@@ -277,27 +276,23 @@
   }
   function newGame1P() { mode = '1p'; newGame(); }
   function newGame2P() { mode = '2p'; score1 = score2 = 0; newGame(); }
+  // secret codes: type them on the start screen (there is no box!)
+  let onMenu = false, typed = '', pendingCode = null;
+  function applyCode(pro) {
+    if (pro) { aimPro = !aimPro; aimbot = aimPro; }
+    else if (aimbot && !aimPro) aimbot = false;
+    else { aimbot = true; aimPro = false; }
+    try { localStorage.setItem('jawBattleAimbot', aimPro ? '2' : aimbot ? '1' : '0'); } catch (e) {}
+    beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
+    showMenu(aimPro ? '🤖 PRO Aimbot ON!' : aimbot ? '🎯 Aimbot ON!' : '🎯 Aimbot OFF.');
+  }
+  addEventListener('keydown', e => {
+    if (!onMenu || e.key.length !== 1 || e.ctrlKey || e.metaKey) return;
+    typed = (typed + e.key.toLowerCase()).slice(-8);
+    if (pendingCode && e.key === '4') { clearTimeout(pendingCode); pendingCode = null; typed = ''; applyCode(true); }
+    else if (typed.endsWith('jaw123')) { typed = ''; pendingCode = setTimeout(() => { pendingCode = null; if (onMenu) applyCode(false); }, 700); }
+  });
   function menuLinks(p) {
-    const cr = document.createElement('div'); cr.className = 'row';
-    const ci = document.createElement('input'); ci.placeholder = 'Secret code'; ci.maxLength = 12;
-    const cb = document.createElement('button'); cb.textContent = 'Enter code';
-    const cm = document.createElement('div');
-    ci.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') cb.click(); });
-    cb.onclick = () => {
-      const code = ci.value.trim();
-      if (/^JAW-?123$/i.test(code) || /^JAW-?1234$/i.test(code)) {
-        const pro = /1234$/.test(code);
-        if (pro) { aimPro = !aimPro; aimbot = aimPro; }
-        else if (aimbot && !aimPro) aimbot = false;
-        else { aimbot = true; aimPro = false; }
-        try { localStorage.setItem('jawBattleAimbot', aimPro ? '2' : aimbot ? '1' : '0'); } catch (e) {}
-        cm.textContent = aimPro ? '🤖 PRO Aimbot ON! It aims, moves your body for you AND switches guns. Enter JAW1234 again to turn it off.'
-          : aimbot ? '🎯 Aimbot ON! It never misses, and when you hold shoot it moves your body for you. Enter the code again to turn it off.' : '🎯 Aimbot OFF.';
-        beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
-      } else cm.textContent = '🤔 Hmm, that code does not do anything.';
-      ci.value = '';
-    };
-    cr.append(ci, cb);
     const dr = document.createElement('div'); dr.className = 'row';
     const db = document.createElement('button');
     if (dailyReady()) { db.textContent = '🎁 Claim daily coins! (+' + dailyReward(daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1) + ')'; db.className = 'on'; db.onclick = claimDaily; }
@@ -308,18 +303,24 @@
     const c = document.createElement('button'); c.textContent = '👥 2 Players'; c.onclick = newGame2P;
     const f = document.createElement('button'); f.textContent = '🚩 Capture the Flag'; f.onclick = newCTF;
     row.append(a, c, f);
-    p.appendChild(cr); p.appendChild(cm); p.appendChild(row);
+    p.appendChild(row);
   }
 
   // ---------- gun shop ----------
   function showShop() {
-    showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Win rounds to earn coins!', 'Back', () => showMenu(), false, p => {
-      for (let i = 1; i < GUNS.length; i++) {
+    showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Buy guns, then upgrade them! Each level = +10% damage and faster shooting.', 'Back', () => showMenu(), false, p => {
+      for (let i = 0; i < GUNS.length; i++) {
         const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
         const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b>' + (owned[i] ? ' (Lv ' + gunLevel(i) + ')' : '') + ' – ' + g.info;
         const btn = document.createElement('button');
-        if (owned[i]) { btn.textContent = '✅ Owned'; btn.disabled = true; }
-        else {
+        if (owned[i]) {
+          const lv = gunLevel(i);
+          if (lv >= 5) { btn.textContent = '⭐ MAX level'; btn.disabled = true; }
+          else {
+            const c = upCost(lv); btn.textContent = '⬆️ Upgrade to Lv ' + (lv + 1) + ' 💰' + c; btn.disabled = coins < c;
+            btn.onclick = () => { if (coins >= c) { coins -= c; gunLv[i]++; saveStuff(); [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80)); showShop(); } };
+          }
+        } else {
           btn.textContent = 'Buy 💰' + g.cost; btn.disabled = coins < g.cost;
           btn.onclick = () => { if (coins >= g.cost) { coins -= g.cost; owned[i] = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } };
         }
@@ -511,7 +512,7 @@
       if (b.dead) continue;
       const target = b.owner === 'p' ? bot : player;
       if (!target.dead && Math.hypot(b.x - target.x, b.y - target.y) < target.r + b.r - 1) {
-        b.dead = true; target.hp -= b.dmg; if (b.owner === 'p') gainXP(b.gi, b.base); target.flash = 10; shake = 8;
+        b.dead = true; target.hp -= b.dmg; target.flash = 10; shake = 8;
         burst(b.x, b.y, target.color, 10); sfx.hit();
       }
     }
@@ -747,10 +748,7 @@
         ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
         ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 39, y + 9);
         if (owned[i]) {
-          const lv = gunLevel(i), lo = XP_AT[lv - 1], hi = XP_AT[lv] || lo, pr = lv >= 5 ? 1 : (gunXP[i] - lo) / (hi - lo);
-          ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(lv >= 5 ? 'MAX' : 'Lv' + lv, x + 7, y + 19);
-          ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + 32, y + 17, 40, 4);
-          ctx.fillStyle = sel ? '#2a1a00' : '#ffd24d'; ctx.fillRect(x + 32, y + 17, 40 * pr, 4);
+          ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(gunLevel(i) >= 5 ? 'Lv5 MAX' : 'Lv' + gunLevel(i), x + 39, y + 19);
         }
         ctx.globalAlpha = 1;
       }
