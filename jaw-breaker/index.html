@@ -444,7 +444,7 @@ function draw() {
     text('⬇ wall drops', W / 2, 76, 12, '#a99ee0');
   }
   text('❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
-  text('🪙 ' + coins, 20, 68, 18, '#ffd23f', 'left');
+  text('🪙 ' + (INFINITE_COINS ? '∞' : coins), 20, 68, 18, '#ffd23f', 'left');
 
   if (paused) {
     ctx.fillStyle = 'rgba(13, 8, 36, 0.7)'; ctx.fillRect(0, 0, W, H);
@@ -467,6 +467,7 @@ function draw() {
 }
 
 // ---------- coins and the power-up store ----------
+const INFINITE_COINS = true;   // set to false for normal coins
 let coins = 0;
 try { coins = Math.max(0, parseInt(localStorage.getItem('jawbreaker.coins'), 10) || 0); } catch (e) {}
 function addCoins(n) { coins += n; saveCoins(); updateStore(); }
@@ -491,16 +492,16 @@ for (const it of STORE) {
   itemsEl.appendChild(b);
 }
 function updateStore() {
-  document.getElementById('coinBal').textContent = '🪙 ' + coins;
-  for (const b of itemsEl.children) b.disabled = coins < STORE.find(i => i.kind === b.dataset.kind).price;
+  document.getElementById('coinBal').textContent = '🪙 ' + (INFINITE_COINS ? '∞' : coins);
+  for (const b of itemsEl.children) b.disabled = !INFINITE_COINS && coins < STORE.find(i => i.kind === b.dataset.kind).price;
 }
 function storeSay(t) { msgEl.textContent = t; }
 function buy(it) {
   if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
-  if (coins < it.price) return storeSay('Not enough coins yet!');
+  if (!INFINITE_COINS && coins < it.price) return storeSay('Not enough coins yet!');
   if (it.kind === '+' && lives >= 6) return storeSay('You already have max lives!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
-  coins -= it.price; saveCoins(); updateStore();
+  if (!INFINITE_COINS) { coins -= it.price; saveCoins(); updateStore(); }
   givePower(it.kind); beep(880, 0.12, 'sine', 0.08);
   storeSay('Got ' + it.name + '! ✨');
 }
