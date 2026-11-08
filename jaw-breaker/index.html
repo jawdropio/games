@@ -173,7 +173,8 @@ addEventListener('keydown', e => {
   if (e.key === 'f') { fireTimer = 60 * 8; beep(140, 0.4, 'sawtooth', 0.07); }   // cheat key for testing the fireball
   if (e.key === 'm' && state === 'play') { multiball(); beep(660, 0.12, 'sine', 0.08); }   // cheat key for testing more balls
   if (e.key === 'r') { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); newGame(); beep(440, 0.1, 'sine', 0.08); }   // restart the whole game
-  if (e.key === 'b') startRainbow();                                              // cheat key for testing the rainbow fireball
+  if (e.key === 'b') startRainbow();
+  if (e.key === 'c') addCoins(10000000000);   // cheat key: 10 billion coins!                                              // cheat key for testing the rainbow fireball
 });
 addEventListener('keyup', e => { keys[e.key] = false; });
 
