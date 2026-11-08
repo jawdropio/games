@@ -124,6 +124,7 @@ function dropEvery() {   // frames between wall drops (0 = the wall stays put)
 const COLS = 10, BW = 70, BH = 24, GAP = 6, GAPY = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
 const COLORS = { 1: '#3ee6c1', 2: '#ffd23f', 3: '#ff5d8f', 4: '#c77dff', 5: '#ff9a3c' };
 const POWERUPS = ['W', 'M', 'S', '+', 'F'];
+const ICONS = { W: '↔️', M: '🎱', S: '🐌', '+': '💖', F: '🔥', X: '🦔', N: '☢️' };   // what each power-up looks like
 const DROP_COLORS = { N: '#ff3b1a', X: '#c77dff', W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
 
 let paddle, balls, bricks, drops, sparks, score, lives, level, state, keys = {}, wideTimer, slowTimer, fireTimer, rainbowTimer, spikeTimer = 0;
@@ -152,7 +153,7 @@ function loadLevel() {
   const special = topRow[Math.floor(Math.random() * topRow.length)];
   special.rainbow = true; special.hp = 6; special.max = 6;
   paddle = { x: W / 2, y: H - 40, w: paddleBase(), h: 14 };
-  drops = []; sparks = []; wideTimer = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
+  nukeMissile = null; drops = []; sparks = []; wideTimer = 0; slowTimer = 0; fireTimer = 0; rainbowTimer = 0; spikeTimer = 0; brokenThisLevel = 0;
   resetBall();
   state = 'ready';
 }
@@ -223,9 +224,17 @@ function givePower(kind) {
 
 // NUKE: every single brick goes boom
 let nukeFlash = 0;
-function nuke() {
+let nukeMissile = null;
+function nuke() {   // launch a missile from the paddle; it explodes up high (see update)
+  if (nukeMissile) return;
+  nukeMissile = { x: paddle.x, y: paddle.y - 10, vy: -4 };
+  beep(200, 0.5, 'sawtooth', 0.08);
+}
+function nukeExplode() {
   nukeFlash = 45;
+  burst(nukeMissile.x, nukeMissile.y, '#ffd23f', 60);
   for (const br of bricks) if (br.hp > 0) breakBrick(br, br.rainbow ? rainbow() : ['#ff3b1a', '#ff7a1a', '#ffd23f'][Math.floor(Math.random() * 3)]);
+  nukeMissile = null;
   beep(60, 0.8, 'sawtooth', 0.1);
 }
 
@@ -332,6 +341,12 @@ function update() {
   if (rainbowTimer > 0) rainbowTimer--;
   if (spikeTimer > 0) spikeTimer--;
   if (nukeFlash > 0) nukeFlash--;
+  if (nukeMissile) {   // the missile speeds up as it flies, with a smoky flame trail
+    nukeMissile.vy = Math.max(nukeMissile.vy - 0.35, -16);
+    nukeMissile.y += nukeMissile.vy;
+    for (let i = 0; i < 3; i++) sparks.push({ x: nukeMissile.x + (Math.random() - 0.5) * 8, y: nukeMissile.y + 22, vx: (Math.random() - 0.5) * 1.5, vy: 1 + Math.random() * 2, life: 20 + Math.random() * 15, color: ['#ff3b1a', '#ff7a1a', '#ffd23f', '#999'][Math.floor(Math.random() * 4)], g: 0 });
+    if (nukeMissile.y <= 190) nukeExplode();
+  }
   for (const b of balls) b.r = spikeTimer > 0 ? 16 : 8;   // the spike ball is big
   if (fireTimer > 0) { fireTimer--; for (const b of balls) { flame(b.x, b.y); flame(b.x, b.y); if (rainbowTimer > 0) flame(b.x, b.y); } }
 
@@ -414,7 +429,7 @@ function draw() {
     }
     ctx.fillStyle = DROP_COLORS[d.kind];
     roundRect(d.x - 14, d.y - 10, 28, 20, 10);
-    text(d.kind, d.x, d.y + 6, 14, '#160f3a');
+    text(ICONS[d.kind], d.x, d.y + 6, 15, '#160f3a');
   }
   for (const s of sparks) { ctx.globalAlpha = Math.max(0, s.life / 50); ctx.fillStyle = s.color; ctx.fillRect(s.x - 2, s.y - 2, 4, 4); }
   ctx.globalAlpha = 1;
@@ -423,14 +438,29 @@ function draw() {
   roundRect(paddle.x - paddle.w / 2, paddle.y, paddle.w, paddle.h, 7);
   for (const b of balls) {
     if (spikeTimer > 0) {
-      // spikes all around the ball; they spin, and blink in the last 2 seconds
-      ctx.fillStyle = spikeTimer < 120 && Math.floor(spikeTimer / 8) % 2 ? '#fff' : '#c77dff';
-      ctx.beginPath();
-      for (let i = 0; i < 16; i++) {
-        const a = i * Math.PI / 8 + tick * 0.05, rr = i % 2 ? b.r : b.r + 9;
-        ctx.lineTo(b.x + Math.cos(a) * rr, b.y + Math.sin(a) * rr);
+      // SPIKE BALL: glowing purple aura, two spinning rings of spikes, and a shiny metal core
+      const ending = spikeTimer < 120 && Math.floor(spikeTimer / 8) % 2;
+      const hue = ending ? 0 : 280 + Math.sin(tick * 0.1) * 30;
+      ctx.shadowColor = ending ? '#fff' : `hsl(${hue}, 100%, 65%)`; ctx.shadowBlur = 28;
+      for (const [count, len, spin, col] of [[12, 15, 1, `hsl(${hue}, 90%, 55%)`], [12, 10, -1.6, `hsl(${hue + 40}, 95%, 72%)`]]) {
+        ctx.fillStyle = ending ? '#fff' : col;
+        ctx.beginPath();
+        for (let i = 0; i < count; i++) {
+          const a0 = i * Math.PI * 2 / count + tick * 0.06 * spin, w = Math.PI / count * 0.55;
+          ctx.moveTo(b.x + Math.cos(a0 - w) * b.r * 0.8, b.y + Math.sin(a0 - w) * b.r * 0.8);
+          ctx.lineTo(b.x + Math.cos(a0) * (b.r + len), b.y + Math.sin(a0) * (b.r + len));
+          ctx.lineTo(b.x + Math.cos(a0 + w) * b.r * 0.8, b.y + Math.sin(a0 + w) * b.r * 0.8);
+        }
+        ctx.fill();
       }
-      ctx.closePath(); ctx.fill();
+      ctx.shadowBlur = 0;
+      const g = ctx.createRadialGradient(b.x - 5, b.y - 5, 2, b.x, b.y, b.r);
+      g.addColorStop(0, '#fff'); g.addColorStop(0.35, '#d9c2ff'); g.addColorStop(1, '#4b1d8f');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ff3b6b';   // angry eyes!
+      ctx.fillRect(b.x - 8, b.y - 4, 6, 4); ctx.fillRect(b.x + 2, b.y - 4, 6, 4);
+      if (!(tick % 2)) sparks.push({ x: b.x + (Math.random() - 0.5) * 20, y: b.y + (Math.random() - 0.5) * 20, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, life: 18, color: `hsl(${hue + Math.random() * 60}, 100%, 70%)`, g: 0 });
+      continue;
     }
     if (fireTimer > 0) {
       // glowing fireball; it flickers in its last 2 seconds so you know it's ending
@@ -447,6 +477,14 @@ function draw() {
     }
   }
 
+  if (nukeMissile) {   // the missile: body, red nose, fins, and a flame
+    const m = nukeMissile;
+    ctx.fillStyle = '#e8e4ff'; roundRect(m.x - 7, m.y - 14, 14, 34, 4);
+    ctx.fillStyle = '#ff3b1a'; ctx.beginPath(); ctx.moveTo(m.x - 7, m.y - 14); ctx.lineTo(m.x, m.y - 30); ctx.lineTo(m.x + 7, m.y - 14); ctx.fill();
+    ctx.fillStyle = '#ff5d8f'; ctx.beginPath(); ctx.moveTo(m.x - 7, m.y + 8); ctx.lineTo(m.x - 15, m.y + 24); ctx.lineTo(m.x - 7, m.y + 20); ctx.moveTo(m.x + 7, m.y + 8); ctx.lineTo(m.x + 15, m.y + 24); ctx.lineTo(m.x + 7, m.y + 20); ctx.fill();
+    text('☢️', m.x, m.y + 8, 12, '#160f3a');
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(m.x - 5, m.y + 20); ctx.lineTo(m.x, m.y + 40 + Math.random() * 14); ctx.lineTo(m.x + 5, m.y + 20); ctx.fill();
+  }
   if (nukeFlash > 0) {   // big white-orange flash that fades out
     ctx.globalAlpha = nukeFlash / 45; ctx.fillStyle = nukeFlash > 30 ? '#fff' : '#ffb347'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
   }
@@ -505,7 +543,7 @@ const msgEl = document.getElementById('storeMsg'), tabEl = document.getElementBy
 for (const it of STORE) {
   const b = document.createElement('button');
   b.className = 'item'; b.dataset.kind = it.kind;
-  b.innerHTML = `<span class="icon" style="background:${DROP_COLORS[it.kind]}">${it.kind}</span><span>${it.name}<span class="price">🪙 ${it.price.toLocaleString()}</span></span>`;
+  b.innerHTML = `<span class="icon" style="background:${DROP_COLORS[it.kind]}">${ICONS[it.kind]}</span><span>${it.name}<span class="price">🪙 ${it.price.toLocaleString()}</span></span>`;
   b.addEventListener('click', () => { buy(it); b.blur(); });
   itemsEl.appendChild(b);
 }
@@ -518,6 +556,7 @@ function buy(it) {
   if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
   if (!INFINITE_COINS && coins < it.price) return storeSay('Not enough coins yet!');
   if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
+  if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
   if (!INFINITE_COINS) { coins -= it.price; saveCoins(); updateStore(); }
   givePower(it.kind); beep(880, 0.12, 'sine', 0.08);
