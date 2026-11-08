@@ -398,9 +398,11 @@
   }
   function fire(f, owner, gi) {
     const g = GUNS[gi];
+    const missShot = owner === 'p' && aimbot && Math.random() < 0.2; // aimbot misses now and then
+    const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
     for (let i = 0; i < g.n; i++) {
-      const a = f.aim + (g.n > 1 ? (i / (g.n - 1) - 0.5) * g.spread : (Math.random() - 0.5) * g.spread);
-      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg, color: g.color, r: g.r || 5, bounce: g.bounce || 0, obs: g.obs || 1 });
+      const a = f.aim + missOff + (g.n > 1 ? (i / (g.n - 1) - 0.5) * g.spread : (Math.random() - 0.5) * g.spread);
+      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg, color: g.color, r: g.r || 5, bounce: g.bounce || 0, obs: g.obs || 1, miss: missShot });
     }
     const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : 1;
     f.cd = f.maxCd = Math.round(g.cd * cdMul);
@@ -467,7 +469,7 @@
 
     // bullets
     for (const b of bullets) {
-      if (aimbot && b.owner === 'p' && !bot.dead) { // OP: bullets curve toward the target
+      if (aimbot && b.owner === 'p' && !b.miss && !bot.dead) { // OP: bullets curve toward the target
         const sp = Math.hypot(b.vx, b.vy), cur = Math.atan2(b.vy, b.vx);
         let d = Math.atan2(bot.y - b.y, bot.x - b.x) - cur; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
         const na = cur + Math.max(-0.35, Math.min(0.35, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
