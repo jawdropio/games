@@ -617,7 +617,7 @@ function draw() {
       if (!(tick % 2)) sparks.push({ x: b.x + (Math.random() - 0.5) * 20, y: b.y + (Math.random() - 0.5) * 20, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, life: 18, color: `hsl(${hue + Math.random() * 60}, 100%, 70%)`, g: 0 });
       continue;
     }
-    if (fireTimer > 0) {
+    if (fireTimer > 0 && !(SKINS.find(x => x.id === skinNow) || {}).emoji) {   // (animal balls turn red instead, see drawAnimal)
       // glowing fireball; it flickers in its last 2 seconds so you know it's ending
       const ending = fireTimer < 120 && Math.floor(fireTimer / 8) % 2;
       const rb = rainbowTimer > 0;
@@ -885,10 +885,27 @@ function drawAnimal(b, k) {
   ctx.save(); ctx.translate(b.x, b.y + bob);
   if (slowTimer > 0) { ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, b.r + 6, 0, Math.PI * 2); ctx.stroke(); }
   ctx.rotate(ang); ctx.scale(along, across); ctx.rotate(-ang + wiggle);   // stretch along the way it's flying, but keep the face upright-ish
-  ctx.font = Math.round(b.r * 3.2) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(k.emoji, 0, 1);
+  const size = Math.round(b.r * 3.2);
+  if (fireTimer > 0) {
+    // ON FIRE: the animal turns RED and glows (rainbow colors during the Rainbow Fireball, and it blinks white at the end)
+    const ending = fireTimer < 120 && Math.floor(fireTimer / 8) % 2;
+    tintCv.width = tintCv.height = size * 2;
+    const t = tintCv.getContext('2d');
+    t.font = size + 'px system-ui'; t.textAlign = 'center'; t.textBaseline = 'middle';
+    t.fillText(k.emoji, size, size + 1);
+    t.globalCompositeOperation = 'source-atop';
+    t.fillStyle = ending ? 'rgba(255,255,255,0.85)' : rainbowTimer > 0 ? rainbow(b.x) : 'rgba(255, 25, 10, 0.75)';
+    t.fillRect(0, 0, size * 2, size * 2);
+    ctx.shadowColor = rainbowTimer > 0 ? rainbow() : '#ff4a1a'; ctx.shadowBlur = 24;
+    ctx.drawImage(tintCv, -size, -size);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.font = size + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(k.emoji, 0, 1);
+  }
   ctx.restore();
 }
+const tintCv = document.createElement('canvas');   // a scratch picture used to paint the animal red
 
 function drawSkinBall(b) {
   const k = SKINS.find(x => x.id === skinNow) || SKINS[0];
