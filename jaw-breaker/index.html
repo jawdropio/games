@@ -508,6 +508,11 @@ function update() {
     }
   }
   bricks = bricks.filter(br => br.hp > 0);
+  for (const b of balls) {   // squash for a moment whenever the ball bounces (its direction flips)
+    if (b.lvx !== undefined && (Math.sign(b.vx) !== Math.sign(b.lvx) || Math.sign(b.vy) !== Math.sign(b.lvy))) b.squash = 10;
+    b.lvx = b.vx; b.lvy = b.vy;
+    if (b.squash > 0) b.squash--;
+  }
 
   const before = balls.length;
   balls = balls.filter(b => b.y - b.r < H);
@@ -869,8 +874,25 @@ for (const t of document.querySelectorAll('#tabs .tab')) t.addEventListener('cli
   storeSay(''); t.blur();
 });
 // draw a normal ball in the chosen design
+// An ANIMAL ball: the ball IS the animal. It stretches when it zooms, squashes when it bounces, and wiggles.
+function drawAnimal(b, k) {
+  const speedNow = Math.hypot(b.vx || 0, b.vy || 0), ang = Math.atan2(b.vy || 0, b.vx || 1);
+  const hit = b.squash > 0 ? b.squash / 10 : 0;                          // 1 right after a bounce, fading to 0
+  const along = 1 + Math.min(0.3, speedNow * 0.025) - hit * 0.35;        // long when fast, flat when it just hit something
+  const across = 1 / along;
+  const wiggle = Math.sin(tick * 0.2 + b.x * 0.02) * 0.25;
+  const bob = b.stuck ? Math.sin(tick * 0.15) * 2 : 0;                   // hops on the paddle while waiting to launch
+  ctx.save(); ctx.translate(b.x, b.y + bob);
+  if (slowTimer > 0) { ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, b.r + 6, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.rotate(ang); ctx.scale(along, across); ctx.rotate(-ang + wiggle);   // stretch along the way it's flying, but keep the face upright-ish
+  ctx.font = Math.round(b.r * 3.2) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(k.emoji, 0, 1);
+  ctx.restore();
+}
+
 function drawSkinBall(b) {
   const k = SKINS.find(x => x.id === skinNow) || SKINS[0];
+  if (k.emoji) { drawAnimal(b, k); return; }
   const col = k.id === 'rainbow' ? rainbow(b.x) : k.color;
   const g = ctx.createRadialGradient(b.x - b.r * 0.35, b.y - b.r * 0.35, 1, b.x, b.y, b.r);
   if (k.id === 'rainbow') { g.addColorStop(0, '#fff'); g.addColorStop(0.4, col); g.addColorStop(1, rainbow(b.x + 90)); }
