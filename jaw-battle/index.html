@@ -22,6 +22,10 @@
   #panel button:disabled { opacity:.5; cursor:default; }
   #panel input { font:inherit; font-weight:800; font-size:18px; width:130px; text-align:center; text-transform:uppercase; padding:8px; border-radius:10px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; }
   .code { font-size:30px; font-weight:900; letter-spacing:3px; color:#ffb020; }
+  #aceBtn { position:fixed; left:0; top:50%; z-index:20; display:none; font-size:11px; padding:5px 8px; border-radius:0 8px 8px 0; background:#2c2268; opacity:.65; }
+  #acePanel { position:fixed; left:0; top:calc(50% + 32px); z-index:20; display:none; background:#1d1445; padding:8px; border-radius:0 10px 10px 0; font-size:12px; }
+  #acePanel input { font:inherit; width:110px; padding:5px; border-radius:6px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; text-transform:uppercase; }
+  #acePanel button { font-size:12px; padding:5px 10px; }
   #diffRow { display:flex; gap:8px; justify-content:center; margin:0 0 18px; flex-wrap:wrap; }
   #diffRow button { background:#2c2268; font-size:16px; padding:8px 14px; }
   #diffRow button.on { background:#ffb020; color:#2a1a00; }
@@ -46,6 +50,8 @@
   </div>
 </div>
 
+<button id="aceBtn">✏️ Edit Aces</button>
+<div id="acePanel"><input id="aceIn" maxlength="12" placeholder="..."> <button id="aceGo">OK</button><div id="aceMsg"></div></div>
 <script>
 (() => {
   let W = 960, H = 600;
@@ -207,7 +213,7 @@
   function showOverlay(show, title, text, btn, action, showDiff, build, diffHook) {
     overlay.classList.toggle('hide', !show);
     if (!show) return;
-    onMenu = false;
+    setMenuFlag(false);
     diffRow.style.display = showDiff ? 'flex' : 'none';
     onDiff = diffHook || null;
     if (showDiff) renderDiff();
@@ -222,7 +228,7 @@
       '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
       '<b>Pause:</b> P or Esc<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! Hold <b>E</b> to dig tunnels, and the map is big.<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
       (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame1P, true, menuLinks);
-    onMenu = true;
+    setMenuFlag(true);
   }
   // ---------- capture the flag ----------
   const BASE_P = { x: 60, y: 300 }, BASE_B = { x: 900, y: 300 }, BASE_R = 46, CTF_WIN = 3;
@@ -295,6 +301,18 @@
   function newGame2P() { mode = '2p'; score1 = score2 = 0; newGame(); }
   // secret codes: type them on the start screen (there is no box!)
   let onMenu = false, typed = '', pendingCode = null;
+  const aceBtn = document.getElementById('aceBtn'), acePanel = document.getElementById('acePanel'), aceIn = document.getElementById('aceIn'), aceMsg = document.getElementById('aceMsg');
+  function setMenuFlag(v) { onMenu = v; aceBtn.style.display = v ? 'block' : 'none'; if (!v) acePanel.style.display = 'none'; }
+  aceBtn.onclick = () => { acePanel.style.display = acePanel.style.display === 'block' ? 'none' : 'block'; aceMsg.textContent = ''; aceIn.value = ''; aceIn.focus(); };
+  function submitAce() {
+    const c = aceIn.value.trim();
+    if (/^JAW-?1234$/i.test(c)) applyCode(true);
+    else if (/^JAW-?123$/i.test(c)) applyCode(false);
+    else aceMsg.textContent = 'Nothing changed.';
+    aceIn.value = '';
+  }
+  aceIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submitAce(); });
+  document.getElementById('aceGo').onclick = submitAce;
   function applyCode(pro) {
     if (pro) { aimPro = !aimPro; aimbot = aimPro; }
     else if (aimbot && !aimPro) aimbot = false;
@@ -555,23 +573,73 @@
     for (const g of prefs) if (owned[g]) return g;
     return 0;
   }
+  // --- path finding so the autopilot walks AROUND walls (grid + breadth-first search) ---
+  const CELL = 20, DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let navGrid = null, navCols = 0, navRows = 0;
+  function buildNav() {
+    navCols = Math.ceil(W / CELL); navRows = Math.ceil(H / CELL); navGrid = new Uint8Array(navCols * navRows);
+    const r = player.r + 3;
+    for (let j = 0; j < navRows; j++) for (let i = 0; i < navCols; i++) navGrid[j * navCols + i] = blocked(i * CELL + CELL / 2, j * CELL + CELL / 2, r) ? 1 : 0;
+  }
+  function findPath(sx, sy, tx, ty) {
+    const cl = (v, m) => Math.max(0, Math.min(m - 1, v));
+    const si = cl(Math.floor(sx / CELL), navCols), sj = cl(Math.floor(sy / CELL), navRows), ti = cl(Math.floor(tx / CELL), navCols), tj = cl(Math.floor(ty / CELL), navRows);
+    const prev = new Int32Array(navCols * navRows).fill(-2), q = [sj * navCols + si];
+    prev[q[0]] = -1; let found = -1;
+    for (let h = 0; h < q.length; h++) {
+      const c = q[h], ci = c % navCols, cj = (c / navCols) | 0;
+      if (Math.abs(ci - ti) <= 1 && Math.abs(cj - tj) <= 1) { found = c; break; }
+      for (const [di, dj] of DIRS) {
+        const ni = ci + di, nj = cj + dj;
+        if (ni < 0 || nj < 0 || ni >= navCols || nj >= navRows) continue;
+        const n = nj * navCols + ni;
+        if (prev[n] !== -2 || navGrid[n]) continue;
+        if (di && dj && (navGrid[cj * navCols + ni] || navGrid[nj * navCols + ci])) continue; // no cutting corners
+        prev[n] = c; q.push(n);
+      }
+    }
+    if (found < 0) return null;
+    const pts = [];
+    for (let c = found; c !== -1; c = prev[c]) pts.push([(c % navCols) * CELL + CELL / 2, ((c / navCols) | 0) * CELL + CELL / 2]);
+    return pts.reverse();
+  }
+  function corridorClear(x1, y1, x2, y2, r) {
+    const n = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 8);
+    for (let i = 1; i <= n; i++) if (blocked(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n, r)) return false;
+    return true;
+  }
+  // never step toward a wall: if the way is blocked, swing to the nearest free direction
+  function safeDir(p, vx, vy) {
+    const m = Math.hypot(vx, vy); if (!m) return [0, 0];
+    vx /= m; vy /= m;
+    for (const a of [0, 0.5, -0.5, 1, -1, 1.6, -1.6]) {
+      const c = Math.cos(a), s = Math.sin(a), dx = vx * c - vy * s, dy = vx * s + vy * c;
+      if (!blocked(p.x + dx * 30, p.y + dy * 30, p.r + 1) && !blocked(p.x + dx * 15, p.y + dy * 15, p.r + 1)) return [dx, dy];
+    }
+    return [vx, vy];
+  }
   function autoMove() {
     const p = player, dx = bot.x - p.x, dy = bot.y - p.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
     for (const bl of bullets) {
       if (bl.owner === 'p') continue;
       const rx = p.x - bl.x, ry = p.y - bl.y, sp = Math.hypot(bl.vx, bl.vy) || 1;
       const along = (rx * bl.vx + ry * bl.vy) / sp, cross = (rx * bl.vy - ry * bl.vx) / sp;
-      if (along > 0 && along < 280 && Math.abs(cross) < 36) { const sg = cross >= 0 ? 1 : -1; return [bl.vy / sp * sg, -bl.vx / sp * sg]; }
+      if (along > 0 && along < 280 && Math.abs(cross) < 36) { const sg = cross >= 0 ? 1 : -1; return safeDir(p, bl.vy / sp * sg, -bl.vx / sp * sg); }
     }
-    if (!lineClear(p.x, p.y, bot.x, bot.y)) {
-      let vx = ux, vy = uy;
-      if (p.detourT > 0) { p.detourT--; vx += -uy * p.detour * 1.6; vy += ux * p.detour * 1.6; }
-      const m = Math.hypot(vx, vy) || 1; return [vx / m, vy / m];
+    if (!corridorClear(p.x, p.y, bot.x, bot.y, 4) || !lineClear(p.x, p.y, bot.x, bot.y)) {
+      // no clear shot: find a real path around the walls
+      if (!p.path || --p.pathT <= 0) { buildNav(); p.path = findPath(p.x, p.y, bot.x, bot.y); p.pathT = 12; }
+      if (p.path && p.path.length > 1) {
+        let tgt = p.path[1];
+        for (let i = Math.min(p.path.length - 1, 14); i >= 2; i--) if (corridorClear(p.x, p.y, p.path[i][0], p.path[i][1], p.r + 1)) { tgt = p.path[i]; break; }
+        return safeDir(p, tgt[0] - p.x, tgt[1] - p.y);
+      }
+      return safeDir(p, ux, uy);
     }
+    p.path = null;
     if (--p.strafeT <= 0) { p.strafe = Math.random() < 0.5 ? -1 : 1; p.strafeT = 40 + Math.random() * 60; }
     const push = dist > 320 ? 1 : dist < 200 ? -1 : 0;
-    const vx = ux * push - uy * p.strafe * 0.9, vy = uy * push + ux * p.strafe * 0.9;
-    const m = Math.hypot(vx, vy) || 1; return [vx / m, vy / m];
+    return safeDir(p, ux * push - uy * p.strafe * 0.9, uy * push + ux * p.strafe * 0.9);
   }
 
   function updateP2() {
