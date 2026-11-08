@@ -595,6 +595,7 @@ const STORE = [
   { kind: 'R', name: 'Rainbow Fireball', price: 10000000 },
   { kind: 'N', name: 'Nuke Ball', price: 2000000 },
 ];
+STORE.sort((a, b) => a.price - b.price);   // cheapest at the top, most expensive at the bottom
 const storeEl = document.getElementById('store'), itemsEl = document.getElementById('items');
 const msgEl = document.getElementById('storeMsg'), tabEl = document.getElementById('storeTab');
 for (const it of STORE) {
