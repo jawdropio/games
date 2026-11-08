@@ -17,6 +17,14 @@
   #opMsg { margin-top:6px; min-height:16px; font:700 13px system-ui; color:#ffd23f; }
   #pause:hover { border-color:#3ee6c1; }
   body.store-open #pause { right:236px; }
+  #inv { position:fixed; bottom:16px; right:84px; z-index:1; display:flex; gap:8px; }
+  body.store-open #inv, body.store-open #invMsg { right:304px; }
+  #invMsg { position:fixed; bottom:82px; right:84px; z-index:1; color:#ffd23f; font:800 14px system-ui; text-shadow:0 2px 4px #000; }
+  #inv .slot { position:relative; width:56px; height:56px; border-radius:14px; border:3px solid #ffd23f; background:#1e1450; color:#f4f1ff; font-size:26px; cursor:pointer; padding:0; }
+  #inv .slot:hover { border-color:#3ee6c1; }
+  #inv .slot .key { position:absolute; top:1px; left:5px; font:800 11px system-ui; color:#a99ee0; }
+  #inv .slot .count { position:absolute; bottom:0; right:4px; font:800 14px system-ui; color:#ffd23f; }
+  #inv .slot .wait { position:absolute; inset:0; border-radius:10px; background:rgba(13,8,36,.7); font:800 13px system-ui; display:grid; place-items:center; }
   #storeTab { position:fixed; top:50%; right:0; z-index:2; transform:translateY(-50%); writing-mode:vertical-rl;
               padding:14px 8px; border:3px solid #ffd23f; border-right:none; border-radius:12px 0 0 12px;
               background:#1e1450; color:#ffd23f; font:800 16px system-ui; cursor:pointer; }
@@ -43,6 +51,8 @@
 <a href="../">← Arcade</a>
 <button id="opBtn" title="Operator mode">🔑</button>
 <div id="opBox"><input id="opInput" type="password" placeholder="Operator code" autocomplete="off"><div id="opMsg"></div></div>
+<div id="invMsg"></div>
+<div id="inv"></div>
 <button id="pause" title="Pause (P or Esc)">⏸</button>
 <button id="storeTab" title="Power-up store">🛍️ STORE</button>
 <div id="store">
@@ -275,6 +285,7 @@ addEventListener('keydown', e => {
   if (paused) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setPaused(false); } return; }
   if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); launch(); }
   if (e.key === 'r') { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); newGame(); beep(440, 0.1, 'sine', 0.08); }   // restart the whole game
+  if (/^[1-9]$/.test(e.key)) { const it = STORE[+e.key - 1]; if (it) useItem(it.kind); }   // 1-8 use the power-ups in your bag
   if (!operator) return;   // everything below is for OPERATORS only
   if (e.key === 'f') { fireTimer = 60 * 8; beep(140, 0.4, 'sawtooth', 0.07); }   // cheat key for testing the fireball
   if (e.key === 'm' && state === 'play') { multiball(); beep(660, 0.12, 'sine', 0.08); }   // cheat key for testing more balls
@@ -697,6 +708,47 @@ for (const it of STORE) {
   b.addEventListener('click', () => { buy(it); b.blur(); });
   itemsEl.appendChild(b);
 }
+// ---------- the bag: power-ups you bought in advance ----------
+let inv = {};
+try { inv = JSON.parse(localStorage.getItem('jawbreaker.inv') || '{}') || {}; } catch (e) { inv = {}; }
+function saveInv() { try { localStorage.setItem('jawbreaker.inv', JSON.stringify(inv)); } catch (e) {} }
+const invEl = document.getElementById('inv'), invMsgEl = document.getElementById('invMsg');
+let invMsgTimer = 0;
+function invSay(t) { invMsgEl.textContent = t; clearTimeout(invMsgTimer); invMsgTimer = setTimeout(() => { invMsgEl.textContent = ''; }, 2200); }
+function slotWait(kind) {   // is this power-up not usable yet? (the spike ball has a cool down)
+  if (kind === 'X') return spikeTimer > 0 ? '⚡' : spikeCool > 0 ? Math.ceil(spikeCool / 60) + 's' : '';
+  return '';
+}
+function updateInv() {
+  invEl.innerHTML = '';
+  STORE.forEach((it, i) => {
+    if (!(inv[it.kind] > 0)) return;
+    const b = document.createElement('button');
+    b.className = 'slot'; b.title = it.name + ' (press ' + (i + 1) + ')';
+    const wait = slotWait(it.kind);
+    b.innerHTML = '<span class="key">' + (i + 1) + '</span>' + ICONS[it.kind] + '<span class="count">' + inv[it.kind] + '</span>' + (wait ? '<span class="wait">' + wait + '</span>' : '');
+    b.addEventListener('click', () => { useItem(it.kind); b.blur(); });
+    b.addEventListener('pointerdown', e => e.stopPropagation());   // don't launch the ball
+    invEl.appendChild(b);
+  });
+}
+function useItem(kind) {
+  const it = STORE.find(i => i.kind === kind);
+  if (!(inv[kind] > 0) || paused) return;
+  if (state !== 'play' && state !== 'ready') return invSay('Start a level first!');
+  if (kind === '+' && lives >= 99) return invSay('You already have max lives!');
+  if (kind === 'X' && spikeTimer > 0) return invSay('The Spike Ball is already active!');
+  if (kind === 'X' && spikeCool > 0) return invSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
+  if (kind === 'R' && !rainbowAllowed()) return invSay('The Rainbow Fireball is disabled on level 100!');
+  if (kind === 'N' && !nukeAllowed()) return invSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
+  if (kind === 'N' && nukeMissile) return invSay('A nuke is already on its way!');
+  if ((kind === 'M' || kind === 'N') && !balls.some(b => !b.stuck)) return invSay('Launch the ball first!');
+  inv[kind]--; saveInv();
+  givePower(kind); beep(880, 0.12, 'sine', 0.08);
+  invSay('Used ' + it.name + '! ✨');
+  updateInv();
+}
+
 // ---------- ball designs (just for looks) ----------
 const SKINS = [
   { id: 'classic', name: 'Classic White', color: '#ffffff', price: 0 },
@@ -765,29 +817,22 @@ function updateStore() {
   document.getElementById('coinBal').textContent = '🍬 ' + (operator ? '∞' : coins);
   for (const b of itemsEl.children) {
     const it = STORE.find(i => i.kind === b.dataset.kind);
-    const cooling = it.kind === 'X' && (spikeCool > 0 || spikeTimer > 0);
-    b.disabled = (!operator && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed()) || cooling;
-    if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🍬 ' + priceOf(it).toLocaleString();
-    else b.querySelector('.price').textContent = '🍬 ' + priceOf(it).toLocaleString();
+    b.disabled = (!operator && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed());
+    b.querySelector('.price').textContent = '🍬 ' + priceOf(it).toLocaleString();
   }
-  updateSkins();
+  updateSkins(); updateInv();
 }
 function storeSay(t) { msgEl.textContent = t; }
+// Buying puts the power-up in your bottom-right bag. Use it later: click it, or press its number key.
 function buy(it) {
-  if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
   if (!operator && coins < priceOf(it)) return storeSay('Not enough candy yet!');
-  if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
-  if (it.kind === 'X' && spikeTimer > 0) return storeSay('The Spike Ball is already active!');
-  if (it.kind === 'X' && spikeCool > 0) return storeSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
   if (it.kind === 'R' && !rainbowAllowed()) return storeSay('The Rainbow Fireball is disabled on level 100!');
   if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
-  if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
-  if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
   if (!operator) { coins -= priceOf(it); saveCoins(); }   // operators buy for free
   if (it.kind === 'M') multiBuys++;   // Multiball gets pricier every time
-  updateStore();
-  givePower(it.kind); beep(880, 0.12, 'sine', 0.08);
-  storeSay('Got ' + it.name + '! ✨');
+  inv[it.kind] = (inv[it.kind] || 0) + 1; saveInv();
+  updateStore(); beep(880, 0.12, 'sine', 0.08);
+  storeSay('Got ' + it.name + '! It is in the bottom right ↘');
 }
 function setStoreOpen(open) {
   document.body.classList.toggle('store-open', open);
