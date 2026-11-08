@@ -118,7 +118,7 @@
   // coins + owned guns (saved in the browser)
   let mode = '1p', score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false, false, false, false, false], startMap = 0;
   try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o)) owned = owned.map((_, i) => !!o[i]); owned[0] = true; } catch (e) {}
-  let aimbot = false;
+  let aimbot = false, aimShots = 0;
   try { aimbot = localStorage.getItem('jawBattleAimbot') === '1'; } catch (e) {}
   let daily = { last: '', streak: 0 };
   try { const d = JSON.parse(localStorage.getItem('jawBattleDaily') || 'null'); if (d && typeof d.last === 'string') daily = { last: d.last, streak: +d.streak || 0 }; } catch (e) {}
@@ -398,7 +398,7 @@
   }
   function fire(f, owner, gi) {
     const g = GUNS[gi];
-    const missShot = owner === 'p' && aimbot && Math.random() < 0.2; // aimbot misses now and then
+    const missShot = owner === 'p' && aimbot && ++aimShots % 10 === 0; // aimbot misses every 10th shot
     const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
     for (let i = 0; i < g.n; i++) {
       const a = f.aim + missOff + (g.n > 1 ? (i / (g.n - 1) - 0.5) * g.spread : (Math.random() - 0.5) * g.spread);
