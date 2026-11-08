@@ -11,11 +11,35 @@
   #pause { position:fixed; bottom:16px; right:16px; z-index:1; width:56px; height:56px; border-radius:50%;
            border:3px solid #a99ee0; background:#1e1450; color:#f4f1ff; font-size:24px; cursor:pointer; }
   #pause:hover { border-color:#3ee6c1; }
+  body.store-open #pause { right:236px; }
+  #storeTab { position:fixed; top:50%; right:0; z-index:2; transform:translateY(-50%); writing-mode:vertical-rl;
+              padding:14px 8px; border:3px solid #ffd23f; border-right:none; border-radius:12px 0 0 12px;
+              background:#1e1450; color:#ffd23f; font:800 16px system-ui; cursor:pointer; }
+  body.store-open #storeTab { right:220px; }
+  #store { position:fixed; top:0; right:0; bottom:0; width:220px; box-sizing:border-box; z-index:2; padding:16px 14px;
+           background:#1e1450; border-left:3px solid #ffd23f; color:#f4f1ff; overflow-y:auto; display:none; }
+  body.store-open #store { display:block; }
+  #store h2 { margin:0 0 4px; font-size:22px; color:#ffd23f; }
+  #coinBal { font-weight:800; font-size:20px; margin-bottom:12px; }
+  #store .item { display:flex; align-items:center; gap:10px; width:100%; margin-bottom:10px; padding:10px; text-align:left;
+                 border:2px solid #a99ee0; border-radius:12px; background:#160f3a; color:#f4f1ff; font:700 14px system-ui; cursor:pointer; }
+  #store .item:hover:not(:disabled) { border-color:#3ee6c1; }
+  #store .item:disabled { opacity:.45; cursor:not-allowed; }
+  #store .icon { flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:#160f3a; font-weight:800; font-size:18px; }
+  #store .price { display:block; color:#ffd23f; font-weight:800; }
+  #storeMsg { min-height:20px; margin-top:6px; font-size:13px; color:#a99ee0; }
 </style>
 </head>
 <body>
 <a href="../">← Arcade</a>
 <button id="pause" title="Pause (P or Esc)">⏸</button>
+<button id="storeTab" title="Power-up store">🛍️ STORE</button>
+<div id="store">
+  <h2>🛍️ Store</h2>
+  <div id="coinBal"></div>
+  <div id="items"></div>
+  <div id="storeMsg"></div>
+</div>
 <canvas id="c"></canvas>
 <script>
 // Jaw Breaker: smash every candy brick with the ball.
@@ -28,7 +52,10 @@ const ctx = c.getContext('2d');
 const W = 800, H = 600;           // the playfield; it gets scaled to fit the window
 let scale = 1, offX = 0, offY = 0;
 function resize() {
-  c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
+  // when the store is open the game squeezes to make room for it
+  const availW = innerWidth - (document.body.classList.contains('store-open') ? 220 : 0);
+  c.style.width = availW + 'px';
+  c.width = availW * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
   scale = Math.min(c.width / W, c.height / H);
   offX = (c.width - W * scale) / 2; offY = (c.height - H * scale) / 2;
 }
@@ -48,8 +75,11 @@ function beep(freq, len = 0.06, type = 'square', vol = 0.06) {
 
 // ---------- levels: each number is how many hits a brick takes ----------
 const LEVELS = [
-  // 100 tiny rows! every 5th row takes 2 hits
-  Array.from({ length: 100 }, (_, r) => (r % 5 === 2 ? '2' : '1').repeat(10)),
+  ['1111111111',
+   '1111111111',
+   '2222222222',
+   '1111111111',
+   '1111111111'],
   ['..222222..',
    '.21111112.',
    '2113333112',
@@ -62,7 +92,7 @@ const LEVELS = [
    '.3.3.3.3.3',
    '1111111111'],
 ];
-const COLS = 40, BW = 18, BH = 3, GAP = 2, GAPY = 1, TOP = 30, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;   // tiny bricks!
+const COLS = 10, BW = 70, BH = 24, GAP = 6, GAPY = 6, TOP = 80, LEFT = (W - (COLS * BW + (COLS - 1) * GAP)) / 2;
 const COLORS = { 1: '#3ee6c1', 2: '#ffd23f', 3: '#ff5d8f' };
 const POWERUPS = ['W', 'M', 'S', '+', 'F'];
 const DROP_COLORS = { W: '#3ee6c1', M: '#ffd23f', S: '#8ab4ff', '+': '#ff5d8f', F: '#ff7a1a' };
@@ -148,6 +178,15 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { keys[e.key] = false; });
 
 // ---------- game logic ----------
+// switch on a power-up (used by falling power-ups AND the store)
+function givePower(kind) {
+  if (kind === 'W') wideTimer = 60 * 12;
+  if (kind === 'S') slowTimer = 60 * 10;
+  if (kind === '+') lives = Math.min(lives + 1, 6);
+  if (kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
+  if (kind === 'M') multiball();
+}
+
 // every moving ball splits into 3 (used by the M power-up and the M cheat key)
 function multiball() {
   const extra = [];
@@ -176,6 +215,7 @@ function flame(x, y) {
 function breakBrick(br, color) {
   br.hp = 0;
   score += 10 * br.max;
+  addCoins(br.rainbow ? 15 : br.max);   // tougher bricks pay more
   brokenThisLevel++;
   burst(br.x + BW / 2, br.y + BH / 2, color, br.rainbow ? 40 : 14);
   const x = br.x + BW / 2, y = br.y + BH / 2;
@@ -271,17 +311,12 @@ function update() {
     else d.y += 2.5;
     if (d.y > paddle.y && d.y < paddle.y + paddle.h + 10 && Math.abs(d.x - paddle.x) < paddle.w / 2 + 12) {
       d.got = true; beep(880, 0.12, 'sine', 0.08);
-      if (d.kind === 'W') wideTimer = 60 * 12;
-      if (d.kind === 'S') slowTimer = 60 * 10;
-      if (d.kind === '+') lives = Math.min(lives + 1, 6);
-      if (d.kind === 'F') { fireTimer = Math.max(fireTimer, 60 * 8); beep(140, 0.4, 'sawtooth', 0.07); }
-      if (d.kind === 'R') startRainbow();
-      if (d.kind === 'M') multiball();
+      if (d.kind === 'R') startRainbow(); else givePower(d.kind);
     }
   }
   drops = drops.filter(d => !d.got && d.y < H + 20);
 
-  if (state === 'play' && !bricks.length) { state = 'clear'; score += 100; beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
+  if (state === 'play' && !bricks.length) { state = 'clear'; score += 100; addCoins(20); beep(523, 0.15, 'sine'); setTimeout(() => beep(784, 0.25, 'sine'), 150); }
 }
 
 // ---------- drawing ----------
@@ -303,7 +338,9 @@ function draw() {
       for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rainbow(i * 70));
       ctx.fillStyle = g;
     } else ctx.fillStyle = COLORS[br.hp];
-    roundRect(br.x, br.y, BW, BH, 1);
+    roundRect(br.x, br.y, BW, BH, 8);
+    if (br.rainbow) text(br.hp, br.x + BW / 2, br.y + BH / 2 + 6, 16, '#160f3a');   // hits left
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; roundRect(br.x + 6, br.y + 4, BW - 12, 5, 3);   // candy shine
   }
   for (const d of drops) {
     if (d.kind === 'R') {
@@ -341,6 +378,7 @@ function draw() {
   text('SCORE ' + score, 20, 40, 20, '#f4f1ff', 'left');
   text('LEVEL ' + (level + 1), W / 2, 40, 20, '#a99ee0');
   text('❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
+  text('🪙 ' + coins, 20, 68, 18, '#ffd23f', 'left');
 
   if (paused) {
     ctx.fillStyle = 'rgba(13, 8, 36, 0.7)'; ctx.fillRect(0, 0, W, H);
@@ -352,6 +390,52 @@ function draw() {
   if (state === 'clear') { text('LEVEL CLEAR!', W / 2, H / 2, 52, '#ffd23f'); text('Click for the next level', W / 2, H / 2 + 44, 22, '#f4f1ff'); }
   if (state === 'over') { text('GAME OVER', W / 2, H / 2, 56, '#ff5d8f'); text('Score: ' + score + '  ·  Click to play again', W / 2, H / 2 + 44, 22, '#f4f1ff'); }
 }
+
+// ---------- coins and the power-up store ----------
+let coins = 0;
+try { coins = Math.max(0, parseInt(localStorage.getItem('jawbreaker.coins'), 10) || 0); } catch (e) {}
+function addCoins(n) { coins += n; saveCoins(); updateStore(); }
+function saveCoins() { try { localStorage.setItem('jawbreaker.coins', coins); } catch (e) {} }
+
+const STORE = [
+  { kind: 'W', name: 'Wide Paddle', price: 15 },
+  { kind: 'S', name: 'Slow Ball', price: 15 },
+  { kind: 'M', name: 'Multiball', price: 25 },
+  { kind: 'F', name: 'Fireball', price: 30 },
+  { kind: '+', name: 'Extra Life', price: 40 },
+];
+const storeEl = document.getElementById('store'), itemsEl = document.getElementById('items');
+const msgEl = document.getElementById('storeMsg'), tabEl = document.getElementById('storeTab');
+for (const it of STORE) {
+  const b = document.createElement('button');
+  b.className = 'item'; b.dataset.kind = it.kind;
+  b.innerHTML = `<span class="icon" style="background:${DROP_COLORS[it.kind]}">${it.kind}</span><span>${it.name}<span class="price">🪙 ${it.price}</span></span>`;
+  b.addEventListener('click', () => { buy(it); b.blur(); });
+  itemsEl.appendChild(b);
+}
+function updateStore() {
+  document.getElementById('coinBal').textContent = '🪙 ' + coins;
+  for (const b of itemsEl.children) b.disabled = coins < STORE.find(i => i.kind === b.dataset.kind).price;
+}
+function storeSay(t) { msgEl.textContent = t; }
+function buy(it) {
+  if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
+  if (coins < it.price) return storeSay('Not enough coins yet!');
+  if (it.kind === '+' && lives >= 6) return storeSay('You already have max lives!');
+  if (it.kind === 'M' && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
+  coins -= it.price; saveCoins(); updateStore();
+  givePower(it.kind); beep(880, 0.12, 'sine', 0.08);
+  storeSay('Got ' + it.name + '! ✨');
+}
+function setStoreOpen(open) {
+  document.body.classList.toggle('store-open', open);
+  resize(); updateStore(); storeSay('');
+}
+tabEl.addEventListener('click', () => { setStoreOpen(!document.body.classList.contains('store-open')); tabEl.blur(); });
+// clicking the store shouldn't launch the ball or move the paddle
+for (const el of [storeEl, tabEl]) el.addEventListener('pointerdown', e => e.stopPropagation());
+for (const el of [storeEl, tabEl]) el.addEventListener('pointermove', e => e.stopPropagation());
+updateStore();
 
 newGame();
 // Run the game logic exactly 60 times a second, no matter how fast the screen refreshes
