@@ -10,6 +10,11 @@
   a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; z-index:1; }
   #pause { position:fixed; bottom:16px; right:16px; z-index:1; width:56px; height:56px; border-radius:50%;
            border:3px solid #a99ee0; background:#1e1450; color:#f4f1ff; font-size:24px; cursor:pointer; }
+  #opBtn { position:fixed; bottom:16px; left:16px; z-index:3; height:40px; padding:0 14px; border-radius:20px; border:2px solid #a99ee0; background:#1e1450; color:#f4f1ff; font:700 14px system-ui; cursor:pointer; }
+  #opBox { position:fixed; bottom:64px; left:16px; z-index:3; display:none; background:#1e1450; border:2px solid #a99ee0; border-radius:12px; padding:10px; }
+  #opBox.open { display:block; }
+  #opInput { width:150px; padding:6px; border-radius:8px; border:2px solid #a99ee0; background:#160f3a; color:#f4f1ff; font:700 14px system-ui; }
+  #opMsg { margin-top:6px; min-height:16px; font:700 13px system-ui; color:#ffd23f; }
   #pause:hover { border-color:#3ee6c1; }
   body.store-open #pause { right:236px; }
   #storeTab { position:fixed; top:50%; right:0; z-index:2; transform:translateY(-50%); writing-mode:vertical-rl;
@@ -32,6 +37,8 @@
 </head>
 <body>
 <a href="../">← Arcade</a>
+<button id="opBtn" title="Operator mode">🔑</button>
+<div id="opBox"><input id="opInput" type="password" placeholder="Operator code" autocomplete="off"><div id="opMsg"></div></div>
 <button id="pause" title="Pause (P or Esc)">⏸</button>
 <button id="storeTab" title="Power-up store">🛍️ STORE</button>
 <div id="store">
@@ -264,9 +271,10 @@ addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'Escape') { setPaused(!paused); return; }
   if (paused) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setPaused(false); } return; }
   if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); launch(); }
+  if (e.key === 'r') { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); newGame(); beep(440, 0.1, 'sine', 0.08); }   // restart the whole game
+  if (!operator) return;   // everything below is for OPERATORS only
   if (e.key === 'f') { fireTimer = 60 * 8; beep(140, 0.4, 'sawtooth', 0.07); }   // cheat key for testing the fireball
   if (e.key === 'm' && state === 'play') { multiball(); beep(660, 0.12, 'sine', 0.08); }   // cheat key for testing more balls
-  if (e.key === 'r') { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); newGame(); beep(440, 0.1, 'sine', 0.08); }   // restart the whole game
   if (e.key === 'b') startRainbow();
   if (e.key === 'n' && state !== 'won') { level = Math.min(level + 1, LEVEL_COUNT - 1); loadLevel(); }   // cheat key: skip to the next level
   if (e.key === 'c') addCoins(10000000000);   // cheat key: 10 billion coins!                                              // cheat key for testing the rainbow fireball
@@ -304,7 +312,7 @@ function spikeEnds() {
 let nukeFlash = 0;
 let nukeMissile = null;
 const NUKE_LAST_LEVEL = 75;   // after this level the nuke stops working
-function nukeAllowed() { return level < NUKE_LAST_LEVEL; }   // level counts from 0, so levels 1-75
+function nukeAllowed() { return operator && level < NUKE_LAST_LEVEL; }   // only operators can nuke   // level counts from 0, so levels 1-75
 function nuke() {   // launch a missile from the paddle; it explodes up high (see update)
   if (nukeMissile || !nukeAllowed()) return;
   nukeMissile = { x: paddle.x, y: paddle.y - 10, vy: -4 };
@@ -630,7 +638,7 @@ function draw() {
     text('⬇ wall drops', W / 2, 76, 12, '#a99ee0');
   }
   text(lives > 8 ? '❤️ x' + lives : '❤️'.repeat(lives), W - 20, 40, 18, '#fff', 'right');
-  text('🪙 ' + (INFINITE_COINS ? '∞' : coins), 20, 68, 18, '#ffd23f', 'left');
+  text('🪙 ' + (operator ? '∞' : coins), 20, 68, 18, '#ffd23f', 'left');
 
   if (paused) {
     ctx.fillStyle = 'rgba(13, 8, 36, 0.7)'; ctx.fillRect(0, 0, W, H);
@@ -657,12 +665,15 @@ function draw() {
 }
 
 // ---------- coins and the power-up store ----------
-const INFINITE_COINS = true;   // set to false for normal coins
 let coins = 0;
 try { coins = Math.max(0, parseInt(localStorage.getItem('jawbreaker.coins'), 10) || 0); } catch (e) {}
 function addCoins(n) { coins += n; saveCoins(); updateStore(); }
 function saveCoins() { try { localStorage.setItem('jawbreaker.coins', coins); } catch (e) {} }
 
+// ---------- operator mode: type the secret code to unlock the cheat keys, infinite coins, and the Nuke ----------
+const OPERATOR_CODE = 'JAW123';
+let operator = false;
+try { operator = localStorage.getItem('jawbreaker.operator') === '1'; } catch (e) {}
 let multiBuys = 0;   // how many Multiballs you bought (each one costs 50 more)
 const STORE = [
   { kind: 'W', name: 'Wide Paddle', price: 100 },
@@ -687,11 +698,12 @@ for (const it of STORE) {
 // Multiball costs 50 more coins every time you buy it (the count starts over with a new game)
 function priceOf(it) { return it.kind === 'M' ? it.price + multiBuys * 50 : it.price; }
 function updateStore() {
-  document.getElementById('coinBal').textContent = '🪙 ' + (INFINITE_COINS ? '∞' : coins);
+  document.getElementById('coinBal').textContent = '🪙 ' + (operator ? '∞' : coins);
   for (const b of itemsEl.children) {
     const it = STORE.find(i => i.kind === b.dataset.kind);
+    b.style.display = it.kind === 'N' && !operator ? 'none' : '';   // regular players don't even see the nuke
     const cooling = it.kind === 'X' && (spikeCool > 0 || spikeTimer > 0);
-    b.disabled = (!INFINITE_COINS && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed()) || cooling;
+    b.disabled = (!operator && coins < priceOf(it)) || (it.kind === 'N' && !nukeAllowed()) || (it.kind === 'R' && !rainbowAllowed()) || cooling;
     if (it.kind === 'X') b.querySelector('.price').textContent = spikeTimer > 0 ? '⚡ active!' : spikeCool > 0 ? '⏳ ' + Math.ceil(spikeCool / 60) + 's' : '🪙 ' + priceOf(it).toLocaleString();
     else b.querySelector('.price').textContent = '🪙 ' + priceOf(it).toLocaleString();
   }
@@ -699,7 +711,7 @@ function updateStore() {
 function storeSay(t) { msgEl.textContent = t; }
 function buy(it) {
   if (state !== 'play' && state !== 'ready') return storeSay('Start a level first!');
-  if (!INFINITE_COINS && coins < priceOf(it)) return storeSay('Not enough coins yet!');
+  if (!operator && coins < priceOf(it)) return storeSay('Not enough coins yet!');
   if (it.kind === '+' && lives >= 99) return storeSay('You already have max lives!');
   if (it.kind === 'X' && spikeTimer > 0) return storeSay('The Spike Ball is already active!');
   if (it.kind === 'X' && spikeCool > 0) return storeSay('Spike Ball is cooling down: ' + Math.ceil(spikeCool / 60) + 's');
@@ -707,7 +719,7 @@ function buy(it) {
   if (it.kind === 'N' && !nukeAllowed()) return storeSay('The nuke is disabled after level ' + NUKE_LAST_LEVEL + '!');
   if (it.kind === 'N' && nukeMissile) return storeSay('A nuke is already on its way!');
   if ((it.kind === 'M' || it.kind === 'N') && !balls.some(b => !b.stuck)) return storeSay('Launch the ball first!');
-  if (!INFINITE_COINS) { coins -= priceOf(it); saveCoins(); }
+  if (!operator) { coins -= priceOf(it); saveCoins(); }
   if (it.kind === 'M') multiBuys++;   // Multiball gets pricier every time
   updateStore();
   givePower(it.kind); beep(880, 0.12, 'sine', 0.08);
@@ -721,7 +733,30 @@ tabEl.addEventListener('click', () => { setStoreOpen(!document.body.classList.co
 // clicking the store shouldn't launch the ball or move the paddle
 for (const el of [storeEl, tabEl]) el.addEventListener('pointerdown', e => e.stopPropagation());
 for (const el of [storeEl, tabEl]) el.addEventListener('pointermove', e => e.stopPropagation());
-updateStore();
+const opBtn = document.getElementById('opBtn'), opBox = document.getElementById('opBox');
+const opInput = document.getElementById('opInput'), opMsg = document.getElementById('opMsg');
+function showOp() { opBtn.textContent = operator ? '🔓 Operator' : '🔑'; updateStore(); }
+function setOperator(on) {
+  operator = on;
+  try { localStorage.setItem('jawbreaker.operator', on ? '1' : '0'); } catch (e) {}
+  opBox.classList.remove('open'); showOp();
+}
+opBtn.addEventListener('click', () => {
+  opBtn.blur();
+  if (operator) { setOperator(false); return; }              // click again to turn operator mode off
+  opBox.classList.toggle('open'); opMsg.textContent = ''; opInput.value = ''; opInput.focus();
+});
+opInput.addEventListener('keydown', e => {
+  e.stopPropagation();                                       // typing the code must not move the paddle or press cheat keys
+  if (e.key === 'Enter') {
+    if (opInput.value.trim().toUpperCase() === OPERATOR_CODE) setOperator(true);
+    else { opMsg.textContent = 'Wrong code! Try again.'; opInput.value = ''; }
+  }
+  if (e.key === 'Escape') opBox.classList.remove('open');
+});
+opInput.addEventListener('keyup', e => e.stopPropagation());
+for (const el of [opBtn, opBox]) { el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('pointermove', e => e.stopPropagation()); }
+showOp();
 
 newGame();
 // Run the game logic exactly 60 times a second, no matter how fast the screen refreshes
