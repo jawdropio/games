@@ -147,7 +147,7 @@
   let ghostOwned = false;
   try { ghostOwned = localStorage.getItem('jawBattleGhost') === '1'; } catch (e) {}
   const GHOST_MAX = 240, GHOST_COST = 400;
-  try { const v = localStorage.getItem('jawBattleAimbot'); aimbot = v === '1' || v === '2'; aimPro = v === '2'; } catch (e) {}
+  // (Operator always starts OFF when the page loads, so it can't surprise you)
   let daily = { last: '', streak: 0 };
   try { const d = JSON.parse(localStorage.getItem('jawBattleDaily') || 'null'); if (d && typeof d.last === 'string') daily = { last: d.last, streak: +d.streak || 0 }; } catch (e) {}
   const dayStr = ms => { const d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
@@ -448,6 +448,7 @@
     if (state === 'play') {
       if (k >= '1' && k <= '9' && own(gunOrder[+k - 1])) player.gun = gunOrder[+k - 1];
       if (k === 'b' && !e.repeat) tryBuild();
+      if (k === 'o' && aimbot && !e.repeat) { aimPro = !aimPro; toast = { text: aimPro ? '🤖 Autopilot ON' : '🕹️ Autopilot OFF – you drive!', t: 90 }; }
       if (mode === '2p' && !e.repeat) {
         if (k === 'shift') tryBuild(bot, bot.x + Math.cos(bot.aim) * 60, bot.y + Math.sin(bot.aim) * 60);
         if (k === '/') for (let i = 1; i <= GUNS.length; i++) { const g = (bot.gun + i) % GUNS.length; if (own(g)) { bot.gun = g; break; } }
@@ -794,8 +795,9 @@
 
     let vx = 0, vy = 0;
     const ux = dx / dist, uy = dy / dist;
-    if (dodge && Math.random() < diff().dodge) {
-      vx = uy * dodge; vy = -ux * dodge; // sidestep
+    if (dodge && !(b.dodgeT > 0) && Math.random() < diff().dodge) { b.dodgeT = 12; b.dodgeD = dodge; }
+    if (b.dodgeT > 0) {
+      b.dodgeT--; vx = uy * b.dodgeD; vy = -ux * b.dodgeD; // sidestep (held for a few frames so it doesn't twitch)
     } else if (goal) {
       const gx = goal.x - b.x, gy = goal.y - b.y, gd = Math.hypot(gx, gy) || 1;
       const nx = gx / gd, ny = gy / gd;
@@ -954,7 +956,7 @@
       ctx.textAlign = 'center'; ctx.fillStyle = '#cfc8f5';
       ctx.fillText(mode === 'ctf' ? 'You ' + caps1 + ' – ' + caps2 + ' Bot  (first to ' + CTF_WIN + ')' : mode === '2p' ? 'P1 ' + score1 + ' – ' + score2 + ' P2' : 'Round ' + round + '  •  Streak ' + wins, W / 2, 12);
       ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(mode === '2p' ? '👥 2 Players' : diff().label, W / 2, 38);
-      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 OPERATOR PRO' : '🕶️ OPERATOR', W / 2, 80); }
+      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 OPERATOR PRO  (O = drive yourself)' : '🕶️ OPERATOR  (O = autopilot)', W / 2, 80); }
       if (mode === 'ctf') {
         ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.textAlign = 'center';
         const hint = aimPro ? '🤖 OPERATOR PRO autopilot is playing Capture the Flag' : flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
