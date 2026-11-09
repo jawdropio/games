@@ -130,7 +130,7 @@
     easy:   { label: '😊 Easy',   speed: 1.7, err: 0.28, cd: 1.8, fireP: 0.05, dodge: 0.2, hp: 14, guns: [0] },
     medium: { label: '😎 Medium', speed: 2.2, err: 0.16, cd: 1.2, fireP: 0.09, dodge: 0.6, hp: 20, guns: [0, 1] },
     hard:   { label: '😤 Hard',   speed: 2.7, err: 0.08, cd: 1.0, fireP: 0.13, dodge: 0.9, hp: 24, guns: [0, 1, 2] },
-    insane: { label: '💀 Insane', speed: 3.3, err: 0.04, cd: 0.8, fireP: 1.0, dodge: 1.0, hp: 30, guns: [0, 1, 2, 3] },
+    insane: { label: '💀 Insane', speed: 3.3, err: 0.04, cd: 0.9, fireP: 1.0, dodge: 1.0, hp: 30, guns: [0, 1, 2, 3] },
   };
   let diffName = 'medium';
   try { const d = localStorage.getItem('jawBattleDiff'); if (DIFFS[d]) diffName = d; } catch (e) {}
@@ -179,6 +179,29 @@
   const dayStr = ms => { const d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
   const dailyReady = () => daily.last !== dayStr(Date.now());
   const dailyReward = streak => 50 + 10 * (Math.min(streak, 7) - 1);
+  // today's secret code: the boss (you!) tells friends, and the Operator screen shows it
+  function dailyCode() {
+    const d = new Date(), key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+    let h = Math.imul(key, 2654435761) >>> 0; h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995) >>> 0; h ^= h >>> 15;
+    return 'JAW' + String(1000 + ((h >>> 0) % 9000));
+  }
+  function showDaily() {
+    showOverlay(true, '🎁 Daily Reward', 'Ask the game boss for today\'s secret code!' + (aimbot ? '<br>🕶️ <small>Operator sees today\'s code: <b>' + dailyCode() + '</b></small>' : ''), 'Back', () => showMenu(), false, p => {
+      const row = document.createElement('div'); row.className = 'row';
+      const inp = document.createElement('input'); inp.placeholder = 'Daily code'; inp.maxLength = 12;
+      const go = document.createElement('button'); go.textContent = '🎁 Claim!';
+      const msg = document.createElement('div'); msg.style.cssText = 'min-height:22px;font-weight:700';
+      const submit = () => {
+        const v = inp.value.trim().toUpperCase().replace('-', '');
+        if (v === dailyCode()) claimDaily();
+        else { msg.textContent = '🤔 That is not today\'s code. Ask the boss!'; inp.value = ''; beep(200, 0.2, 'sawtooth', 0.06); }
+      };
+      inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submit(); });
+      go.onclick = submit;
+      row.append(inp, go); p.append(row, msg);
+      setTimeout(() => inp.focus(), 50);
+    });
+  }
   function claimDaily() {
     if (!dailyReady()) return;
     const streak = daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1;
@@ -508,7 +531,7 @@
   function menuLinks(p) {
     const dr = document.createElement('div'); dr.className = 'row';
     const db = document.createElement('button');
-    if (dailyReady()) { db.textContent = '🎁 Claim daily coins! (+' + dailyReward(daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1) + ')'; db.className = 'on'; db.onclick = claimDaily; }
+    if (dailyReady()) { db.textContent = '🎁 Daily reward (+' + dailyReward(daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1) + ' coins, needs a code!)'; db.className = 'on'; db.onclick = showDaily; }
     else { db.textContent = '🎁 Daily coins claimed ✅ (come back tomorrow!)'; db.disabled = true; }
     dr.appendChild(db); p.appendChild(dr);
     const row = document.createElement('div'); row.className = 'row';
@@ -667,7 +690,7 @@
   }
   function fire(f, owner, gi) {
     const g = GUNS[gi];
-    const lvl = owner === 'p' ? gunLevel(gi) : 1, dmgMul = owner === 'b' && diffName === 'insane' ? 1.4 : 1 + 0.1 * (lvl - 1); // each level: +10% damage, faster shooting
+    const lvl = owner === 'p' ? gunLevel(gi) : 1, dmgMul = owner === 'b' && diffName === 'insane' ? 1.2 : 1 + 0.1 * (lvl - 1); // each level: +10% damage, faster shooting
     const pid = owner === 'p' ? (lvl >= 3 ? PERKS[gi].id : null) : owner === 'b' ? botPerk(gi) : null, pw = owner === 'p' && lvl >= 5 ? 2 : 1;
     const missShot = owner === 'p' && aimbot && ++aimShots % 10 === 0; // aimbot misses every 10th shot
     const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
@@ -680,7 +703,7 @@
       if (pid === 'ice') bl.slow = pw;
       if (pid === 'pierce') bl.pierce = true;
       if (pid === 'boom' || pid === 'fireboom') bl.boom = 55 + 25 * pw;
-      if (owner === 'b' && diffName === 'insane') bl.home = 0.3; // insane bots have strong aim help (but less than Operator)
+      if (owner === 'b' && diffName === 'insane') bl.home = 0.2; // insane bots have good aim help (but less than Operator)
       if (pid === 'seek') bl.home = 0.04 * pw;
       if (pid === 'seek2') bl.home = 0.08 * pw;
       bl.hue = crit ? '#ffd700' : bl.fire ? '#ff8a2b' : bl.slow ? '#7fd8ff' : bl.boom ? '#ffb347' : bl.pierce ? '#ffffff' : bl.home ? '#ff5de0' : null;
@@ -771,7 +794,7 @@
     const ox0 = player.x, oy0 = player.y;
     const hasGhost = ghostOwned || aimbot;
     const inWall = hasGhost && obstacles.some(o => circleHitsRect(player.x, player.y, player.r, o));
-    const wantG = hasGhost && keys['g'] && (aimbot || player.ghostE > 0);
+    const wantG = hasGhost && (keys['g'] || (auto && aimbot)) && (aimbot || player.ghostE > 0); // operator autopilot floats through walls
     player.ghosting = !player.dead && (wantG || inWall);
     if (!player.dead) {
       if (player.ghosting) {
@@ -924,6 +947,19 @@
     }
     return [vx, vy];
   }
+  // operator ghost: if we floated into a wall while chasing, step out toward the nearest open spot (so we can shoot)
+  const inWallNow = p => obstacles.some(o => circleHitsRect(p.x, p.y, p.r, o));
+  function escapeDir(p, tx, ty) {
+    const want = Math.atan2(ty - p.y, tx - p.x); let best = null, bd = 9;
+    for (const dist of [26, 52]) {
+      for (let k = 0; k < 24; k++) {
+        const a = k * Math.PI / 12; if (blocked(p.x + Math.cos(a) * dist, p.y + Math.sin(a) * dist, p.r)) continue;
+        let d = Math.abs(a - want); d = Math.min(d, 6.283 - d); if (d < bd) { bd = d; best = a; }
+      }
+      if (best !== null) break;
+    }
+    return best === null ? [Math.cos(want), Math.sin(want)] : [Math.cos(best), Math.sin(best)];
+  }
   // walk to a spot: straight if clear, otherwise along the best path (digging where the path goes through dirt)
   function navTo(p, gx, gy) {
     const dx = gx - p.x, dy = gy - p.y;
@@ -935,7 +971,11 @@
     if (corridorClear(p.x, p.y, gx, gy, p.r + 1)) { p.path = null; p.pathT = 0; return safeDir(p, dx, dy); }
     if (p.pathT === undefined || --p.pathT <= 0 || Math.hypot(gx - p.pathGX, gy - p.pathGY) > 50) {
       buildNav(canDig); p.path = findPath(p.x, p.y, gx, gy); p.pathT = 12; p.pathGX = gx; p.pathGY = gy;
+      // operator ghost: float straight through walls when the way around is long (always in Capture the Flag)
+      let plen = 0; if (p.path) for (let i = 1; i < p.path.length; i++) plen += CELL * (p.path[i][0] !== p.path[i - 1][0] && p.path[i][1] !== p.path[i - 1][1] ? 1.41 : 1);
+      p.ghostRoute = p === player && aimbot && (mode === 'ctf' || !p.path || plen > 1.5 * Math.hypot(dx, dy) + 80);
     }
+    if (p.ghostRoute && p === player && aimbot) { const m0 = Math.hypot(dx, dy) || 1; return [dx / m0, dy / m0]; }
     if (p.path && p.path.length > 1) {
       let tgt = p.path[1];
       for (let i = Math.min(p.path.length - 1, 14); i >= 2; i--) if (corridorClear(p.x, p.y, p.path[i][0], p.path[i][1], p.r + 1)) { tgt = p.path[i]; break; }
@@ -975,6 +1015,7 @@
     if (mode === 'ctf') {
       const g = playerGoal();
       if (g.kind === 'bot' && !bot.dead && corridorClear(p.x, p.y, bot.x, bot.y, 4) && lineClear(p.x, p.y, bot.x, bot.y)) {
+        if (aimbot && inWallNow(p)) return escapeDir(p, bot.x, bot.y);
         const d = Math.hypot(bot.x - p.x, bot.y - p.y) || 1;
         return strafeMove(p, (bot.x - p.x) / d, (bot.y - p.y) / d, d, 200);
       }
@@ -983,6 +1024,7 @@
     const dx = foe.x - p.x, dy = foe.y - p.y, dist = Math.hypot(dx, dy) || 1;
     if (!corridorClear(p.x, p.y, foe.x, foe.y, 4) || !lineClear(p.x, p.y, foe.x, foe.y)) return navTo(p, foe.x, foe.y);
     p.path = null; p.pathT = 0;
+    if (aimbot && inWallNow(p)) return escapeDir(p, foe.x, foe.y);
     return strafeMove(p, dx / dist, dy / dist, dist);
   }
 
