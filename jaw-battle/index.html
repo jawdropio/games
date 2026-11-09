@@ -367,7 +367,7 @@
     player.lane = newLane(); bot.lane = newLane();
     if (mode === 'team') buildTeams();
     foe = bot;
-    bullets = []; parts = []; puddles = []; flags = null;
+    bullets = []; parts = []; puddles = []; trails = []; flags = null;
     if (mode === 'ctf') initFlags();
     state = 'play';
     toast = { text: '🗺️ Map ' + mapSeed + ': ' + mp.name, t: 150 };
@@ -551,6 +551,7 @@
   function paintPreview(c, k, t) {
     const g = c.getContext('2d'); g.clearRect(0, 0, 76, 76); g.save(); g.translate(38, 38); const r = 26;
     g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(0, r - 2, r, 7, 0, 0, 6.283); g.fill();
+    if (k.aura) k.aura(g, t, r * 0.72);
     g.fillStyle = k.base; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r, 0.35, 6.283 - 0.35); g.closePath(); g.fill();
     if (k.paint) { g.save(); g.clip(); k.paint(g, t, r); g.restore(); }
     g.fillStyle = '#fff'; for (const sg of [-1, 1]) { const a = sg * 0.35; g.beginPath(); g.moveTo(Math.cos(a) * (r - 12), Math.sin(a) * (r - 12)); g.lineTo(Math.cos(a) * r, Math.sin(a) * r); g.lineTo(Math.cos(a + sg * 0.35) * (r - 3), Math.sin(a + sg * 0.35) * (r - 3)); g.closePath(); g.fill(); }
@@ -819,7 +820,9 @@
     if (mode === 'ctf' && keys['e'] && !player.dead && ++player.digT >= shovelDelay(shovel())) { player.digT = 0; dig(player, player.aim, shovel()); }
     if (player.digAng != null && !player.dead && ((player.digT2 = (player.digT2 || 0) + 1) >= shovelDelay(shovel()))) { player.digT2 = 0; dig(player, player.digAng, shovel()); }
     foe = nearestFoe(player) || bot;
-    for (const f of fighters) { f.vxm = f.x - (f.lx ?? f.x); f.vym = f.y - (f.ly ?? f.y); f.lx = f.x; f.ly = f.y; }
+    for (const f of fighters) { f.vxm = f.x - (f.lx ?? f.x); f.vym = f.y - (f.ly ?? f.y); f.lx = f.x; f.ly = f.y; if (f.skin && !f.dead && Math.hypot(f.vxm, f.vym) > 0.5) spawnTrail(f); }
+    for (const tr of trails) { tr.x += tr.vx; tr.y += tr.vy; tr.life--; }
+    trails = trails.filter(tr => tr.life > 0);
     const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !foe.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
     const psp = (mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2) * (player.slow > 0 ? 0.5 : 1) * (player.skin === 'rainbow' ? 1.1 : 1);
@@ -1191,25 +1194,97 @@
       paint(g, t, r) { g.fillStyle = '#9fdcff'; g.fillRect(-r, -r, 2 * r, 2 * r); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-r, -3); g.lineTo(-2, 4); g.lineTo(6, -2); g.lineTo(r, 6); g.moveTo(-2, 4); g.lineTo(-4, r); g.stroke(); sparkle(g, t, r, 9, '#fff'); } },
     { id: 'leaves', name: 'Autumn Leaves', icon: '🍂', base: '#b8541a', cost: 800, anim: true, eye: '#2a0d00', info: 'Swirling fall leaves',
       paint(g, t, r) { g.fillStyle = '#b8541a'; g.fillRect(-r, -r, 2 * r, 2 * r); const cols = ['#ffb02e', '#e8731a', '#c9411f', '#f2d04a']; for (let i = 0; i < 9; i++) { const a = t / 900 + i * 0.7, d = r * (0.2 + (i % 4) * 0.2); g.save(); g.translate(Math.cos(a) * d, Math.sin(a * 1.1) * d); g.rotate(a * 2 + i); g.fillStyle = cols[i % 4]; g.beginPath(); g.ellipse(0, 0, 5, 2.4, 0, 0, 6.283); g.fill(); g.restore(); } } },
-    { id: 'lava', name: 'Lava', icon: '🌋', base: '#c2300a', cost: 900, anim: true, eye: '#1a0500', info: 'Flowing molten lava', power: '🔥 Fireproof, and enemies who touch you catch fire',
-      paint(g, t, r) { g.fillStyle = '#7a1500'; g.fillRect(-r, -r, 2 * r, 2 * r); const cols = ['#ff8a1a', '#ffd23a', '#ff5a1a']; for (let i = 0; i < 7; i++) { const x = Math.sin(t / 700 + i * 1.7) * r * 0.65, y = Math.cos(t / 900 + i * 2.3) * r * 0.65, rr = r * (0.38 + 0.12 * Math.sin(t / 400 + i)); const gr = g.createRadialGradient(x, y, 1, x, y, rr); gr.addColorStop(0, cols[i % 3]); gr.addColorStop(1, 'rgba(255,90,26,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } sparkle(g, t, r, 6, '#fff3a0'); } },
+    { id: 'lava', name: 'Lava', icon: '🌋', base: '#c2300a', cost: 900, anim: true, eye: '#fff2b0', glowEye: true, info: 'Molten rock with glowing cracks and flames', power: '🔥 Fireproof, and enemies who touch you catch fire',
+      aura(g, t, r) {
+        const p = (Math.sin(t / 180) + 1) / 2, gr = g.createRadialGradient(0, 0, r * 0.6, 0, 0, r * 2.1);
+        gr.addColorStop(0, 'rgba(255,140,30,' + (0.5 + 0.2 * p) + ')'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 2.1, 0, 6.283); g.fill();
+        for (let i = 0; i < 7; i++) { const a = i * 0.897 + t / 600, f = (Math.sin(t / 85 + i * 2.1) + 1) / 2, x = Math.cos(a) * r * 0.9, y = Math.sin(a) * r * 0.9, L = 6 + 11 * f;
+          g.fillStyle = i % 2 ? '#ffd23a' : '#ff7a1a'; g.beginPath(); g.moveTo(x + Math.cos(a + 1.57) * 3.5, y + Math.sin(a + 1.57) * 3.5); g.quadraticCurveTo(x + Math.cos(a + 0.2) * L * 0.7, y + Math.sin(a + 0.2) * L * 0.7, x + Math.cos(a) * L, y + Math.sin(a) * L); g.quadraticCurveTo(x + Math.cos(a - 0.2) * L * 0.7, y + Math.sin(a - 0.2) * L * 0.7, x + Math.cos(a - 1.57) * 3.5, y + Math.sin(a - 1.57) * 3.5); g.closePath(); g.fill(); } },
+      paint(g, t, r) {
+        g.fillStyle = '#2b0b03'; g.fillRect(-r, -r, 2 * r, 2 * r);
+        for (let i = 0; i < 6; i++) { const x = Math.sin(t / 800 + i * 1.7) * r * 0.7, y = Math.cos(t / 1000 + i * 2.3) * r * 0.7, rr = r * (0.55 + 0.15 * Math.sin(t / 380 + i)), gr = g.createRadialGradient(x, y, 1, x, y, rr);
+          gr.addColorStop(0, i % 2 ? '#ffe35a' : '#ff9a22'); gr.addColorStop(0.55, 'rgba(255,90,20,.75)'); gr.addColorStop(1, 'rgba(160,30,0,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); }
+        g.lineCap = 'round'; const pulse = 0.55 + 0.45 * Math.sin(t / 220);
+        for (let k = 0; k < 6; k++) { const a = k * 1.05 + Math.sin(t / 2000 + k) * 0.3; g.beginPath(); g.moveTo(0, 0); let x = 0, y = 0; for (let j = 1; j <= 4; j++) { x += Math.cos(a + Math.sin(j * 2 + k) * 0.7) * r * 0.3; y += Math.sin(a + Math.sin(j * 2 + k) * 0.7) * r * 0.3; g.lineTo(x, y); }
+          g.strokeStyle = 'rgba(255,60,0,' + 0.5 * pulse + ')'; g.lineWidth = 4; g.stroke(); g.strokeStyle = 'rgba(255,230,120,' + pulse + ')'; g.lineWidth = 1.5; g.stroke(); }
+        for (let i = 0; i < 4; i++) { const ph = ((t / 900 + i * 0.27) % 1), x = Math.sin(i * 5.1) * r * 0.6, y = r - ph * r * 2; g.fillStyle = 'rgba(255,220,100,' + (1 - ph) + ')'; g.beginPath(); g.arc(x, y, 1.5 + ph * 2, 0, 6.283); g.fill(); }
+      } },
     { id: 'rainbow', name: 'Rainbow', icon: '🌈', base: '#ff7ac8', cost: 1000, anim: true, eye: '#1a1a1a', info: 'Cycling colors', power: '💨 Runs 10% faster',
       paint(g, t, r) { const gr = g.createLinearGradient(-r, -r, r, r), h = (t / 8) % 360; for (let k = 0; k <= 4; k++) gr.addColorStop(k / 4, 'hsl(' + ((h + k * 70) % 360) + ',90%,60%)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } },
-    { id: 'galaxy', name: 'Galaxy', icon: '🌌', base: '#150b3a', cost: 1200, anim: true, eye: '#ffffff', info: 'Twinkling stars', power: '🛡️ Star shield blocks the next hit (comes back after 20 seconds)',
-      paint(g, t, r) { g.fillStyle = '#0d0630'; g.fillRect(-r, -r, 2 * r, 2 * r); const gr = g.createRadialGradient(Math.cos(t / 1500) * r * 0.4, Math.sin(t / 1500) * r * 0.4, 1, 0, 0, r); gr.addColorStop(0, 'rgba(255,90,200,.55)'); gr.addColorStop(1, 'rgba(80,40,200,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); sparkle(g, t, r, 14, '#fff'); } },
-    { id: 'death', name: 'Black Death', icon: '🖤', base: '#0a0a0f', cost: 1500, anim: true, eye: '#ff3b4a', info: 'Dark smoke with a red glow', power: '🩸 Heals you for 20% of the damage you deal',
-      paint(g, t, r) { g.fillStyle = '#07070c'; g.fillRect(-r, -r, 2 * r, 2 * r); for (let i = 0; i < 4; i++) { const a = t / 700 + i * 1.57, x = Math.cos(a) * r * 0.5, y = Math.sin(a * 1.3) * r * 0.5, gr = g.createRadialGradient(x, y, 1, x, y, r * 0.9); gr.addColorStop(0, 'rgba(120,30,170,.55)'); gr.addColorStop(1, 'rgba(120,30,170,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } const p = (Math.sin(t / 250) + 1) / 2; g.strokeStyle = 'rgba(255,40,60,' + (0.3 + 0.4 * p) + ')'; g.lineWidth = 2.5; g.beginPath(); g.arc(0, 0, r - 2, 0, 6.283); g.stroke(); } },
-    { id: 'thunder', name: 'Thunder', icon: '⚡', base: '#1a1f5a', cost: 2000, anim: true, eye: '#ffe14a', info: 'Crackling lightning', power: '⚡ 1 in 5 of your hits zaps enemies and slows them',
-      paint(g, t, r) { g.fillStyle = '#141a4d'; g.fillRect(-r, -r, 2 * r, 2 * r); const seed = Math.floor(t / 140); g.strokeStyle = 'rgba(255,232,90,.95)'; g.lineWidth = 2; for (let k = 0; k < 2; k++) { let x = -r * 0.8 + ((seed * 7 + k * 13) % 10) / 10 * r * 1.2, y = -r; g.beginPath(); g.moveTo(x, y); for (let j = 0; j < 5; j++) { x += (((seed * (j + 3) + k * 5) % 7) - 3) * 2.4; y += r * 0.4; g.lineTo(x, y); } g.stroke(); } sparkle(g, t, r, 5, '#fff7a0'); } },
+    { id: 'galaxy', name: 'Galaxy', icon: '🌌', base: '#150b3a', cost: 1200, anim: true, eye: '#ffffff', glowEye: true, info: 'A swirling galaxy with shooting stars', power: '🛡️ Star shield blocks the next hit (comes back after 20 seconds)',
+      aura(g, t, r) {
+        const gr = g.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 1.9); gr.addColorStop(0, 'rgba(150,90,255,.4)'); gr.addColorStop(1, 'rgba(100,60,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 1.9, 0, 6.283); g.fill();
+        for (let i = 0; i < 3; i++) { const a = t / (500 + i * 200) + i * 2.1, x = Math.cos(a) * r * 1.45, y = Math.sin(a) * r * 1.45; g.fillStyle = ['#fff', '#ffc8ff', '#bfe0ff'][i]; g.beginPath(); for (let k = 0; k < 8; k++) { const rr = k % 2 ? 1.6 : 4.5, aa = k * 0.785 + a; g.lineTo(x + Math.cos(aa) * rr, y + Math.sin(aa) * rr); } g.closePath(); g.fill(); } },
+      paint(g, t, r) {
+        g.fillStyle = '#080320'; g.fillRect(-r, -r, 2 * r, 2 * r);
+        for (const [cx, cy, col] of [[Math.cos(t / 1700) * r * 0.5, Math.sin(t / 1700) * r * 0.5, '255,80,200'], [-Math.cos(t / 1300) * r * 0.5, Math.sin(t / 1900) * r * 0.5, '60,200,255']]) { const gr = g.createRadialGradient(cx, cy, 1, cx, cy, r * 0.95); gr.addColorStop(0, 'rgba(' + col + ',.6)'); gr.addColorStop(1, 'rgba(' + col + ',0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); }
+        for (let i = 0; i < 46; i++) { const a = i * 0.55 + t / 1400, d = (i / 46) * r * 1.05; g.fillStyle = 'rgba(255,255,255,' + (0.25 + 0.5 * (i / 46)) + ')'; g.beginPath(); g.arc(Math.cos(a) * d, Math.sin(a) * d, 0.8 + (i % 3) * 0.4, 0, 6.283); g.fill(); }
+        sparkle(g, t, r, 14, '#fff');
+        const ph = (t / 2600) % 1; if (ph < 0.25) { const q = ph / 0.25; g.strokeStyle = 'rgba(255,255,255,' + (1 - q) + ')'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-r + q * 2 * r, -r + q * 1.4 * r); g.lineTo(-r + q * 2 * r - 9, -r + q * 1.4 * r - 6); g.stroke(); }
+      } },
+    { id: 'death', name: 'Black Death', icon: '🖤', base: '#0a0a0f', cost: 1500, anim: true, eye: '#ff2a44', glowEye: true, info: 'Living shadow with a glowing red core', power: '🩸 Heals you for 20% of the damage you deal',
+      aura(g, t, r) {
+        for (let i = 0; i < 8; i++) { const a = i * 0.785 + t / 1400, d = r * (1.15 + 0.3 * Math.sin(t / 500 + i * 1.7)), x = Math.cos(a) * d, y = Math.sin(a) * d, rr = r * (0.45 + 0.15 * Math.sin(t / 420 + i)), gr = g.createRadialGradient(x, y, 1, x, y, rr);
+          gr.addColorStop(0, 'rgba(40,10,70,.55)'); gr.addColorStop(1, 'rgba(10,0,20,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 6.283); g.fill(); }
+        const p = (Math.sin(t / 240) + 1) / 2, gr2 = g.createRadialGradient(0, 0, r * 0.9, 0, 0, r * 1.7); gr2.addColorStop(0, 'rgba(255,30,60,' + (0.2 + 0.25 * p) + ')'); gr2.addColorStop(1, 'rgba(255,30,60,0)'); g.fillStyle = gr2; g.beginPath(); g.arc(0, 0, r * 1.7, 0, 6.283); g.fill(); },
+      paint(g, t, r) {
+        g.fillStyle = '#040408'; g.fillRect(-r, -r, 2 * r, 2 * r);
+        g.lineCap = 'round';
+        for (let arm = 0; arm < 3; arm++) { g.strokeStyle = 'rgba(150,40,210,' + (0.35 + 0.15 * arm) + ')'; g.lineWidth = 2.2; g.beginPath(); for (let i = 0; i < 22; i++) { const a = arm * 2.094 + i * 0.28 - t / 600, d = i / 22 * r * 1.1; i ? g.lineTo(Math.cos(a) * d, Math.sin(a) * d) : g.moveTo(0, 0); } g.stroke(); }
+        const p = (Math.sin(t / 240) + 1) / 2, gr = g.createRadialGradient(0, 0, 1, 0, 0, r * 0.7); gr.addColorStop(0, 'rgba(255,40,70,' + (0.3 + 0.4 * p) + ')'); gr.addColorStop(1, 'rgba(255,40,70,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r);
+        g.strokeStyle = 'rgba(255,40,60,' + (0.4 + 0.5 * p) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, r - 2, 0, 6.283); g.stroke();
+      } },
+    { id: 'thunder', name: 'Thunder', icon: '⚡', base: '#1a1f5a', cost: 2000, anim: true, eye: '#fff36b', glowEye: true, info: 'A crackling storm with lightning arcs', power: '⚡ 1 in 5 of your hits zaps enemies and slows them',
+      aura(g, t, r) {
+        const fl = (Math.sin(t / 70) + 1) / 2, gr = g.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 1.8); gr.addColorStop(0, 'rgba(255,240,90,' + (0.25 + 0.2 * fl) + ')'); gr.addColorStop(1, 'rgba(120,160,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 1.8, 0, 6.283); g.fill();
+        const seed = Math.floor(t / 100); g.lineCap = 'round';
+        for (let i = 0; i < 5; i++) { const a = ((seed * 37 + i * 71) % 100) / 100 * 6.283, L = r * (0.5 + ((seed * 13 + i * 29) % 10) / 12); let x = Math.cos(a) * r, y = Math.sin(a) * r; g.beginPath(); g.moveTo(x, y);
+          for (let j = 1; j <= 3; j++) { const aa = a + (((seed * (j + 5) + i * 3) % 9) - 4) * 0.14; x += Math.cos(aa) * L / 3; y += Math.sin(aa) * L / 3; g.lineTo(x, y); }
+          g.strokeStyle = 'rgba(120,170,255,.55)'; g.lineWidth = 4; g.stroke(); g.strokeStyle = '#fff7a8'; g.lineWidth = 1.6; g.stroke(); } },
+      paint(g, t, r) {
+        const gr = g.createLinearGradient(0, -r, 0, r); gr.addColorStop(0, '#1b2a7a'); gr.addColorStop(1, '#0c0f33'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r);
+        const seed = Math.floor(t / 110); g.lineCap = 'round'; g.lineJoin = 'round';
+        for (let k = 0; k < 3; k++) { let x = -r * 0.7 + ((seed * (k + 3) * 7) % 100) / 100 * r * 1.4, y = -r; g.beginPath(); g.moveTo(x, y); for (let j = 0; j < 5; j++) { x += (((seed * (j + 3) + k * 5) % 7) - 3) * 3; y += r * 0.4; g.lineTo(x, y); }
+          g.strokeStyle = 'rgba(120,170,255,.6)'; g.lineWidth = 4; g.stroke(); g.strokeStyle = '#fff36b'; g.lineWidth = 1.8; g.stroke(); }
+        const ph = (t / 900) % 1; if (ph < 0.09) { g.fillStyle = 'rgba(255,255,255,' + (0.35 * (1 - ph / 0.09)) + ')'; g.fillRect(-r, -r, 2 * r, 2 * r); }
+        sparkle(g, t, r, 6, '#fff7a0');
+      } },
     { id: 'gold', name: 'Golden King', icon: '👑', base: '#e6b422', cost: 2500, anim: true, eye: '#3a2600', info: 'Shiny gold', power: '🪙 +50% coins from every win',
       paint(g, t, r) { g.fillStyle = '#d9a518'; g.fillRect(-r, -r, 2 * r, 2 * r); const x = ((t / 14) % (4 * r)) - 2 * r, gr = g.createLinearGradient(x - 12, 0, x + 12, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); sparkle(g, t, r, 5, '#fff6c0'); } },
   ];
   const skinById = id => SKINS.find(k => k.id === id) || SKINS[0];
   const ownSkin = id => aimbot || skinsOwned.includes(id);
+  // trails: cool skins leave a glowing trail behind them
+  const TRAIL = { lava: 'ember', death: 'smoke', galaxy: 'star', thunder: 'bolt', rainbow: 'rainbow', water: 'bubble', ice: 'snow', leaves: 'leaf', gold: 'sparkle' };
+  let trails = [];
+  function spawnTrail(f) {
+    const k = TRAIL[f.skin]; if (!k) return;
+    const n = (k === 'ember' || k === 'smoke' || k === 'star' || k === 'bolt') ? 2 : 1;
+    for (let i = 0; i < n; i++) trails.push({ k, x: f.x + (Math.random() - 0.5) * f.r, y: f.y + (Math.random() - 0.5) * f.r, vx: (Math.random() - 0.5) * 0.8 - (f.vxm || 0) * 0.15, vy: (Math.random() - 0.5) * 0.8 - (f.vym || 0) * 0.15 - (k === 'ember' ? 0.7 : 0), life: 28 + Math.random() * 22, max: 50, ph: Math.random() * 6.283 });
+    if (trails.length > 450) trails.splice(0, trails.length - 450);
+  }
+  function drawTrails() {
+    for (const tr of trails) {
+      const a = Math.max(0, Math.min(1, tr.life / 40)); ctx.save(); ctx.translate(tr.x, tr.y);
+      switch (tr.k) {
+        case 'ember': ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,' + Math.floor(90 + 140 * a) + ',20,' + (a * 0.9) + ')'; ctx.beginPath(); ctx.arc(0, 0, 2 + 5 * a, 0, 6.283); ctx.fill(); break;
+        case 'smoke': ctx.fillStyle = 'rgba(70,20,110,' + (a * 0.38) + ')'; ctx.beginPath(); ctx.arc(0, 0, 4 + (1 - a) * 11, 0, 6.283); ctx.fill(); break;
+        case 'star': { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = ['#ffffff', '#ffc8ff', '#bfe0ff'][Math.floor(tr.ph * 3) % 3]; ctx.globalAlpha = a; const sz = 2 + 3 * a; ctx.beginPath(); for (let k = 0; k < 8; k++) { const rr = k % 2 ? sz * 0.35 : sz * 1.4, aa = k * 0.785; ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); } ctx.closePath(); ctx.fill(); break; }
+        case 'bolt': ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,240,110,' + a + ')'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(tr.ph) * 5, Math.sin(tr.ph) * 5); ctx.lineTo(Math.cos(tr.ph + 1.2) * 9, Math.sin(tr.ph + 1.2) * 9); ctx.stroke(); break;
+        case 'rainbow': ctx.fillStyle = 'hsla(' + ((tr.ph * 57 + Date.now() / 8) % 360) + ',90%,60%,' + (a * 0.8) + ')'; ctx.beginPath(); ctx.arc(0, 0, 3 + 3 * a, 0, 6.283); ctx.fill(); break;
+        case 'bubble': ctx.strokeStyle = 'rgba(200,235,255,' + (a * 0.8) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 2 + (1 - a) * 4, 0, 6.283); ctx.stroke(); break;
+        case 'snow': ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.beginPath(); ctx.arc(0, 0, 1.5 + a * 1.5, 0, 6.283); ctx.fill(); break;
+        case 'leaf': ctx.rotate(tr.ph + tr.life / 10); ctx.fillStyle = ['#ffb02e', '#e8731a', '#c9411f'][Math.floor(tr.ph * 3) % 3]; ctx.globalAlpha = a; ctx.beginPath(); ctx.ellipse(0, 0, 4, 2, 0, 0, 6.283); ctx.fill(); break;
+        default: ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,225,110,' + a + ')'; ctx.fillRect(-1, -4 * a - 1, 2, 8 * a + 2); ctx.fillRect(-4 * a - 1, -1, 8 * a + 2, 2);
+      }
+      ctx.restore();
+    }
+  }
   function drawFighter(f, t) {
     ctx.save(); ctx.translate(f.x, f.y);
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0, f.r - 2, f.r, 6, 0, 0, 6.283); ctx.fill();
+    { const skA = f.skin ? skinById(f.skin) : null; if (skA && skA.aura) skA.aura(ctx, t || 0, f.r); }
     ctx.rotate(f.aim);
     const open = 0.25 + 0.5 * (f.cd > 0 ? 1 - f.cd / (f.maxCd || 1) : 1) * (f.cd > 0 ? 0.6 : 0.35);
     ctx.fillStyle = f.flash > 0 && (f.flash % 4 < 2) ? '#fff' : f.color;
@@ -1226,7 +1301,9 @@
       ctx.closePath(); ctx.fill();
     }
     // eye
-    ctx.fillStyle = sk && sk.eye ? sk.eye : '#120b2e'; ctx.beginPath(); ctx.arc(-3, -7, 3, 0, 6.283); ctx.fill();
+    if (sk && sk.glowEye) { ctx.shadowColor = sk.eye; ctx.shadowBlur = 12; }
+    ctx.fillStyle = sk && sk.eye ? sk.eye : '#120b2e'; ctx.beginPath(); ctx.arc(-3, -7, sk && sk.glowEye ? 3.6 : 3, 0, 6.283); ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.restore();
   }
 
@@ -1354,6 +1431,7 @@
         ctx.strokeStyle = inRange ? 'rgba(79,224,192,.7)' : 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
         ctx.strokeRect(gx + 1, gy + 1, GRID - 2, GRID - 2); ctx.setLineDash([]);
       }
+      drawTrails();
       for (const pd of puddles) {
         const fade = Math.min(1, pd.t / 120), rip = 1 + Math.sin(Date.now() / 250 + pd.x) * 0.04;
         ctx.globalAlpha = 0.5 * fade; ctx.fillStyle = '#4aa8ff'; ctx.beginPath(); ctx.ellipse(pd.x, pd.y + 6, pd.r * rip, pd.r * 0.7 * rip, 0, 0, 6.283); ctx.fill();
