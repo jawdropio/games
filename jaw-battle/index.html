@@ -110,7 +110,7 @@
 
   // ---------- state ----------
   let state = 'menu'; // menu | play | paused | over
-  let player, bot, bullets, obstacles, parts, round = 1, wins = 0, best = 0, layoutIdx = 0, shake = 0;
+  let player, bot, bullets, obstacles, parts, puddles = [], round = 1, wins = 0, best = 0, layoutIdx = 0, shake = 0;
 
   // ---------- difficulty ----------
   const DIFFS = {
@@ -135,6 +135,19 @@
     else if (Array.isArray(x)) gunLv = gunLv.map((_, i) => { let l = 1; for (let k = 1; k < XP_AT.length; k++) if ((+x[i] || 0) >= XP_AT[k]) l = k + 1; return l; });
   } catch (e) {}
   const gunLevel = i => aimbot ? 5 : gunLv[i];
+  // cool gun perks: unlock at Level 3, twice as strong at Level 5
+  const PERKS = [
+    { id: 'crit', name: '🎯 Critical hits', desc: 'sometimes deals double damage' },
+    { id: 'fire', name: '🔥 Flame pellets', desc: 'sets enemies on fire (water puts it out!)' },
+    { id: 'ice', name: '❄️ Ice rounds', desc: 'slows enemies down' },
+    { id: 'pierce', name: '🏹 Piercing', desc: 'shoots right through crates and blocks' },
+    { id: 'seek', name: '🧲 Seeking', desc: 'bullets curve toward the enemy' },
+    { id: 'bounce', name: '🎱 Super bounce', desc: 'bounces more times' },
+    { id: 'boom', name: '💥 Explosive', desc: 'blows up where it lands' },
+    { id: 'seek2', name: '🛰️ Heat seeker', desc: 'curves hard toward the enemy' },
+    { id: 'fireboom', name: '☄️ Meteor', desc: 'fire AND explosions' },
+  ];
+  const botPerk = gi => ((diffName === 'hard' || diffName === 'insane') && gi === 1) ? 'fire' : (diffName === 'insane' && gi === 2) ? 'ice' : null;
   const upCost = lv => [30, 60, 100, 150][lv - 1];
   let aimbot = false, aimPro = false, aimShots = 0;
   // OPERATOR mode (the secret code): everything unlocked and maxed, infinite coins, free ghost, infinite walls
@@ -184,21 +197,22 @@
   const GRID = 40, BUILD_RANGE = 240, MAX_BLOCKS = 8;
 
   function makeFighter(x, y, color, isBot) {
-    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, digT: 0, ghostE: 240, ghosting: false, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
+    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, digT: 0, burn: 0, slow: 0, water: 3, waterT: 0, ghostE: 240, ghosting: false, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
              // bot brain
              strafe: 1, strafeT: 0, dodge: 0, stuck: 0 };
   }
 
   // ---------- 500 big maps ----------
   const MAP_W = 1440, MAP_H = 900, MAP_COUNT = 500;
+  // every map is autumn themed
   const THEMES = [
-    { floor: '#1d1445', wall: '#5a4bb5', edge: '#8f84d6' }, { floor: '#10321f', wall: '#2f7d4a', edge: '#6fd493' },
-    { floor: '#3a2412', wall: '#8a5a2b', edge: '#c9915a' }, { floor: '#0f2a45', wall: '#2d6aa8', edge: '#7fb8ee' },
-    { floor: '#3b1020', wall: '#a83254', edge: '#ee7f9c' }, { floor: '#262626', wall: '#6b6b6b', edge: '#b5b5b5' },
-    { floor: '#33310f', wall: '#9c9423', edge: '#e3da63' }, { floor: '#2c1042', wall: '#7a2dc4', edge: '#c58bff' },
+    { floor: '#3b1d0e', wall: '#8c4a1f', edge: '#e08a3c' }, { floor: '#3a2410', wall: '#b5651d', edge: '#ffb04d' },
+    { floor: '#3d3512', wall: '#a68a2b', edge: '#f0d36a' }, { floor: '#38121c', wall: '#8e2f45', edge: '#e8798f' },
+    { floor: '#26301a', wall: '#5e7a34', edge: '#a8c46a' }, { floor: '#3f2a14', wall: '#9a6a3a', edge: '#e0b27a' },
+    { floor: '#2f2a2a', wall: '#7a6a5e', edge: '#c9b7a5' }, { floor: '#2e1a2f', wall: '#7a4a6e', edge: '#d79ad0' },
   ];
-  const ADJ = ['Sneaky', 'Giant', 'Spooky', 'Sunny', 'Frosty', 'Wobbly', 'Mighty', 'Secret', 'Noisy', 'Sparkly', 'Bouncy', 'Zippy', 'Cheesy', 'Rocky', 'Misty', 'Wild'];
-  const NOUN = ['Canyon', 'Maze', 'Jungle', 'Castle', 'Playground', 'Valley', 'Fortress', 'Island', 'Arena', 'Garden', 'Temple', 'Factory', 'Volcano', 'Harbor', 'Junkyard', 'Meadow'];
+  const ADJ = ['Crunchy', 'Cozy', 'Golden', 'Foggy', 'Spooky', 'Harvest', 'Rustic', 'Windy', 'Misty', 'Amber', 'Toasty', 'Rusty', 'Maple', 'Cider', 'Acorn', 'Scarecrow'];
+  const NOUN = ['Orchard', 'Pumpkin Patch', 'Hollow', 'Grove', 'Meadow', 'Cornfield', 'Barn Yard', 'Woods', 'Hayride', 'Cider Mill', 'Farm', 'Trail', 'Bonfire Camp', 'Leaf Pile', 'Harvest Fair', 'Hilltop'];
   let theme = THEMES[0];
   let mapSeed = 1 + Math.floor(Math.random() * MAP_COUNT);
   try { const v = +localStorage.getItem('jawBattleMap'); if (v >= 1 && v <= MAP_COUNT) mapSeed = v; } catch (e) {}
@@ -261,11 +275,13 @@
         const rx = Math.round(x / 10) * 10, ry = Math.round(y / 10) * 10;
         add(rx, ry, 22, h, 'w'); add(MAP_W - rx - 22, ry, 22, h, 'w');
       }
+      add(130, MAP_H / 2 - 70, 22, 140, 'w'); add(MAP_W - 152, MAP_H / 2 - 70, 22, 140, 'w'); // spawn shields (added last so caves can't cut them)
     } else {
       const style = Math.floor(r() * 4);
       for (let attempt = 0; attempt < 10; attempt++) {
         const rr = rng(seed * 31 + attempt * 7919 + 5), count = 10 + Math.floor(rr() * 14), vm = rr() < 0.5;
         list = [];
+        add(130, MAP_H / 2 - 70, 22, 140, 'w'); add(MAP_W - 152, MAP_H / 2 - 70, 22, 140, 'w'); // spawn shields: nobody can shoot you the moment you spawn
         for (let k = 0; k < count; k++) {
           let w, h, type; const t = rr();
           if ((style === 1 && t < 0.7) || (style === 2 && t < 0.8)) { const horiz = rr() < 0.5, len = 120 + 30 * Math.floor(rr() * 10), thick = rr() < 0.5 ? 22 : 30; w = horiz ? len : thick; h = horiz ? thick : len; type = 'w'; }
@@ -277,6 +293,7 @@
         }
         if (battleConnected(list)) break;
         list = [];
+        add(130, MAP_H / 2 - 70, 22, 140, 'w'); add(MAP_W - 152, MAP_H / 2 - 70, 22, 140, 'w');
         add(500, 200, 60, 60, 'w'); add(MAP_W - 560, 200, 60, 60, 'w'); add(500, 640, 60, 60, 'w'); add(MAP_W - 560, 640, 60, 60, 'w'); add(W2 - 40, 420, 80, 60, 'c');
       }
     }
@@ -291,7 +308,7 @@
     obstacles = mp.obstacles;
     player = makeFighter(80, H / 2, '#4fd1ff', false);
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true);
-    bullets = []; parts = []; flags = null;
+    bullets = []; parts = []; puddles = []; flags = null;
     if (mode === 'ctf') initFlags();
     state = 'play';
     toast = { text: '🗺️ Map ' + mapSeed + ': ' + mp.name, t: 150 };
@@ -335,7 +352,7 @@
       (note ? '<b style="color:#ffb020">' + note + '</b><br>' : '') + 'Beat the bot before it beats you! Pick your difficulty:<br>' +
       '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
       '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
-      '<b>Pause:</b> P or Esc &nbsp; <b>Ghost Boots</b> (shop): hold G to float through walls<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! Most of the middle is solid dirt, so hold <b>E</b> to dig tunnels with your shovel.<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
+      '<b>Water:</b> 0 or Q drops a puddle that puts out fire 💧 &nbsp; <b>Pause:</b> P or Esc &nbsp; <b>Ghost Boots</b> (shop): hold G to float through walls<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! Most of the middle is solid dirt, so hold <b>E</b> to dig tunnels with your shovel.<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
       (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coinText() + '</b>', 'Play!', newGame1P, true, menuLinks);
     setMenuFlag(true);
   }
@@ -416,25 +433,21 @@
   function submitAce() {
     const c = aceIn.value.trim();
     if (/^JAW-?1234$/i.test(c)) applyCode(true);
-    else if (/^JAW-?123$/i.test(c)) applyCode(false);
     else aceMsg.textContent = 'Nothing changed.';
     aceIn.value = '';
   }
   aceIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submitAce(); });
   document.getElementById('aceGo').onclick = submitAce;
   function applyCode(pro) {
-    if (pro) { aimPro = !aimPro; aimbot = aimPro; }
-    else if (aimbot && !aimPro) aimbot = false;
-    else { aimbot = true; aimPro = false; }
+    aimbot = !aimbot; aimPro = aimbot;
     try { localStorage.setItem('jawBattleAimbot', aimPro ? '2' : aimbot ? '1' : '0'); } catch (e) {}
     beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
     showMenu(aimPro ? '🤖 OPERATOR PRO ON! Everything maxed, infinite coins, ghost + walls!' : aimbot ? '🕶️ OPERATOR ON! Everything maxed, infinite coins, ghost + walls!' : '🕶️ Operator OFF.');
   }
   addEventListener('keydown', e => {
     if (!onMenu || e.key.length !== 1 || e.ctrlKey || e.metaKey) return;
-    typed = (typed + e.key.toLowerCase()).slice(-8);
-    if (pendingCode && e.key === '4') { clearTimeout(pendingCode); pendingCode = null; typed = ''; applyCode(true); }
-    else if (typed.endsWith('jaw123')) { typed = ''; pendingCode = setTimeout(() => { pendingCode = null; if (onMenu) applyCode(false); }, 700); }
+    typed = (typed + e.key.toLowerCase()).slice(-10);
+    if (typed.endsWith('jaw1234')) { typed = ''; applyCode(true); }
   });
   function menuLinks(p) {
     const dr = document.createElement('div'); dr.className = 'row';
@@ -486,7 +499,7 @@
       }
       for (let i = 0; i < GUNS.length; i++) {
         const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
-        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b>' + (own(i) ? ' (Lv ' + gunLevel(i) + ')' : '') + ' – ' + g.info;
+        const label = document.createElement('span'); label.style.cssText = 'min-width:340px;max-width:420px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b>' + (own(i) ? ' (Lv ' + gunLevel(i) + ')' : '') + ' – ' + g.info + '<br><small style="opacity:.85">' + (gunLevel(i) >= 3 ? '✅ ' : '🔒 Lv3: ') + PERKS[i].name + ' – ' + PERKS[i].desc + (gunLevel(i) >= 5 ? ' (doubled!)' : ' (double at Lv5)') + '</small>';
         const btn = document.createElement('button');
         if (own(i)) {
           const lv = gunLevel(i);
@@ -543,6 +556,8 @@
     if (state === 'play') {
       if (k >= '1' && k <= '9' && own(gunOrder[+k - 1])) player.gun = gunOrder[+k - 1];
       if (k === 'b' && !e.repeat) tryBuild();
+      if ((k === '0' || k === 'q') && !e.repeat) placePuddle(player);
+      if (k === '.' && mode === '2p' && !e.repeat) placePuddle(bot);
       if (k === 'o' && aimbot && !e.repeat) { aimPro = !aimPro; toast = { text: aimPro ? '🤖 Autopilot ON' : '🕹️ Autopilot OFF – you drive!', t: 90 }; }
       if (mode === '2p' && !e.repeat) {
         if (k === 'shift') tryBuild(bot, bot.x + Math.cos(bot.aim) * 60, bot.y + Math.sin(bot.aim) * 60);
@@ -614,16 +629,66 @@
   function fire(f, owner, gi) {
     const g = GUNS[gi];
     const lvl = owner === 'p' ? gunLevel(gi) : 1, dmgMul = 1 + 0.1 * (lvl - 1); // each level: +10% damage, faster shooting
+    const pid = owner === 'p' ? (lvl >= 3 ? PERKS[gi].id : null) : owner === 'b' ? botPerk(gi) : null, pw = owner === 'p' && lvl >= 5 ? 2 : 1;
     const missShot = owner === 'p' && aimbot && ++aimShots % 10 === 0; // aimbot misses every 10th shot
     const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
     const n = g.n + (gi === 4 && owner === 'p' ? lvl - 1 : 0), spread = g.spread + (n - g.n) * 0.08; // Triple Shot: +1 bullet per level
     for (let i = 0; i < n; i++) {
       const a = f.aim + missOff + (n > 1 ? (i / (n - 1) - 0.5) * spread : (Math.random() - 0.5) * spread);
-      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg * dmgMul, base: g.dmg, gi, color: g.color, r: g.r || 5, bounce: g.bounce || 0, obs: g.obs || 1, miss: missShot });
+      const crit = pid === 'crit' && Math.random() < 0.12 * pw;
+      const bl = { x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg * dmgMul * (crit ? 2 : 1), base: g.dmg, gi, color: g.color, r: (g.r || 5) + (crit ? 1 : 0), bounce: (g.bounce || 0) + (pid === 'bounce' ? 2 * pw : 0), obs: g.obs || 1, miss: missShot };
+      if (pid === 'fire' || pid === 'fireboom') bl.fire = pw;
+      if (pid === 'ice') bl.slow = pw;
+      if (pid === 'pierce') bl.pierce = true;
+      if (pid === 'boom' || pid === 'fireboom') bl.boom = 55 + 25 * pw;
+      if (pid === 'seek') bl.home = 0.04 * pw;
+      if (pid === 'seek2') bl.home = 0.08 * pw;
+      bl.hue = crit ? '#ffd700' : bl.fire ? '#ff8a2b' : bl.slow ? '#7fd8ff' : bl.boom ? '#ffb347' : bl.pierce ? '#ffffff' : bl.home ? '#ff5de0' : null;
+      bullets.push(bl);
     }
     const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : owner === 'p' ? 1 - 0.05 * (lvl - 1) : 1;
     f.cd = f.maxCd = Math.round(g.cd * cdMul);
     beep(g.freq, gi === 3 ? 0.25 : 0.1, owner === 'p' ? 'square' : 'sawtooth', 0.05, -g.freq * 0.5);
+  }
+  // ----- fire, ice, water, explosions -----
+  const inPuddle = f => puddles.some(p => Math.hypot(f.x - p.x, f.y - p.y) < p.r);
+  function ignite(f, power) { if (!inPuddle(f)) f.burn = Math.max(f.burn || 0, 300 * power); }
+  function placePuddle(f) {
+    const free = aimbot && f === player;
+    if (f.dead || (!free && f.water < 1)) return false;
+    if (!free) f.water--;
+    puddles.push({ x: f.x, y: f.y, r: 46, t: 900 }); if (puddles.length > 14) puddles.shift();
+    f.burn = 0; beep(500, 0.12, 'sine', 0.07, 300); burst(f.x, f.y, '#7fd8ff', 12);
+    return true;
+  }
+  function statusTick() {
+    for (const f of [player, bot]) {
+      if (f.dead) { f.burn = 0; f.slow = 0; continue; }
+      if (f.burn > 0) {
+        if (inPuddle(f)) f.burn = 0;
+        else {
+          f.burn--; if (f.burn % 20 === 0) { f.hp -= 0.6; f.flash = 4; }
+          if (f.burn % 3 === 0) parts.push({ x: f.x + (Math.random() - 0.5) * 16, y: f.y - 6, vx: (Math.random() - 0.5) * 0.6, vy: -1 - Math.random(), life: 18, color: Math.random() < 0.5 ? '#ff8a2b' : '#ffd24d' });
+        }
+      }
+      if (f.slow > 0) f.slow--;
+      if (f.water < 3 && ++f.waterT >= 600) { f.water++; f.waterT = 0; }
+    }
+    for (const p of puddles) p.t--;
+    puddles = puddles.filter(p => p.t > 0);
+    if (aimbot && player.burn > 0 && !inPuddle(player)) placePuddle(player); // operator puts itself out
+  }
+  function explode(x, y, R, dmg, owner, hitFighter) {
+    burst(x, y, '#ff9a4d', 26); burst(x, y, '#ffd24d', 12); shake = Math.max(shake, 12); beep(90, 0.22, 'sawtooth', 0.09, -50);
+    const tg = owner === 'p' ? bot : player;
+    if (!hitFighter && !tg.dead && Math.hypot(tg.x - x, tg.y - y) < R + tg.r) { tg.hp -= dmg; tg.flash = 10; }
+    for (const o of obstacles) {
+      if (o.dead || (o.type !== 'c' && o.type !== 'b')) continue;
+      const cx = Math.max(o.x, Math.min(x, o.x + o.w)), cy = Math.max(o.y, Math.min(y, o.y + o.h));
+      if (Math.hypot(x - cx, y - cy) < R) { o.hp -= 2; if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, '#d9a05b', 12); } }
+    }
+    const dirt = obstacles.filter(o => o.type === 'd');
+    if (dirt.length) { const res = carveRect(dirt, x - R * 0.5, y - R * 0.5, x + R * 0.5, y + R * 0.5); if (res.dug) obstacles = obstacles.filter(o => o.type !== 'd').concat(res.out); }
   }
   const botCdMul = () => diff().cd * Math.max(0.6, 1 - (round - 1) * 0.05);
 
@@ -661,7 +726,7 @@
     if (player.digAng != null && !player.dead && ((player.digT2 = (player.digT2 || 0) + 1) >= shovelDelay(shovel()))) { player.digT2 = 0; dig(player, player.digAng, shovel()); }
     const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !bot.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
-    const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
+    const psp = (mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2) * (player.slow > 0 ? 0.5 : 1);
     const ox0 = player.x, oy0 = player.y;
     const hasGhost = ghostOwned || aimbot;
     const inWall = hasGhost && obstacles.some(o => circleHitsRect(player.x, player.y, player.r, o));
@@ -699,10 +764,11 @@
 
     // bullets
     for (const b of bullets) {
-      if (aimbot && b.owner === 'p' && !b.miss && !bot.dead) { // OP: bullets curve toward the target
+      const hr = (aimbot && b.owner === 'p' && !b.miss) ? 0.35 : (b.home || 0), ht = b.owner === 'p' ? bot : player; // OP aim + seeking perks: bullets curve toward the target
+      if (hr > 0 && !ht.dead) {
         const sp = Math.hypot(b.vx, b.vy), cur = Math.atan2(b.vy, b.vx);
-        let d = Math.atan2(bot.y - b.y, bot.x - b.x) - cur; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
-        const na = cur + Math.max(-0.35, Math.min(0.35, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
+        let d = Math.atan2(ht.y - b.y, ht.x - b.x) - cur; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
+        const na = cur + Math.max(-hr, Math.min(hr, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
       }
       b.x += b.vx; b.y += b.vy; b.life--;
       if (b.life <= 0) { b.dead = true; continue; }
@@ -711,16 +777,20 @@
       for (const o of obstacles) {
         if (o.dead) continue;
         if (b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h) {
-          if (b.bounce > 0) { const px = b.x - b.vx, py = b.y - b.vy; if (px <= o.x || px >= o.x + o.w) b.vx *= -1; else b.vy *= -1; b.x += b.vx; b.y += b.vy; b.bounce--; } else b.dead = true;
+          if (b.bounce > 0) { const px = b.x - b.vx, py = b.y - b.vy; if (px <= o.x || px >= o.x + o.w) b.vx *= -1; else b.vy *= -1; b.x += b.vx; b.y += b.vy; b.bounce--; } else if (!(b.pierce && o.type !== 'w' && o.type !== 'd')) b.dead = true;
           if (o.type !== 'w' && o.type !== 'd') { const c = o.type === 'b' ? '#4fe0c0' : '#d9a05b'; o.hp -= (b.obs || 1); sfx.crate(); burst(b.x, b.y, c, 5); if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, c, 14); } }
           else { if (o.type === 'd' && b.obs > 1) carve(b.x, b.y, 10 + b.r * 1.5); burst(b.x, b.y, o.type === 'd' ? '#a07a4a' : '#8f84d6', 3); }
           break;
         }
       }
+      if (b.dead && b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.owner, false);
       if (b.dead) continue;
       const target = b.owner === 'p' ? bot : player;
       if (!target.dead && Math.hypot(b.x - target.x, b.y - target.y) < target.r + b.r - 1) {
         b.dead = true; target.hp -= b.dmg; target.flash = 10; shake = 8;
+        if (b.fire) ignite(target, b.fire);
+        if (b.slow) target.slow = Math.max(target.slow || 0, 90 * b.slow);
+        if (b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.owner, true);
         burst(b.x, b.y, target.color, 10); sfx.hit();
       }
     }
@@ -728,6 +798,7 @@
     obstacles = obstacles.filter(o => !o.dead);
     for (const p of parts) { p.x += p.vx; p.y += p.vy; p.life--; }
     parts = parts.filter(p => p.life > 0);
+    statusTick();
     if (player.flash > 0) player.flash--;
     if (bot.flash > 0) bot.flash--;
     if (shake > 0) shake--;
@@ -875,7 +946,7 @@
     if (keys['arrowleft']) mx--; if (keys['arrowright']) mx++;
     if (keys['arrowup']) my--; if (keys['arrowdown']) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; bot.aim = Math.atan2(my, mx); }
-    moveFighter(bot, mx * 3.2, my * 3.2);
+    const sp2 = bot.slow > 0 ? 1.6 : 3.2; moveFighter(bot, mx * sp2, my * sp2);
     if (bot.cd > 0) bot.cd--;
     if (keys['enter'] && bot.cd <= 0) fire(bot, 'p2', bot.gun);
   }
@@ -885,7 +956,8 @@
     const dx = player.x - b.x, dy = player.y - b.y, dist = Math.hypot(dx, dy) || 1;
     const los = !player.dead && lineClear(b.x, b.y, player.x, player.y);
     const goal = mode === 'ctf' ? botGoal() : null;
-    const speed = Math.min(3.4, diff().speed + round * 0.04) * (mode === 'ctf' && flags.p.carrier === b ? 0.85 : 1);
+    if (b.burn > 0 && diffName !== 'easy' && b.water > 0) { b.burnAge = (b.burnAge || 0) + 1; if (b.burnAge > ({ medium: 90, hard: 50, insane: 25 }[diffName] || 90)) { placePuddle(b); b.burnAge = 0; } } else b.burnAge = 0;
+    const speed = Math.min(3.4, diff().speed + round * 0.04) * (mode === 'ctf' && flags.p.carrier === b ? 0.85 : 1) * (b.slow > 0 ? 0.5 : 1);
 
     // dodge incoming bullets
     let dodge = 0;
@@ -983,7 +1055,7 @@
   }
 
   // ---------- pretty maps ----------
-  const DECOR = ['sparkle', 'tufts', 'dunes', 'waves', 'sprinkles', 'cracks', 'sparkle', 'runes'];
+  const DECOR = ['logs', 'pumpkins', 'wheat', 'berries', 'mushrooms', 'acorns', 'fog', 'logs'];
   let bgImg = null;
   function makeBackground(seed, th) {
     const c = document.createElement('canvas'); c.width = MAP_W; c.height = MAP_H;
@@ -993,26 +1065,28 @@
     for (let y = 0; y < MAP_H; y += 40) for (let x = (y / 40 % 2) * 40; x < MAP_W; x += 80) g.fillRect(x, y, 40, 40);
     const kind = DECOR[th.idx];
     g.lineCap = 'round';
-    if (kind === 'sparkle' || kind === 'runes') {
-      for (let i = 0; i < 140; i++) { g.fillStyle = th.edge; g.globalAlpha = 0.12 + r() * 0.2; g.beginPath(); g.arc(rx(), ry(), 1 + r() * 2.5, 0, 6.283); g.fill(); }
-      for (let i = 0; i < 26; i++) { const x = rx(), y = ry(), k = 4 + r() * 5; g.globalAlpha = 0.25; g.strokeStyle = th.edge; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x - k, y); g.lineTo(x + k, y); g.moveTo(x, y - k); g.lineTo(x, y + k); g.stroke(); }
-      if (kind === 'runes') for (let i = 0; i < 14; i++) { g.globalAlpha = 0.14; g.strokeStyle = th.edge; g.lineWidth = 3; g.beginPath(); g.arc(rx(), ry(), 30 + r() * 50, 0, 6.283); g.stroke(); }
-    } else if (kind === 'tufts') {
-      for (let i = 0; i < 220; i++) { const x = rx(), y = ry(); g.globalAlpha = 0.5; g.strokeStyle = r() < 0.5 ? '#3e9a5e' : '#58b878'; g.lineWidth = 2; g.beginPath(); for (const d of [-5, 0, 5]) { g.moveTo(x, y); g.lineTo(x + d, y - 8 - r() * 5); } g.stroke(); }
-      for (let i = 0; i < 45; i++) { g.globalAlpha = 0.85; g.fillStyle = ['#ffe45e', '#ff8fb1', '#ffffff', '#b78cff'][Math.floor(r() * 4)]; g.beginPath(); g.arc(rx(), ry(), 2.5 + r() * 1.5, 0, 6.283); g.fill(); }
-    } else if (kind === 'dunes' || kind === 'waves') {
-      const wave = kind === 'waves';
-      for (let i = 0; i < 55; i++) {
-        const x = rx(), y = ry(), len = 70 + r() * 110; g.globalAlpha = 0.16; g.strokeStyle = wave ? '#a8d4ff' : '#ffd9a0'; g.lineWidth = 3; g.beginPath(); g.moveTo(x, y);
-        if (wave) for (let k = 1; k <= 8; k++) g.lineTo(x + k * len / 8, y + Math.sin(k * 1.3) * 5); else g.quadraticCurveTo(x + len / 2, y - 14, x + len, y);
-        g.stroke();
-      }
-      for (let i = 0; i < 70; i++) { g.globalAlpha = wave ? 0.3 : 0.35; g.fillStyle = wave ? '#d6ecff' : '#8a5a2b'; g.beginPath(); if (wave) { g.strokeStyle = '#d6ecff'; g.lineWidth = 1.5; g.arc(rx(), ry(), 2 + r() * 4, 0, 6.283); g.stroke(); } else { g.ellipse(rx(), ry(), 2 + r() * 4, 1.5 + r() * 2, 0, 0, 6.283); g.fill(); } }
-    } else if (kind === 'sprinkles') {
-      for (let i = 0; i < 260; i++) { g.save(); g.translate(rx(), ry()); g.rotate(r() * 3.14); g.globalAlpha = 0.55; g.fillStyle = ['#ffd1e8', '#fff3a6', '#b8f0ff', '#d6c2ff', '#ffffff'][Math.floor(r() * 5)]; g.fillRect(-5, -1.5, 10, 3); g.restore(); }
-    } else { // cracks
-      for (let i = 0; i < 55; i++) { let x = rx(), y = ry(); g.globalAlpha = 0.28; g.strokeStyle = '#000'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 30; y += (r() - 0.5) * 30; g.lineTo(x, y); } g.stroke(); }
-      for (let i = 0; i < 50; i++) { g.globalAlpha = 0.25; g.fillStyle = '#fff'; g.beginPath(); g.ellipse(rx(), ry(), 2 + r() * 4, 1.5 + r() * 2, 0, 0, 6.283); g.fill(); }
+    // falling leaves everywhere
+    const LEAF = ['#e8731a', '#c9411f', '#f2b632', '#a8481c', '#d98a2b', '#8c3a1a'];
+    for (let i = 0; i < 280; i++) {
+      g.save(); g.translate(rx(), ry()); g.rotate(r() * 6.283); g.globalAlpha = 0.45 + r() * 0.35; g.fillStyle = LEAF[Math.floor(r() * LEAF.length)];
+      g.beginPath(); g.ellipse(0, 0, 4 + r() * 5, 2 + r() * 2.5, 0, 0, 6.283); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 1; g.beginPath(); g.moveTo(-7, 0); g.lineTo(6, 0); g.stroke(); g.restore();
+    }
+    g.globalAlpha = 1;
+    if (kind === 'pumpkins') {
+      for (let i = 0; i < 34; i++) { const x = rx(), y = ry(), pr = 8 + r() * 6; g.fillStyle = '#f08a24'; g.beginPath(); g.ellipse(x, y, pr * 1.15, pr, 0, 0, 6.283); g.fill(); g.strokeStyle = '#b85d0e'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y - pr); g.quadraticCurveTo(x - pr * 0.6, y, x, y + pr); g.moveTo(x, y - pr); g.quadraticCurveTo(x + pr * 0.6, y, x, y + pr); g.stroke(); g.fillStyle = '#4a7a2a'; g.fillRect(x - 1.5, y - pr - 4, 3, 5); }
+    } else if (kind === 'wheat') {
+      for (let i = 0; i < 150; i++) { const x = rx(), y = ry(); g.strokeStyle = '#d9b64a'; g.lineWidth = 1.6; g.globalAlpha = 0.7; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 4, y - 14); g.stroke(); g.fillStyle = '#f0cf63'; g.beginPath(); g.ellipse(x, y - 15, 2, 5, 0, 0, 6.283); g.fill(); }
+    } else if (kind === 'berries') {
+      for (let i = 0; i < 90; i++) { const x = rx(), y = ry(); g.globalAlpha = 0.9; g.fillStyle = '#c4142c'; g.beginPath(); g.arc(x, y, 3.2, 0, 6.283); g.fill(); g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(x - 1.5, y - 1.5, 1.5, 1.5); }
+    } else if (kind === 'mushrooms') {
+      for (let i = 0; i < 40; i++) { const x = rx(), y = ry(); g.globalAlpha = 0.95; g.fillStyle = '#f2e8d0'; g.fillRect(x - 2, y, 4, 7); g.fillStyle = r() < 0.5 ? '#c4442a' : '#a8742f'; g.beginPath(); g.arc(x, y, 7, Math.PI, 0); g.fill(); g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(x - 3, y - 4, 2, 2); g.fillRect(x + 1, y - 3, 2, 2); }
+    } else if (kind === 'acorns') {
+      for (let i = 0; i < 80; i++) { const x = rx(), y = ry(); g.globalAlpha = 0.95; g.fillStyle = '#b07a3a'; g.beginPath(); g.ellipse(x, y + 2, 3.5, 5, 0, 0, 6.283); g.fill(); g.fillStyle = '#6b4420'; g.beginPath(); g.arc(x, y - 1, 4.2, Math.PI, 0); g.fill(); g.fillRect(x - 0.7, y - 6, 1.4, 3); }
+    } else if (kind === 'fog') {
+      for (let i = 0; i < 16; i++) { g.globalAlpha = 0.05; g.fillStyle = '#fff'; g.beginPath(); g.ellipse(rx(), ry(), 120 + r() * 140, 30 + r() * 40, 0, 0, 6.283); g.fill(); }
+    } else { // fallen logs
+      for (let i = 0; i < 22; i++) { const x = rx(), y = ry(), len = 26 + r() * 22; g.save(); g.translate(x, y); g.rotate(r() * 3.14); g.globalAlpha = 0.9; g.fillStyle = '#6b4420'; g.fillRect(-len / 2, -4, len, 8); g.fillStyle = '#c99a5b'; g.beginPath(); g.ellipse(len / 2, 0, 3, 4, 0, 0, 6.283); g.fill(); g.restore(); }
     }
     g.globalAlpha = 1;
     const vg = g.createRadialGradient(MAP_W / 2, MAP_H / 2, MAP_H * 0.35, MAP_W / 2, MAP_H / 2, MAP_W * 0.62);
@@ -1104,8 +1178,13 @@
         ctx.strokeStyle = inRange ? 'rgba(79,224,192,.7)' : 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
         ctx.strokeRect(gx + 1, gy + 1, GRID - 2, GRID - 2); ctx.setLineDash([]);
       }
+      for (const pd of puddles) {
+        const fade = Math.min(1, pd.t / 120), rip = 1 + Math.sin(Date.now() / 250 + pd.x) * 0.04;
+        ctx.globalAlpha = 0.5 * fade; ctx.fillStyle = '#4aa8ff'; ctx.beginPath(); ctx.ellipse(pd.x, pd.y + 6, pd.r * rip, pd.r * 0.7 * rip, 0, 0, 6.283); ctx.fill();
+        ctx.globalAlpha = 0.7 * fade; ctx.strokeStyle = '#bfe4ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(pd.x, pd.y + 6, pd.r * 0.6 * rip, pd.r * 0.4 * rip, 0, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1;
+      }
       for (const b of bullets) {
-        ctx.fillStyle = b.owner === 'p' ? b.color : '#ffc2d6';
+        ctx.fillStyle = b.hue || (b.owner === 'p' ? b.color : '#ffc2d6');
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.283); ctx.fill();
         ctx.fillStyle = b.owner === 'p' ? 'rgba(79,209,255,.35)' : 'rgba(255,107,154,.35)';
         ctx.beginPath(); ctx.arc(b.x - b.vx * 0.8, b.y - b.vy * 0.8, 4, 0, 6.283); ctx.fill();
@@ -1120,6 +1199,8 @@
       }
       if (!player.dead) { ctx.globalAlpha = player.ghosting ? 0.45 : 1; drawFighter(player, t); ctx.globalAlpha = 1; }
       if (!bot.dead) drawFighter(bot, t);
+      ctx.font = '22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const f of [player, bot]) { if (f.dead) continue; if (f.burn > 0) ctx.fillText('🔥', f.x + Math.sin(Date.now() / 90) * 4, f.y - 28); if (f.slow > 0) ctx.fillText('❄️', f.x, f.y - 30); }
       for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.color; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }
       ctx.globalAlpha = 1;
       // HUD
@@ -1162,6 +1243,15 @@
         }
         ctx.globalAlpha = 1;
       }
+      { // water slot in the hot bar
+        const x = 16 + GUNS.length * 76, y = H - 34, burning = player.burn > 0;
+        ctx.globalAlpha = 1; ctx.fillStyle = burning && Math.floor(Date.now() / 150) % 2 ? 'rgba(255,138,43,.95)' : 'rgba(80,170,255,.4)';
+        ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill();
+        ctx.fillStyle = '#e8f6ff'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('0 💧 Water', x + 36, y + 9);
+        ctx.font = '700 9px system-ui, sans-serif'; ctx.fillText(aimbot ? '∞' : '×' + player.water, x + 36, y + 19);
+      }
+      if (player.burn > 0 && !player.dead) { ctx.font = '900 24px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = '#ff8a2b'; ctx.fillText("🔥 YOU'RE BURNING! Press 0 or Q for water 💧", W / 2, 120); ctx.textBaseline = 'middle'; }
       if (ghostOwned || aimbot) {
         const gw = 120, gx = W - 16 - gw, gy = H - 50, fr = aimbot ? 1 : Math.max(0, player.ghostE) / GHOST_MAX;
         ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(gx, gy, gw, 8);
