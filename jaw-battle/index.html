@@ -766,7 +766,7 @@
     const box = { x: gx, y: gy, w: GRID, h: GRID };
     for (const o of obstacles) if (gx < o.x + o.w && gx + GRID > o.x && gy < o.y + o.h && gy + GRID > o.y) return;
     if (circleHitsRect(p.x, p.y, p.r + 3, box) || fighters.some(f => f !== p && circleHitsRect(f.x, f.y, f.r + 3, box))) return;
-    obstacles.push({ x: gx, y: gy, w: GRID, h: GRID, type: 'b', hp: 4, maxHp: 4 });
+    obstacles.push({ x: gx, y: gy, w: GRID, h: GRID, type: 'b', hp: 4, maxHp: 4, team: aimbot && p === player ? 0 : undefined }); // Operator's walls let its own bullets through
     if (!(aimbot && p === player)) p.blocks--;
     beep(160, 0.08, 'triangle', 0.08, 80);
   }
@@ -828,8 +828,12 @@
 
     // Operator autopilot throws up a quick shield wall when bullets are coming at it
     if (auto && aimbot && !foe.dead && (player.shT = (player.shT || 0) - 1) <= 0) {
-      const threat = bullets.some(bl => bl.team !== player.team && Math.hypot(bl.x - player.x, bl.y - player.y) < 260 && ((player.x - bl.x) * bl.vx + (player.y - bl.y) * bl.vy) > 0);
-      if (threat) { const a = Math.atan2(foe.y - player.y, foe.x - player.x); tryBuild(player, player.x + Math.cos(a) * 64, player.y + Math.sin(a) * 64); player.shT = 25; }
+      const threat = bullets.some(bl => bl.team !== player.team && Math.hypot(bl.x - player.x, bl.y - player.y) < 340 && ((player.x - bl.x) * bl.vx + (player.y - bl.y) * bl.vy) > 0);
+      if (threat) { // a 3-block wall across the enemy's line of fire
+        const a = Math.atan2(foe.y - player.y, foe.x - player.x), px = -Math.sin(a), py = Math.cos(a);
+        for (const off of [0, -40, 40]) tryBuild(player, player.x + Math.cos(a) * 70 + px * off, player.y + Math.sin(a) * 70 + py * off);
+        player.shT = 20;
+      }
     }
     if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) updateBot(f);
     for (const f of fighters) if (f !== player && f.blocks < MAX_BLOCKS && ++f.blockT >= 150) { f.blocks++; f.blockT = 0; }
@@ -848,6 +852,7 @@
       if (b.y < 0 || b.y > H) { if (b.bounce > 0) { b.vy *= -1; b.y = b.y < 0 ? 0 : H; b.bounce--; } else { b.dead = true; continue; } }
       for (const o of obstacles) {
         if (o.dead) continue;
+        if (o.team !== undefined && o.team === b.team) continue; // your own team's walls don't stop your bullets
         if (b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h) {
           if (b.bounce > 0) { const px = b.x - b.vx, py = b.y - b.vy; if (px <= o.x || px >= o.x + o.w) b.vx *= -1; else b.vy *= -1; b.x += b.vx; b.y += b.vy; b.bounce--; } else if (!(b.pierce && o.type !== 'w' && o.type !== 'd')) b.dead = true;
           if (o.type !== 'w' && o.type !== 'd') { const c = o.type === 'b' ? '#4fe0c0' : '#d9a05b'; o.hp -= (b.obs || 1); sfx.crate(); burst(b.x, b.y, c, 5); if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, c, 14); } }
