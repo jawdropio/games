@@ -362,7 +362,7 @@
     player = makeFighter(80, H / 2, '#4fd1ff', false); player.team = 0;
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true); bot.team = 1; bot.isBot = mode !== '2p';
     player.gun = startGun();
-    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; }
+    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; player.shield = sk.id === 'galaxy' ? 1 : 0; player.shT2 = 0; }
     fighters = [player, bot];
     player.lane = newLane(); bot.lane = newLane();
     if (mode === 'team') buildTeams();
@@ -448,7 +448,7 @@
   function initFlags() { flags = { p: { x: BASE_P.x, y: BASE_P.y, carrier: null }, b: { x: BASE_B.x, y: BASE_B.y, carrier: null } }; }
   function newCTF() { mode = 'ctf'; caps1 = caps2 = 0; banner = null; round = 1; startRound(); }
   const newLane = () => H / 2 + (Math.random() - 0.5) * 520; // each life takes a different route so the bots don't always meet head-on
-  function ctfRespawn(f, x) { f.lane = newLane(); f.invuln = 90; if (f === player) f.gun = startGun(); f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
+  function ctfRespawn(f, x) { if (f === player && f.skin === 'galaxy') { f.shield = 1; } f.lane = newLane(); f.invuln = 90; if (f === player) f.gun = startGun(); f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
   function ctfScore(who) {
     who === 'p' ? caps1++ : caps2++;
     banner = { text: who === 'p' ? '🚩 You scored!' : '🚩 Bot scored!', t: 110 };
@@ -496,7 +496,7 @@
   }
   function endCTF(won) {
     state = 'over'; mapSeed = randMap();
-    const gain = won ? 15 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] : 3;
+    const gain = Math.round((won ? 15 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] : 3) * (player.skin === 'gold' ? 1.5 : 1));
     coins += gain; saveStuff();
     showOverlay(true, won ? '🏆 You win the flag battle!' : '💥 The bot captured 3 flags!',
       'Final score: You <b>' + caps1 + '</b> – <b>' + caps2 + '</b> Bot<br>💰 +' + gain + ' coins (you have ' + coinText() + ')', 'Play again', newCTF, true, p => {
@@ -598,7 +598,7 @@
         previews = [];
         for (const k of SKINS) {
           const has = ownSkin(k.id), on = skinId === k.id;
-          const card = mkCard('', k.name, (k.anim ? '✨ Animated' : 'Classic color') + (k.info ? '<br>' + k.info : ''), on ? '✅ Equipped' : has ? '👕 Equip' : '💎 Buy 🪙' + k.cost, on || (!has && coins < k.cost),
+          const card = mkCard('', k.name, (k.anim ? '✨ Animated' : 'Classic color') + (k.info ? '<br>' + k.info : '') + (k.power ? '<br><b style="color:#ffd24d">⭐ ' + k.power + '</b>' : ''), on ? '✅ Equipped' : has ? '👕 Equip' : '💎 Buy 🪙' + k.cost, on || (!has && coins < k.cost),
             () => { if (!has) { if (coins < k.cost) return; coins -= k.cost; skinsOwned.push(k.id); beep(880, 0.15, 'square', 0.07); } skinId = k.id; saveStuff(); showShop(); }, has ? '' : 'locked');
           const cv2 = document.createElement('canvas'); cv2.width = cv2.height = 76; cv2.style.cssText = 'width:76px;height:76px'; card.querySelector('.ic').appendChild(cv2);
           previews.push([cv2, k]); grid.appendChild(card);
@@ -744,7 +744,7 @@
   }
   // ----- fire, ice, water, explosions -----
   const inPuddle = f => puddles.some(p => Math.hypot(f.x - p.x, f.y - p.y) < p.r);
-  function ignite(f, power) { if (!inPuddle(f)) f.burn = Math.max(f.burn || 0, 300 * power); }
+  function ignite(f, power) { if (f.skin === 'lava') return; if (!inPuddle(f)) f.burn = Math.max(f.burn || 0, 300 * power); }
   function placePuddle(f) {
     const free = aimbot && f === player;
     if (f.dead || (!free && f.water < 1)) return false;
@@ -757,6 +757,8 @@
     for (const f of fighters) {
       if (f.dead) { f.burn = 0; f.slow = 0; continue; }
       if (f.invuln > 0) f.invuln--;
+      if (f.skin === 'lava') for (const o of fighters) if (o.team !== f.team && !o.dead && Math.hypot(o.x - f.x, o.y - f.y) < f.r + o.r + 8) ignite(o, 1); // lava skin: touching you burns
+      if (f.skin === 'galaxy' && !(f.shield > 0) && --f.shT2 <= 0) { f.shield = 1; beep(900, 0.12, 'sine', 0.06); }
       if (f.burn > 0) {
         if (inPuddle(f)) f.burn = 0;
         else {
@@ -820,7 +822,7 @@
     for (const f of fighters) { f.vxm = f.x - (f.lx ?? f.x); f.vym = f.y - (f.ly ?? f.y); f.lx = f.x; f.ly = f.y; }
     const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !foe.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
-    const psp = (mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2) * (player.slow > 0 ? 0.5 : 1);
+    const psp = (mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2) * (player.slow > 0 ? 0.5 : 1) * (player.skin === 'rainbow' ? 1.1 : 1);
     const ox0 = player.x, oy0 = player.y;
     const hasGhost = ghostOwned || aimbot;
     const inWall = hasGhost && obstacles.some(o => circleHitsRect(player.x, player.y, player.r, o));
@@ -892,11 +894,20 @@
       let target = null;
       for (const f of fighters) if (f.team !== b.team && !f.dead && !(f.invuln > 0) && Math.hypot(b.x - f.x, b.y - f.y) < f.r + b.r - 1) { target = f; break; }
       if (target) {
-        b.dead = true; target.hp -= b.dmg; target.flash = 10; shake = 8;
-        if (b.fire) ignite(target, b.fire);
-        if (b.slow) target.slow = Math.max(target.slow || 0, 90 * b.slow);
-        if (b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, true);
-        burst(b.x, b.y, target.color, 10); sfx.hit();
+        b.dead = true;
+        if (target.skin === 'galaxy' && target.shield > 0) { // star shield soaks up the hit
+          target.shield = 0; target.shT2 = 1200; burst(b.x, b.y, '#c9a6ff', 16); beep(500, 0.15, 'sine', 0.08);
+        } else {
+          target.hp -= b.dmg; target.flash = 10; shake = 8;
+          if (b.fire) ignite(target, b.fire);
+          if (b.slow) target.slow = Math.max(target.slow || 0, 90 * b.slow);
+          if (b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, true);
+          if (b.owner === 'p' && !player.dead) {
+            if (player.skin === 'death') { player.hp = Math.min(player.maxHp, player.hp + b.dmg * 0.2); if (Math.random() < 0.4) burst(player.x, player.y, '#ff3b4a', 3); }
+            if (player.skin === 'thunder' && Math.random() < 0.2) { target.slow = Math.max(target.slow || 0, 70); burst(target.x, target.y, '#ffe14a', 10); beep(1100, 0.06, 'square', 0.05); }
+          }
+          burst(b.x, b.y, target.color, 10); sfx.hit();
+        }
       }
     }
     bullets = bullets.filter(b => !b.dead);
@@ -1151,7 +1162,7 @@
       return;
     }
     if (won) {
-      const gain = 10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] + (mode === 'team' ? 5 * (teamSize - 1) : 0); coins += gain; saveStuff();
+      const gain = Math.round((10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] + (mode === 'team' ? 5 * (teamSize - 1) : 0)) * (player.skin === 'gold' ? 1.5 : 1)); coins += gain; saveStuff();
       wins++; round++; layoutIdx++; mapSeed = randMap();
       if (wins > best) { best = wins; try { localStorage.setItem('jawBattleBest_' + diffName, best); } catch (e) {} }
       sfx.win();
@@ -1180,14 +1191,18 @@
       paint(g, t, r) { g.fillStyle = '#9fdcff'; g.fillRect(-r, -r, 2 * r, 2 * r); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-r, -3); g.lineTo(-2, 4); g.lineTo(6, -2); g.lineTo(r, 6); g.moveTo(-2, 4); g.lineTo(-4, r); g.stroke(); sparkle(g, t, r, 9, '#fff'); } },
     { id: 'leaves', name: 'Autumn Leaves', icon: '🍂', base: '#b8541a', cost: 800, anim: true, eye: '#2a0d00', info: 'Swirling fall leaves',
       paint(g, t, r) { g.fillStyle = '#b8541a'; g.fillRect(-r, -r, 2 * r, 2 * r); const cols = ['#ffb02e', '#e8731a', '#c9411f', '#f2d04a']; for (let i = 0; i < 9; i++) { const a = t / 900 + i * 0.7, d = r * (0.2 + (i % 4) * 0.2); g.save(); g.translate(Math.cos(a) * d, Math.sin(a * 1.1) * d); g.rotate(a * 2 + i); g.fillStyle = cols[i % 4]; g.beginPath(); g.ellipse(0, 0, 5, 2.4, 0, 0, 6.283); g.fill(); g.restore(); } } },
-    { id: 'lava', name: 'Lava', icon: '🌋', base: '#c2300a', cost: 900, anim: true, eye: '#1a0500', info: 'Flowing molten lava',
+    { id: 'lava', name: 'Lava', icon: '🌋', base: '#c2300a', cost: 900, anim: true, eye: '#1a0500', info: 'Flowing molten lava', power: '🔥 Fireproof, and enemies who touch you catch fire',
       paint(g, t, r) { g.fillStyle = '#7a1500'; g.fillRect(-r, -r, 2 * r, 2 * r); const cols = ['#ff8a1a', '#ffd23a', '#ff5a1a']; for (let i = 0; i < 7; i++) { const x = Math.sin(t / 700 + i * 1.7) * r * 0.65, y = Math.cos(t / 900 + i * 2.3) * r * 0.65, rr = r * (0.38 + 0.12 * Math.sin(t / 400 + i)); const gr = g.createRadialGradient(x, y, 1, x, y, rr); gr.addColorStop(0, cols[i % 3]); gr.addColorStop(1, 'rgba(255,90,26,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } sparkle(g, t, r, 6, '#fff3a0'); } },
-    { id: 'rainbow', name: 'Rainbow', icon: '🌈', base: '#ff7ac8', cost: 1000, anim: true, eye: '#1a1a1a', info: 'Cycling colors',
+    { id: 'rainbow', name: 'Rainbow', icon: '🌈', base: '#ff7ac8', cost: 1000, anim: true, eye: '#1a1a1a', info: 'Cycling colors', power: '💨 Runs 10% faster',
       paint(g, t, r) { const gr = g.createLinearGradient(-r, -r, r, r), h = (t / 8) % 360; for (let k = 0; k <= 4; k++) gr.addColorStop(k / 4, 'hsl(' + ((h + k * 70) % 360) + ',90%,60%)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } },
-    { id: 'galaxy', name: 'Galaxy', icon: '🌌', base: '#150b3a', cost: 1200, anim: true, eye: '#ffffff', info: 'Twinkling stars',
+    { id: 'galaxy', name: 'Galaxy', icon: '🌌', base: '#150b3a', cost: 1200, anim: true, eye: '#ffffff', info: 'Twinkling stars', power: '🛡️ Star shield blocks the next hit (comes back after 20 seconds)',
       paint(g, t, r) { g.fillStyle = '#0d0630'; g.fillRect(-r, -r, 2 * r, 2 * r); const gr = g.createRadialGradient(Math.cos(t / 1500) * r * 0.4, Math.sin(t / 1500) * r * 0.4, 1, 0, 0, r); gr.addColorStop(0, 'rgba(255,90,200,.55)'); gr.addColorStop(1, 'rgba(80,40,200,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); sparkle(g, t, r, 14, '#fff'); } },
-    { id: 'death', name: 'Black Death', icon: '🖤', base: '#0a0a0f', cost: 1500, anim: true, eye: '#ff3b4a', info: 'Dark smoke with a red glow',
+    { id: 'death', name: 'Black Death', icon: '🖤', base: '#0a0a0f', cost: 1500, anim: true, eye: '#ff3b4a', info: 'Dark smoke with a red glow', power: '🩸 Heals you for 20% of the damage you deal',
       paint(g, t, r) { g.fillStyle = '#07070c'; g.fillRect(-r, -r, 2 * r, 2 * r); for (let i = 0; i < 4; i++) { const a = t / 700 + i * 1.57, x = Math.cos(a) * r * 0.5, y = Math.sin(a * 1.3) * r * 0.5, gr = g.createRadialGradient(x, y, 1, x, y, r * 0.9); gr.addColorStop(0, 'rgba(120,30,170,.55)'); gr.addColorStop(1, 'rgba(120,30,170,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } const p = (Math.sin(t / 250) + 1) / 2; g.strokeStyle = 'rgba(255,40,60,' + (0.3 + 0.4 * p) + ')'; g.lineWidth = 2.5; g.beginPath(); g.arc(0, 0, r - 2, 0, 6.283); g.stroke(); } },
+    { id: 'thunder', name: 'Thunder', icon: '⚡', base: '#1a1f5a', cost: 2000, anim: true, eye: '#ffe14a', info: 'Crackling lightning', power: '⚡ 1 in 5 of your hits zaps enemies and slows them',
+      paint(g, t, r) { g.fillStyle = '#141a4d'; g.fillRect(-r, -r, 2 * r, 2 * r); const seed = Math.floor(t / 140); g.strokeStyle = 'rgba(255,232,90,.95)'; g.lineWidth = 2; for (let k = 0; k < 2; k++) { let x = -r * 0.8 + ((seed * 7 + k * 13) % 10) / 10 * r * 1.2, y = -r; g.beginPath(); g.moveTo(x, y); for (let j = 0; j < 5; j++) { x += (((seed * (j + 3) + k * 5) % 7) - 3) * 2.4; y += r * 0.4; g.lineTo(x, y); } g.stroke(); } sparkle(g, t, r, 5, '#fff7a0'); } },
+    { id: 'gold', name: 'Golden King', icon: '👑', base: '#e6b422', cost: 2500, anim: true, eye: '#3a2600', info: 'Shiny gold', power: '🪙 +50% coins from every win',
+      paint(g, t, r) { g.fillStyle = '#d9a518'; g.fillRect(-r, -r, 2 * r, 2 * r); const x = ((t / 14) % (4 * r)) - 2 * r, gr = g.createLinearGradient(x - 12, 0, x + 12, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); sparkle(g, t, r, 5, '#fff6c0'); } },
   ];
   const skinById = id => SKINS.find(k => k.id === id) || SKINS[0];
   const ownSkin = id => aimbot || skinsOwned.includes(id);
@@ -1359,6 +1374,7 @@
         drawFlag(flags.b.x, flags.b.y, '#ff6b9a', !!flags.b.carrier);
       }
       for (const f of fighters) { if (f.dead) continue; const flick = f.invuln > 0 && Math.floor(Date.now() / 90) % 2 ? 0.35 : 1; if (f === player) { ctx.globalAlpha = player.ghosting ? 0.45 : flick; drawFighter(player, t); ctx.globalAlpha = 1; } else { ctx.globalAlpha = flick; drawFighter(f, t); ctx.globalAlpha = 1; } }
+      for (const f of fighters) if (!f.dead && f.shield > 0) { ctx.strokeStyle = 'rgba(200,160,255,' + (0.55 + 0.25 * Math.sin(Date.now() / 200)) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, f.r + 8, 0, 6.283); ctx.stroke(); }
       if (mode === 'team' && !player.dead) { ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#4fd1ff'; ctx.fillText('▼', player.x, player.y - 36); }
       if (mode === 'team') for (const f of fighters) { if (f.dead || f === player) continue; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(f.x - 18, f.y - 34, 36, 6); ctx.fillStyle = f.team === 0 ? '#4fd1ff' : '#ff6b9a'; ctx.fillRect(f.x - 17, f.y - 33, 34 * Math.max(0, f.hp) / f.maxHp, 4); }
       ctx.font = '22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
