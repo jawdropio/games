@@ -18,6 +18,19 @@
   #panel { margin:0 0 18px; display:flex; flex-direction:column; gap:8px; align-items:center; }
   #panel .row { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
   #panel button { font-size:16px; padding:8px 14px; background:#2c2268; }
+  #panel .cards { display:grid; grid-template-columns:repeat(3, 170px); gap:10px; margin-top:6px; }
+  #panel .card { padding:12px 8px; line-height:1.35; background:#33267a; border:2px solid #4b3a9e; }
+  #panel .card:hover { background:#4a39a8; }
+  #panel .shopgrid { display:grid; grid-template-columns:repeat(3, 210px); gap:10px; margin-top:8px; }
+  .scard { background:#261c5c; border:2px solid #4b3a9e; border-radius:14px; padding:10px 8px; display:flex; flex-direction:column; gap:5px; align-items:center; text-align:center; }
+  .scard .ic { font-size:38px; line-height:1.1; }
+  .scard small { opacity:.85; font-size:11.5px; line-height:1.3; min-height:62px; }
+  .scard.locked { opacity:.78; }
+  #panel .slots { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:640px; margin-top:6px; }
+  #panel .slot { width:86px; padding:8px 4px; border-radius:12px; background:#261c5c; border:2px solid #4b3a9e; cursor:grab; user-select:none; text-align:center; }
+  #panel .slot .ic { font-size:30px; } #panel .slot .num { font-weight:900; color:#ffb020; } #panel .slot small { font-size:10.5px; }
+  #panel .slot.first { border-color:#ffb020; }
+  #panel .slot.sel { background:#6c4cff; transform:scale(1.07); }
   #panel button.on { background:#ffb020; color:#2a1a00; }
   #panel button:disabled { opacity:.5; cursor:default; }
   #panel input { font:inherit; font-weight:800; font-size:18px; width:130px; text-align:center; text-transform:uppercase; padding:8px; border-radius:10px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; }
@@ -110,20 +123,20 @@
 
   // ---------- state ----------
   let state = 'menu'; // menu | play | paused | over
-  let player, bot, bullets, obstacles, parts, round = 1, wins = 0, best = 0, layoutIdx = 0, shake = 0;
+  let player, bot, fighters = [], foe, bullets, obstacles, parts, puddles = [], round = 1, wins = 0, best = 0, layoutIdx = 0, shake = 0;
 
   // ---------- difficulty ----------
   const DIFFS = {
     easy:   { label: '😊 Easy',   speed: 1.7, err: 0.28, cd: 1.8, fireP: 0.05, dodge: 0.2, hp: 14, guns: [0] },
     medium: { label: '😎 Medium', speed: 2.2, err: 0.16, cd: 1.2, fireP: 0.09, dodge: 0.6, hp: 20, guns: [0, 1] },
     hard:   { label: '😤 Hard',   speed: 2.7, err: 0.08, cd: 1.0, fireP: 0.13, dodge: 0.9, hp: 24, guns: [0, 1, 2] },
-    insane: { label: '💀 Insane', speed: 3.2, err: 0.04, cd: 0.8, fireP: 0.20, dodge: 1.0, hp: 30, guns: [0, 1, 2, 3] },
+    insane: { label: '💀 Insane', speed: 3.3, err: 0.04, cd: 0.8, fireP: 1.0, dodge: 1.0, hp: 30, guns: [0, 1, 2, 3] },
   };
   let diffName = 'medium';
   try { const d = localStorage.getItem('jawBattleDiff'); if (DIFFS[d]) diffName = d; } catch (e) {}
   const diff = () => DIFFS[diffName];
   // coins + owned guns (saved in the browser)
-  let mode = '1p', score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false, false, false, false, false, false], startMap = 0;
+  let mode = '1p', teamSize = 2, score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false, false, false, false, false, false], startMap = 0;
   try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o)) owned = owned.map((_, i) => !!o[i]); owned[0] = true; } catch (e) {}
   // gun levels: guns level up by dealing damage with them
   const XP_AT = [0, 40, 100, 200, 400]; // only used to carry over levels earned before upgrades were for sale
@@ -134,10 +147,33 @@
     if (Array.isArray(lv)) gunLv = gunLv.map((_, i) => Math.max(1, Math.min(5, +lv[i] || 1)));
     else if (Array.isArray(x)) gunLv = gunLv.map((_, i) => { let l = 1; for (let k = 1; k < XP_AT.length; k++) if ((+x[i] || 0) >= XP_AT[k]) l = k + 1; return l; });
   } catch (e) {}
-  const gunLevel = i => gunLv[i];
+  const gunLevel = i => aimbot ? 5 : gunLv[i];
+  // cool gun perks: unlock at Level 3, twice as strong at Level 5
+  const PERKS = [
+    { id: 'crit', name: '🎯 Critical hits', desc: 'sometimes deals double damage' },
+    { id: 'fire', name: '🔥 Flame pellets', desc: 'sets enemies on fire (water puts it out!)' },
+    { id: 'ice', name: '❄️ Ice rounds', desc: 'slows enemies down' },
+    { id: 'pierce', name: '🏹 Piercing', desc: 'shoots right through crates and blocks' },
+    { id: 'seek', name: '🧲 Seeking', desc: 'bullets curve toward the enemy' },
+    { id: 'bounce', name: '🎱 Super bounce', desc: 'bounces more times' },
+    { id: 'boom', name: '💥 Explosive', desc: 'blows up where it lands' },
+    { id: 'seek2', name: '🛰️ Heat seeker', desc: 'curves hard toward the enemy' },
+    { id: 'fireboom', name: '☄️ Meteor', desc: 'fire AND explosions' },
+  ];
+  const botPerk = gi => (diffName === 'insane' && gi === 8) ? 'fire' : ((diffName === 'hard' || diffName === 'insane') && gi === 1) ? 'fire' : (diffName === 'insane' && gi === 2) ? 'ice' : null;
   const upCost = lv => [30, 60, 100, 150][lv - 1];
   let aimbot = false, aimPro = false, aimShots = 0;
-  try { const v = localStorage.getItem('jawBattleAimbot'); aimbot = v === '1' || v === '2'; aimPro = v === '2'; } catch (e) {}
+  // OPERATOR mode (the secret code): everything unlocked and maxed, infinite coins, free ghost, infinite walls
+  const own = i => aimbot || owned[i];
+  const shovel = () => aimbot ? 5 : shovelLv;
+  const coinText = () => aimbot ? '∞' : coins;
+  // where each gun sits in the gun bar (you can rearrange it)
+  let gunOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  try { const o = JSON.parse(localStorage.getItem('jawBattleOrder') || 'null'); if (Array.isArray(o) && o.length === 9 && [...o].sort((a, b) => a - b).every((v, i) => v === i)) gunOrder = o; } catch (e) {}
+  let ghostOwned = false;
+  try { ghostOwned = localStorage.getItem('jawBattleGhost') === '1'; } catch (e) {}
+  const GHOST_MAX = 240, GHOST_COST = 2000;
+  // (Operator always starts OFF when the page loads, so it can't surprise you)
   let daily = { last: '', streak: 0 };
   try { const d = JSON.parse(localStorage.getItem('jawBattleDaily') || 'null'); if (d && typeof d.last === 'string') daily = { last: d.last, streak: +d.streak || 0 }; } catch (e) {}
   const dayStr = ms => { const d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
@@ -153,41 +189,160 @@
     [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'square', 0.07), i * 90));
     showMenu('🎁 You got ' + gain + ' coins! Day ' + streak + ' in a row.');
   }
-  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); } catch (e) {} }
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); localStorage.setItem('jawBattleGhost', ghostOwned ? '1' : '0'); localStorage.setItem('jawBattleOrder', JSON.stringify(gunOrder)); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
   loadBest();
 
   // ---------- guns ----------
   const GUNS = [
-    { name: 'Pistol',      cd: 16, n: 1, spread: 0.02, speed: 9,   dmg: 4, life: 140, freq: 520, color: '#bff3ff', cost: 0 },
-    { name: 'Shotgun',     cd: 50, n: 5, spread: 0.40, speed: 8,   dmg: 1, life: 38,  freq: 220, color: '#ffe08a', cost: 20, info: '5 pellets, great up close' },
-    { name: 'Machine Gun', short: 'M.Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 0.6, life: 100, freq: 700, color: '#c8ffb0', cost: 35, info: 'Super fast, tiny damage' },
-    { name: 'Sniper',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 12, life: 80,  freq: 300, color: '#ffffff', cost: 50, info: 'Slow, but 3 hearts per hit!' },
-    { name: 'Triple Shot', short: 'Triple',  cd: 28, n: 3, spread: 0.30, speed: 9,   dmg: 2,   life: 120, freq: 450, color: '#ffb3f0', cost: 40, info: '3 bullets in a fan (+1 bullet per level!)' },
-    { name: 'Bouncer',     short: 'Bouncer', cd: 22, n: 1, spread: 0.03, speed: 8,   dmg: 3,   life: 200, freq: 380, color: '#7dffb0', cost: 60, info: 'Bullets bounce off walls!', bounce: 3 },
-    { name: 'Cannon',      short: 'Cannon',  cd: 70, n: 1, spread: 0,    speed: 5,   dmg: 8,   life: 200, freq: 110, color: '#ff9a4d', cost: 75, info: 'Huge slow ball, smashes blocks', r: 11, obs: 3 },
-    { name: 'Laser',       short: 'Laser',   cd: 9,  n: 1, spread: 0.02, speed: 15,  dmg: 1.2, life: 90,  freq: 900, color: '#ff5de0', cost: 90, info: 'Fast zappy shots' },
-    { name: 'Mega Blaster', short: 'MEGA', cd: 7, n: 2, spread: 0.06, speed: 14, dmg: 2.5, life: 130, freq: 600, color: '#ffd700', cost: 150, info: 'OP! Rapid double shots that blast through dirt', r: 7, obs: 3 },
+    { name: 'Pistol', icon: '🔫',      cd: 16, n: 1, spread: 0.02, speed: 9,   dmg: 4, life: 140, freq: 520, color: '#bff3ff', cost: 0 },
+    { name: 'Shotgun', icon: '🌋',     cd: 50, n: 5, spread: 0.40, speed: 8,   dmg: 1, life: 38,  freq: 220, color: '#ffe08a', cost: 50, info: '5 pellets, great up close' },
+    { name: 'Machine Gun', icon: '⚡', short: 'M.Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 0.6, life: 100, freq: 700, color: '#c8ffb0', cost: 100, info: 'Super fast, tiny damage' },
+    { name: 'Sniper', icon: '🎯',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 12, life: 80,  freq: 300, color: '#ffffff', cost: 500, info: 'Slow, but 3 hearts per hit!' },
+    { name: 'Triple Shot', icon: '🔱', short: 'Triple',  cd: 28, n: 3, spread: 0.30, speed: 9,   dmg: 2,   life: 120, freq: 450, color: '#ffb3f0', cost: 150, info: '3 bullets in a fan (+1 bullet per level!)' },
+    { name: 'Bouncer', icon: '🏀',     short: 'Bouncer', cd: 22, n: 1, spread: 0.03, speed: 8,   dmg: 3,   life: 200, freq: 380, color: '#7dffb0', cost: 350, info: 'Bullets bounce off walls!', bounce: 3 },
+    { name: 'Cannon', icon: '💣',      short: 'Cannon',  cd: 70, n: 1, spread: 0,    speed: 5,   dmg: 8,   life: 200, freq: 110, color: '#ff9a4d', cost: 700, info: 'Huge slow ball, smashes blocks', r: 11, obs: 3 },
+    { name: 'Laser', icon: '🛸',       short: 'Laser',   cd: 9,  n: 1, spread: 0.02, speed: 15,  dmg: 1.2, life: 90,  freq: 900, color: '#ff5de0', cost: 250, info: 'Fast zappy shots' },
+    { name: 'Mega Blaster', icon: '☄️', short: 'MEGA', cd: 7, n: 2, spread: 0.06, speed: 14, dmg: 2.5, life: 130, freq: 600, color: '#ffd700', cost: 1000, info: 'OP! Rapid double shots that blast through dirt', r: 7, obs: 3 },
   ];
 
   // ---------- building ----------
   const GRID = 40, BUILD_RANGE = 240, MAX_BLOCKS = 8;
 
   function makeFighter(x, y, color, isBot) {
-    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, digT: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
+    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, digT: 0, burn: 0, slow: 0, water: 3, waterT: 0, ghostE: 240, ghosting: false, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
              // bot brain
              strafe: 1, strafeT: 0, dodge: 0, stuck: 0 };
   }
 
+  // ---------- 500 big maps ----------
+  const MAP_W = 1440, MAP_H = 900, MAP_COUNT = 500;
+  // every map is autumn themed
+  const THEMES = [
+    { floor: '#3b1d0e', wall: '#8c4a1f', edge: '#e08a3c' }, { floor: '#3a2410', wall: '#b5651d', edge: '#ffb04d' },
+    { floor: '#3d3512', wall: '#a68a2b', edge: '#f0d36a' }, { floor: '#38121c', wall: '#8e2f45', edge: '#e8798f' },
+    { floor: '#26301a', wall: '#5e7a34', edge: '#a8c46a' }, { floor: '#3f2a14', wall: '#9a6a3a', edge: '#e0b27a' },
+    { floor: '#2f2a2a', wall: '#7a6a5e', edge: '#c9b7a5' }, { floor: '#2e1a2f', wall: '#7a4a6e', edge: '#d79ad0' },
+  ];
+  const ADJ = ['Crunchy', 'Cozy', 'Golden', 'Foggy', 'Spooky', 'Harvest', 'Rustic', 'Windy', 'Misty', 'Amber', 'Toasty', 'Rusty', 'Maple', 'Cider', 'Acorn', 'Scarecrow'];
+  const NOUN = ['Orchard', 'Pumpkin Patch', 'Hollow', 'Grove', 'Meadow', 'Cornfield', 'Barn Yard', 'Woods', 'Hayride', 'Cider Mill', 'Farm', 'Trail', 'Bonfire Camp', 'Leaf Pile', 'Harvest Fair', 'Hilltop'];
+  let theme = THEMES[0];
+  let mapSeed = 1 + Math.floor(Math.random() * MAP_COUNT);
+  try { const v = +localStorage.getItem('jawBattleMap'); if (v >= 1 && v <= MAP_COUNT) mapSeed = v; } catch (e) {}
+  const randMap = () => 1 + Math.floor(Math.random() * MAP_COUNT);
+  function rng(seed) { let a = (seed * 2654435761) >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function mapName(seed) { const r = rng(seed); r(); return ADJ[Math.floor(r() * ADJ.length)] + ' ' + NOUN[Math.floor(r() * NOUN.length)]; }
+  function carveRect(list, x1, y1, x2, y2) {
+    const out = []; let dug = false;
+    for (const o of list) {
+      if (x1 >= o.x + o.w || x2 <= o.x || y1 >= o.y + o.h || y2 <= o.y) { out.push(o); continue; }
+      dug = true;
+      const ix1 = Math.max(o.x, x1), ix2 = Math.min(o.x + o.w, x2), iy1 = Math.max(o.y, y1), iy2 = Math.min(o.y + o.h, y2);
+      for (const [x, y, w, h] of [[o.x, o.y, ix1 - o.x, o.h], [ix2, o.y, o.x + o.w - ix2, o.h], [ix1, o.y, ix2 - ix1, iy1 - o.y], [ix1, iy2, ix2 - ix1, o.y + o.h - iy2]])
+        if (w >= 6 && h >= 6) out.push(Object.assign({}, o, { x, y, w, h }));
+    }
+    return { out, dug };
+  }
+  // can a fighter walk from the left spawn to the right spawn? (so no map is ever unbeatable)
+  function battleConnected(list) {
+    const C = 20, cols = MAP_W / C, rows = Math.ceil(MAP_H / C), seen = new Uint8Array(cols * rows);
+    const free = (i, j) => {
+      const x = i * C + C / 2, y = j * C + C / 2;
+      if (x < 22 || y < 22 || x > MAP_W - 22 || y > MAP_H - 22) return false;
+      for (const o of list) if (x > o.x - 22 && x < o.x + o.w + 22 && y > o.y - 22 && y < o.y + o.h + 22) return false;
+      return true;
+    };
+    const s0 = Math.floor((MAP_H / 2) / C) * cols + 4, goal = Math.floor((MAP_H / 2) / C) * cols + (cols - 5), q = [s0];
+    seen[s0] = 1;
+    for (let h = 0; h < q.length; h++) {
+      const c = q[h]; if (c === goal) return true;
+      const ci = c % cols, cj = (c / cols) | 0;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = ci + di, nj = cj + dj; if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
+        const n = nj * cols + ni; if (seen[n] || !free(ni, nj)) continue; seen[n] = 1; q.push(n);
+      }
+    }
+    return false;
+  }
+  function genMap(seed, md) {
+    const r = rng(seed), W2 = MAP_W / 2;
+    const ti = Math.floor(r() * THEMES.length), th = Object.assign({ idx: ti }, THEMES[ti]);
+    const name = ADJ[Math.floor(r() * ADJ.length)] + ' ' + NOUN[Math.floor(r() * NOUN.length)];
+    let list = [];
+    const add = (x, y, w, h, type) => list.push({ x, y, w, h, type, hp: 3, maxHp: 3 });
+    if (md === 'ctf') {
+      // a giant block of dirt between the bases, with caves, maybe a tunnel, and some cover near the bases
+      const margin = 180 + 30 * Math.floor(r() * 5), vm = r() < 0.5;
+      add(margin, 0, MAP_W - 2 * margin, MAP_H, 'd');
+      const cv4 = (x1, y1, x2, y2, f) => { f(x1, y1, x2, y2); f(MAP_W - x2, y1, MAP_W - x1, y2); if (vm) { f(x1, MAP_H - y2, x2, MAP_H - y1); f(MAP_W - x2, MAP_H - y2, MAP_W - x1, MAP_H - y1); } };
+      const doCarve = (x1, y1, x2, y2) => { list = carveRect(list, x1, y1, x2, y2).out; };
+      const caves = 6 + Math.floor(r() * 10);
+      for (let i = 0; i < caves; i++) {
+        const hs = 30 + Math.floor(r() * 60), cx = margin + 20 + r() * (W2 - margin - 20), cy = 50 + r() * (MAP_H - 100);
+        cv4(cx - hs, cy - hs, cx + hs, cy + hs, doCarve);
+      }
+      if (r() < 0.4) { const ty = 120 + r() * (MAP_H - 240), th2 = 25 + r() * 20; doCarve(margin - 10, ty - th2, MAP_W - margin + 10, ty + th2); }
+      for (let i = 0; i < 4; i++) {
+        const h = 80 + 20 * Math.floor(r() * 5), x = 110 + r() * Math.max(10, margin - 170), y = 60 + r() * (MAP_H - 160 - h);
+        if (Math.abs(y + h / 2 - MAP_H / 2) < 130) continue;
+        const rx = Math.round(x / 10) * 10, ry = Math.round(y / 10) * 10;
+        add(rx, ry, 22, h, 'w'); add(MAP_W - rx - 22, ry, 22, h, 'w');
+      }
+      add(130, MAP_H / 2 - 70, 22, 140, 'w'); add(MAP_W - 152, MAP_H / 2 - 70, 22, 140, 'w'); // spawn shields (added last so caves can't cut them)
+    } else {
+      const style = Math.floor(r() * 4);
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const rr = rng(seed * 31 + attempt * 7919 + 5), count = 10 + Math.floor(rr() * 14), vm = rr() < 0.5;
+        list = [];
+        add(130, MAP_H / 2 - 70, 22, 140, 'w'); add(MAP_W - 152, MAP_H / 2 - 70, 22, 140, 'w'); // spawn shields: nobody can shoot you the moment you spawn
+        for (let k = 0; k < count; k++) {
+          let w, h, type; const t = rr();
+          if ((style === 1 && t < 0.7) || (style === 2 && t < 0.8)) { const horiz = rr() < 0.5, len = 120 + 30 * Math.floor(rr() * 10), thick = rr() < 0.5 ? 22 : 30; w = horiz ? len : thick; h = horiz ? thick : len; type = 'w'; }
+          else if (style === 3 && t < 0.7) { w = 40 * (1 + Math.floor(rr() * 3)); h = 40 * (1 + Math.floor(rr() * 2)); type = 'c'; }
+          else { w = 40 + 20 * Math.floor(rr() * 4); h = 40 + 20 * Math.floor(rr() * 4); type = rr() < 0.6 ? 'w' : 'c'; }
+          const x = Math.round((220 + rr() * (W2 - 20 - 220 - w)) / 10) * 10, y = Math.min(MAP_H - h, Math.round((rr() * (MAP_H - h)) / 10) * 10);
+          add(x, y, w, h, type); add(MAP_W - x - w, y, w, h, type);
+          if (vm) { add(x, MAP_H - y - h, w, h, type); add(MAP_W - x - w, MAP_H - y - h, w, h, type); }
+        }
+        if (battleConnected(list)) break;
+        list = [];
+        add(130, MAP_H / 2 - 70, 22, 140, 'w'); add(MAP_W - 152, MAP_H / 2 - 70, 22, 140, 'w');
+        add(500, 200, 60, 60, 'w'); add(MAP_W - 560, 200, 60, 60, 'w'); add(500, 640, 60, 60, 'w'); add(MAP_W - 560, 640, 60, 60, 'w'); add(W2 - 40, 420, 80, 60, 'c');
+      }
+    }
+    return { obstacles: list, theme: th, name };
+  }
+
+  // 2v2, 3v3, 4v4: bots on your team and bots on the other team
+  const ALLY_COLORS = ['#3aa0ff', '#4de3c0', '#9a8cff'], ENEMY_COLORS = ['#ff8a5c', '#ffb347', '#e65bff'];
+  function buildTeams() {
+    const n = teamSize, ys = k => H / 2 + (k - (n - 1) / 2) * 120;
+    const order = [...Array(n).keys()].sort((a, b) => Math.abs(a - (n - 1) / 2) - Math.abs(b - (n - 1) / 2));
+    player.y = ys(order[0]); bot.y = ys(order[0]);
+    for (let i = 1; i < n; i++) {
+      const a = makeFighter(80, ys(order[i]), ALLY_COLORS[(i - 1) % 3], true); a.team = 0; fighters.push(a);
+      const e = makeFighter(W - 80, ys(order[i]), ENEMY_COLORS[(i - 1) % 3], true); e.team = 1; fighters.push(e);
+    }
+  }
+  const nearestFoe = f => { let best = null, bd = 1e9; for (const o of fighters) { if (o.team === f.team || o.dead) continue; const d = Math.hypot(o.x - f.x, o.y - f.y); if (d < bd) { bd = d; best = o; } } return best; };
+  const foeNear = (team, x, y) => { let best = null, bd = 1e9; for (const o of fighters) { if (o.team === team || o.dead) continue; const d = Math.hypot(o.x - x, o.y - y); if (d < bd) { bd = d; best = o; } } return best; };
+  const startGun = () => { const g = gunOrder.find(i => own(i)); return g === undefined ? 0 : g; }; // slot 1 (or the first gun you own)
   function startRound() {
-    setArena(mode === 'ctf' ? 1440 : 960, mode === 'ctf' ? 900 : 600);
+    setArena(MAP_W, MAP_H);
+    const mp = genMap(mapSeed, mode === 'ctf' ? 'ctf' : 'battle');
+    theme = mp.theme; cv.style.background = theme.floor; bgImg = makeBackground(mapSeed, theme);
     if (mode === 'ctf') { BASE_P.x = 60; BASE_P.y = H / 2; BASE_B.x = W - 60; BASE_B.y = H / 2; }
-    obstacles = (mode === 'ctf' ? CTF_LAYOUT : layouts[layoutIdx % layouts.length]).map(o => ({ x:o[0], y:o[1], w:o[2], h:o[3], type:o[4], hp:3, maxHp:3 }));
-    player = makeFighter(80, H / 2, '#4fd1ff', false);
-    bot = makeFighter(W - 80, H / 2, '#ff6b9a', true);
-    bullets = []; parts = []; flags = null;
+    obstacles = mp.obstacles;
+    player = makeFighter(80, H / 2, '#4fd1ff', false); player.team = 0;
+    bot = makeFighter(W - 80, H / 2, '#ff6b9a', true); bot.team = 1; bot.isBot = mode !== '2p';
+    player.gun = startGun();
+    fighters = [player, bot];
+    if (mode === 'team') buildTeams();
+    foe = bot;
+    bullets = []; parts = []; puddles = []; flags = null;
     if (mode === 'ctf') initFlags();
     state = 'play';
+    toast = { text: '🗺️ Map ' + mapSeed + ': ' + mp.name, t: 150 };
     showOverlay(false);
   }
 
@@ -225,12 +380,37 @@
   ovBtn.addEventListener('click', () => ovAction());
   function showMenu(note) {
     showOverlay(true, '🦷 JAW BATTLE',
-      (note ? '<b style="color:#ffb020">' + note + '</b><br>' : '') + 'Beat the bot before it beats you! Pick your difficulty:<br>' +
-      '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
-      '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
-      '<b>Pause:</b> P or Esc<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! The whole middle is solid dirt, so hold <b>E</b> to dig tunnels with your shovel.<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
-      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame1P, true, menuLinks);
+      (note ? '<b style="color:#ffb020">' + note + '</b><br>' : '') + '🪙 <b>' + coinText() + '</b>' + (best ? ' &nbsp; 🏆 ' + best : ''), 'Play!', showModes, false, menuLinks);
     setMenuFlag(true);
+  }
+  const mainMenuBtn = p => { const b = document.createElement('button'); b.textContent = '🏠 Main menu'; b.onclick = () => showMenu(); p.appendChild(b); };
+  function showHowTo() {
+    showOverlay(true, '❓ How to play',
+      '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
+      '<b>Switch gun:</b> 1-9 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
+      '<b>Water:</b> 0 or Q drops a puddle that puts out fire 💧 &nbsp; <b>Pause:</b> P or Esc<br>' +
+      '<b>Ghost Boots</b> (Armory): hold G to float through walls<br>' +
+      '🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! Hold <b>E</b> to dig tunnels with your shovel.<br>' +
+      '🤝 <b>2v2, 3v3, 4v4:</b> you and bots on your team fight the other team of bots. Last team standing wins!<br>' +
+      '👥 <b>Local 2 Players:</b> P1 = WASD + mouse. P2 = arrow keys, Enter shoots, Shift builds, / switches gun, . drops water.<br>' +
+      '📱 Touch: drag left to move, drag right to aim &amp; shoot.', 'Back', () => showMenu(), false);
+  }
+  function newTeam(n) { mode = 'team'; teamSize = n; newGame(); }
+  function showModes() {
+    showOverlay(true, '🎮 Choose a Mode', '', 'Back', () => showMenu(), true, p => {
+      const mr = document.createElement('div'); mr.className = 'row';
+      const lab = document.createElement('span'); lab.style.cssText = 'min-width:250px;font-weight:800';
+      const upd = () => { lab.textContent = '🗺️ Map ' + mapSeed + ' of ' + MAP_COUNT + ': ' + mapName(mapSeed); try { localStorage.setItem('jawBattleMap', mapSeed); } catch (e) {} };
+      const mk = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { fn(); upd(); }; return b; };
+      mr.append(mk('◀', () => { mapSeed = (mapSeed + MAP_COUNT - 2) % MAP_COUNT + 1; }), lab, mk('▶', () => { mapSeed = mapSeed % MAP_COUNT + 1; }), mk('🎲 Random', () => { mapSeed = randMap(); }));
+      upd(); p.appendChild(mr);
+      const grid = document.createElement('div'); grid.className = 'cards';
+      for (const [icon, name, sub, fn] of [
+        ['⚔️', 'Duel', '1 vs 1 against a bot', newGame1P], ['🚩', 'Capture the Flag', '1 vs 1 • dig tunnels', newCTF], ['👥', 'Local 2 Players', 'same computer', newGame2P],
+        ['🤝', '2 vs 2', 'you + 1 bot vs 2 bots', () => newTeam(2)], ['🛡️', '3 vs 3', 'you + 2 bots vs 3 bots', () => newTeam(3)], ['🏰', '4 vs 4', 'you + 3 bots vs 4 bots', () => newTeam(4)],
+      ]) { const b = document.createElement('button'); b.className = 'card'; b.innerHTML = '<span style="font-size:32px">' + icon + '</span><br><b>' + name + '</b><br><small>' + sub + '</small>'; b.onclick = fn; grid.appendChild(b); }
+      p.appendChild(grid);
+    });
   }
   // ---------- capture the flag ----------
   const BASE_P = { x: 60, y: 300 }, BASE_B = { x: 900, y: 300 }, BASE_R = 46, CTF_WIN = 3;
@@ -239,7 +419,7 @@
   const atBase = (fl, base) => fl.x === base.x && fl.y === base.y;
   function initFlags() { flags = { p: { x: BASE_P.x, y: BASE_P.y, carrier: null }, b: { x: BASE_B.x, y: BASE_B.y, carrier: null } }; }
   function newCTF() { mode = 'ctf'; caps1 = caps2 = 0; banner = null; round = 1; startRound(); }
-  function ctfRespawn(f, x) { f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
+  function ctfRespawn(f, x) { if (f === player) f.gun = startGun(); f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
   function ctfScore(who) {
     who === 'p' ? caps1++ : caps2++;
     banner = { text: who === 'p' ? '🚩 You scored!' : '🚩 Bot scored!', t: 110 };
@@ -268,17 +448,9 @@
   // digging (Capture the Flag): hold E to carve a tunnel through whatever is in front of you
   // carve a square hole (half-size hs) out of every wall / block / dirt it touches
   function carve(hx, hy, hs) {
-    const hx1 = hx - hs, hx2 = hx + hs, hy1 = hy - hs, hy2 = hy + hs, out = [];
-    let dug = false;
-    for (const o of obstacles) {
-      if (hx1 >= o.x + o.w || hx2 <= o.x || hy1 >= o.y + o.h || hy2 <= o.y) { out.push(o); continue; }
-      dug = true;
-      const ix1 = Math.max(o.x, hx1), ix2 = Math.min(o.x + o.w, hx2), iy1 = Math.max(o.y, hy1), iy2 = Math.min(o.y + o.h, hy2);
-      for (const [x, y, w, h] of [[o.x, o.y, ix1 - o.x, o.h], [ix2, o.y, o.x + o.w - ix2, o.h], [ix1, o.y, ix2 - ix1, iy1 - o.y], [ix1, iy2, ix2 - ix1, o.y + o.h - iy2]])
-        if (w >= 6 && h >= 6) out.push(Object.assign({}, o, { x, y, w, h }));
-    }
-    if (dug) { obstacles = out; burst(hx, hy, '#c9b48a', 8); }
-    return dug;
+    const res = carveRect(obstacles, hx - hs, hy - hs, hx + hs, hy + hs);
+    if (res.dug) { obstacles = res.out; burst(hx, hy, '#c9b48a', 8); }
+    return res.dug;
   }
   // the shovel: higher level = bigger holes, dug faster
   const shovelSize = lv => 18 + 4 * lv, shovelDelay = lv => Math.max(3, Math.round(10 - 1.2 * lv));
@@ -294,11 +466,11 @@
     return { x: flags.p.x, y: flags.p.y };
   }
   function endCTF(won) {
-    state = 'over';
+    state = 'over'; mapSeed = randMap();
     const gain = won ? 15 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] : 3;
     coins += gain; saveStuff();
     showOverlay(true, won ? '🏆 You win the flag battle!' : '💥 The bot captured 3 flags!',
-      'Final score: You <b>' + caps1 + '</b> – <b>' + caps2 + '</b> Bot<br>💰 +' + gain + ' coins (you have ' + coins + ')', 'Play again', newCTF, true, p => {
+      'Final score: You <b>' + caps1 + '</b> – <b>' + caps2 + '</b> Bot<br>💰 +' + gain + ' coins (you have ' + coinText() + ')', 'Play again', newCTF, true, p => {
         const b = document.createElement('button'); b.textContent = '🏠 Main menu'; b.onclick = () => showMenu(); p.appendChild(b);
       });
   }
@@ -317,25 +489,21 @@
   function submitAce() {
     const c = aceIn.value.trim();
     if (/^JAW-?1234$/i.test(c)) applyCode(true);
-    else if (/^JAW-?123$/i.test(c)) applyCode(false);
     else aceMsg.textContent = 'Nothing changed.';
     aceIn.value = '';
   }
   aceIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submitAce(); });
   document.getElementById('aceGo').onclick = submitAce;
   function applyCode(pro) {
-    if (pro) { aimPro = !aimPro; aimbot = aimPro; }
-    else if (aimbot && !aimPro) aimbot = false;
-    else { aimbot = true; aimPro = false; }
+    aimbot = !aimbot; aimPro = aimbot;
     try { localStorage.setItem('jawBattleAimbot', aimPro ? '2' : aimbot ? '1' : '0'); } catch (e) {}
     beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
-    showMenu(aimPro ? '🤖 PRO Aimbot ON!' : aimbot ? '🎯 Aimbot ON!' : '🎯 Aimbot OFF.');
+    showMenu(aimPro ? '🤖 OPERATOR PRO ON! Everything maxed, infinite coins, ghost + walls!' : aimbot ? '🕶️ OPERATOR ON! Everything maxed, infinite coins, ghost + walls!' : '🕶️ Operator OFF.');
   }
   addEventListener('keydown', e => {
     if (!onMenu || e.key.length !== 1 || e.ctrlKey || e.metaKey) return;
-    typed = (typed + e.key.toLowerCase()).slice(-8);
-    if (pendingCode && e.key === '4') { clearTimeout(pendingCode); pendingCode = null; typed = ''; applyCode(true); }
-    else if (typed.endsWith('jaw123')) { typed = ''; pendingCode = setTimeout(() => { pendingCode = null; if (onMenu) applyCode(false); }, 700); }
+    typed = (typed + e.key.toLowerCase()).slice(-10);
+    if (typed.endsWith('jaw1234')) { typed = ''; applyCode(true); }
   });
   function menuLinks(p) {
     const dr = document.createElement('div'); dr.className = 'row';
@@ -344,52 +512,73 @@
     else { db.textContent = '🎁 Daily coins claimed ✅ (come back tomorrow!)'; db.disabled = true; }
     dr.appendChild(db); p.appendChild(dr);
     const row = document.createElement('div'); row.className = 'row';
-    const a = document.createElement('button'); a.textContent = '🛒 Gun Shop'; a.onclick = showShop;
-    const c = document.createElement('button'); c.textContent = '👥 2 Players'; c.onclick = newGame2P;
-    const f = document.createElement('button'); f.textContent = '🚩 Capture the Flag'; f.onclick = newCTF;
-    row.append(a, c, f);
+    const mk = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = fn; return b; };
+    row.append(mk('💎 Armory', () => { shopTab = 'guns'; showShop(); }), mk('❓ How to play', showHowTo));
     p.appendChild(row);
   }
 
   // ---------- gun shop ----------
+  let shopTab = 'guns', arrSel = null;
+  const upSound = () => [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80));
+  function mkCard(icon, title, lines, btnText, btnDisabled, onBtn, cls) {
+    const c = document.createElement('div'); c.className = 'scard' + (cls ? ' ' + cls : '');
+    c.innerHTML = '<div class="ic">' + icon + '</div><b>' + title + '</b><small>' + lines + '</small>';
+    const b = document.createElement('button'); b.textContent = btnText; b.disabled = btnDisabled; if (onBtn) b.onclick = onBtn; c.appendChild(b);
+    return c;
+  }
   function showShop() {
-    showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Buy guns, then upgrade them! Each level = +10% damage and faster shooting.', 'Back', () => showMenu(), false, p => {
-      { // shovel
-        const row = document.createElement('div'); row.className = 'row';
-        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left';
-        label.innerHTML = '<b>⛏ Shovel</b> (Lv ' + shovelLv + ') – dig faster and make bigger tunnels in Capture the Flag';
-        const btn = document.createElement('button');
-        if (shovelLv >= 5) { btn.textContent = '⭐ MAX level'; btn.disabled = true; }
-        else {
-          const c = upCost(shovelLv); btn.textContent = '⬆️ Upgrade to Lv ' + (shovelLv + 1) + ' 💰' + c; btn.disabled = coins < c;
-          btn.onclick = () => { if (coins >= c) { coins -= c; shovelLv++; saveStuff(); [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80)); showShop(); } };
-        }
-        row.append(label, btn); p.appendChild(row);
+    showOverlay(true, '💎 ARMORY', '🪙 <b style="font-size:22px">' + coinText() + '</b>', 'Back', () => showMenu(), false, p => {
+      const tabs = document.createElement('div'); tabs.className = 'row';
+      for (const [id, label] of [['guns', '🔫 Guns'], ['gear', '🧰 Gear'], ['arrange', '🔧 Arrange']]) {
+        const t = document.createElement('button'); t.textContent = label; t.className = shopTab === id ? 'on' : ''; t.onclick = () => { shopTab = id; arrSel = null; showShop(); }; tabs.appendChild(t);
       }
-      for (let i = 0; i < GUNS.length; i++) {
-        const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
-        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b>' + (owned[i] ? ' (Lv ' + gunLevel(i) + ')' : '') + ' – ' + g.info;
-        const btn = document.createElement('button');
-        if (owned[i]) {
-          const lv = gunLevel(i);
-          if (lv >= 5) { btn.textContent = '⭐ MAX level'; btn.disabled = true; }
-          else {
-            const c = upCost(lv); btn.textContent = '⬆️ Upgrade to Lv ' + (lv + 1) + ' 💰' + c; btn.disabled = coins < c;
-            btn.onclick = () => { if (coins >= c) { coins -= c; gunLv[i]++; saveStuff(); [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80)); showShop(); } };
-          }
-        } else {
-          btn.textContent = 'Buy 💰' + g.cost; btn.disabled = coins < g.cost;
-          btn.onclick = () => { if (coins >= g.cost) { coins -= g.cost; owned[i] = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } };
+      p.appendChild(tabs);
+      const grid = document.createElement('div'); grid.className = 'shopgrid';
+      if (shopTab === 'guns') {
+        for (let i = 0; i < GUNS.length; i++) {
+          const g = GUNS[i], lv = gunLevel(i), has = own(i);
+          const perk = (lv >= 3 ? '✅ ' : '🔒 Lv3: ') + PERKS[i].name + '<br>' + PERKS[i].desc;
+          let txt, dis, fn;
+          if (has && lv >= 5) { txt = '👑 MAX'; dis = true; }
+          else if (has) { const c = upCost(lv); txt = '🚀 Lv ' + (lv + 1) + ' 🪙' + c; dis = coins < c; fn = () => { if (coins >= c) { coins -= c; gunLv[i]++; saveStuff(); upSound(); showShop(); } }; }
+          else { txt = '💎 Buy 🪙' + g.cost; dis = coins < g.cost; fn = () => { if (coins >= g.cost) { coins -= g.cost; owned[i] = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } }; }
+          grid.appendChild(mkCard(g.icon, g.name + (has ? ' • Lv ' + lv : ''), g.info + '<br>' + perk, txt, dis, fn, has ? '' : 'locked'));
         }
-        row.append(label, btn); p.appendChild(row);
+      } else if (shopTab === 'gear') {
+        const sl = shovel();
+        grid.appendChild(mkCard('⛏️', 'Shovel • Lv ' + sl, 'Dig faster and make bigger tunnels in Capture the Flag', sl >= 5 ? '👑 MAX' : '🚀 Lv ' + (sl + 1) + ' 🪙' + upCost(shovelLv), sl >= 5 || coins < upCost(shovelLv),
+          () => { const c = upCost(shovelLv); if (coins >= c) { coins -= c; shovelLv++; saveStuff(); upSound(); showShop(); } }));
+        const gh = ghostOwned || aimbot;
+        grid.appendChild(mkCard('👻', 'Ghost Boots', 'Hold <b>G</b> to float through walls, blocks and dirt (it recharges)<br>' + (aimbot ? '🕶️ FREE with Operator!' : ''), gh ? '🏆 Owned' : '💎 Buy 🪙' + GHOST_COST, gh || coins < GHOST_COST,
+          () => { if (coins >= GHOST_COST) { coins -= GHOST_COST; ghostOwned = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } }));
+        grid.appendChild(mkCard('💧', 'Water', 'Always free! Press <b>0</b> or <b>Q</b> to drop a puddle that puts out fire. You get 3 charges and they come back.', '🏆 Free', true));
+      } else {
+        arrangePanel(p, () => showShop());
       }
+      if (shopTab !== 'arrange') p.appendChild(grid);
     });
   }
-
-  function pause() {
-    if (state !== 'play') return;
-    state = 'paused';
-    showOverlay(true, '⏸ Paused', 'Take a breather!', 'Resume', resume);
+  // drag a gun onto another spot (or click one, then click where it should go)
+  function arrangePanel(p, rerender) {
+    const hint = document.createElement('div'); hint.style.cssText = 'font-size:13px;opacity:.9;max-width:560px';
+    hint.innerHTML = '🖱️ <b>Drag</b> a gun onto another spot, or <b>click</b> one and then click where it should go.<br>⭐ Spot <b>1</b> is the gun you <b>start</b> with. Keys <b>1-9</b> pick the spots.';
+    p.appendChild(hint);
+    const row = document.createElement('div'); row.className = 'slots';
+    gunOrder.forEach((gi, sl) => {
+      const c = document.createElement('div'); c.className = 'slot' + (arrSel === sl ? ' sel' : '') + (sl === 0 ? ' first' : ''); c.draggable = true;
+      c.innerHTML = '<div class="num">' + (sl === 0 ? '⭐ ' : '') + (sl + 1) + '</div><div class="ic">' + GUNS[gi].icon + '</div><small>' + (GUNS[gi].short || GUNS[gi].name) + (own(gi) ? '' : ' 🔒') + '</small>';
+      const swap = (a, b) => { if (a === b || a == null || isNaN(a)) { arrSel = null; rerender(); return; } [gunOrder[a], gunOrder[b]] = [gunOrder[b], gunOrder[a]]; arrSel = null; saveStuff(); beep(600, 0.05, 'square', 0.05); rerender(); };
+      c.onclick = () => { if (arrSel === null) { arrSel = sl; rerender(); } else swap(arrSel, sl); };
+      c.ondragstart = e => { e.dataTransfer.setData('text/plain', String(sl)); };
+      c.ondragover = e => e.preventDefault();
+      c.ondrop = e => { e.preventDefault(); swap(parseInt(e.dataTransfer.getData('text/plain'), 10), sl); };
+      row.appendChild(c);
+    });
+    p.appendChild(row);
+  }
+  function showArrange(back) {
+    arrSel = null;
+    showOverlay(true, '🔧 Arrange Guns', '', 'Done', back, false, p => arrangePanel(p, () => showArrange(back)));
   }
   function resume() { if (state === 'paused') { state = 'play'; showOverlay(false); } }
   pauseBtn.addEventListener('click', () => state === 'paused' ? resume() : pause());
@@ -404,16 +593,19 @@
     if ([' ', '/', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
     keys[k] = true;
     if (state === 'play') {
-      if (k >= '1' && k <= '9' && owned[+k - 1]) player.gun = +k - 1;
+      if (k >= '1' && k <= '9' && own(gunOrder[+k - 1])) player.gun = gunOrder[+k - 1];
       if (k === 'b' && !e.repeat) tryBuild();
+      if ((k === '0' || k === 'q') && !e.repeat) placePuddle(player);
+      if (k === '.' && mode === '2p' && !e.repeat) placePuddle(bot);
+      if (k === 'o' && aimbot && !e.repeat) { aimPro = !aimPro; toast = { text: aimPro ? '🤖 Autopilot ON' : '🕹️ Autopilot OFF – you drive!', t: 90 }; }
       if (mode === '2p' && !e.repeat) {
         if (k === 'shift') tryBuild(bot, bot.x + Math.cos(bot.aim) * 60, bot.y + Math.sin(bot.aim) * 60);
-        if (k === '/') for (let i = 1; i <= GUNS.length; i++) { const g = (bot.gun + i) % GUNS.length; if (owned[g]) { bot.gun = g; break; } }
+        if (k === '/') for (let i = 1; i <= GUNS.length; i++) { const g = (bot.gun + i) % GUNS.length; if (own(g)) { bot.gun = g; break; } }
       }
     }
   });
   addEventListener('wheel', e => {
-    if (state === 'play') { const step = e.deltaY > 0 ? 1 : GUNS.length - 1; let g = player.gun; for (let i = 0; i < GUNS.length; i++) { g = (g + step) % GUNS.length; if (owned[g]) { player.gun = g; break; } } }
+    if (state === 'play') { const step = e.deltaY > 0 ? 1 : GUNS.length - 1; let sl = gunOrder.indexOf(player.gun); for (let i = 0; i < GUNS.length; i++) { sl = (sl + step) % GUNS.length; if (own(gunOrder[sl])) { player.gun = gunOrder[sl]; break; } } }
   }, { passive: true });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -475,31 +667,81 @@
   }
   function fire(f, owner, gi) {
     const g = GUNS[gi];
-    const lvl = owner === 'p' ? gunLevel(gi) : 1, dmgMul = 1 + 0.1 * (lvl - 1); // each level: +10% damage, faster shooting
+    const lvl = owner === 'p' ? gunLevel(gi) : 1, dmgMul = owner === 'b' && diffName === 'insane' ? 1.4 : 1 + 0.1 * (lvl - 1); // each level: +10% damage, faster shooting
+    const pid = owner === 'p' ? (lvl >= 3 ? PERKS[gi].id : null) : owner === 'b' ? botPerk(gi) : null, pw = owner === 'p' && lvl >= 5 ? 2 : 1;
     const missShot = owner === 'p' && aimbot && ++aimShots % 10 === 0; // aimbot misses every 10th shot
     const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
     const n = g.n + (gi === 4 && owner === 'p' ? lvl - 1 : 0), spread = g.spread + (n - g.n) * 0.08; // Triple Shot: +1 bullet per level
     for (let i = 0; i < n; i++) {
       const a = f.aim + missOff + (n > 1 ? (i / (n - 1) - 0.5) * spread : (Math.random() - 0.5) * spread);
-      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg * dmgMul, base: g.dmg, gi, color: g.color, r: g.r || 5, bounce: g.bounce || 0, obs: g.obs || 1, miss: missShot });
+      const crit = pid === 'crit' && Math.random() < 0.12 * pw;
+      const bl = { x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, team: f.team, life: g.life, dmg: g.dmg * dmgMul * (crit ? 2 : 1), base: g.dmg, gi, color: g.color, r: (g.r || 5) + (crit ? 1 : 0), bounce: (g.bounce || 0) + (pid === 'bounce' ? 2 * pw : 0), obs: g.obs || 1, miss: missShot };
+      if (pid === 'fire' || pid === 'fireboom') bl.fire = pw;
+      if (pid === 'ice') bl.slow = pw;
+      if (pid === 'pierce') bl.pierce = true;
+      if (pid === 'boom' || pid === 'fireboom') bl.boom = 55 + 25 * pw;
+      if (owner === 'b' && diffName === 'insane') bl.home = 0.3; // insane bots have strong aim help (but less than Operator)
+      if (pid === 'seek') bl.home = 0.04 * pw;
+      if (pid === 'seek2') bl.home = 0.08 * pw;
+      bl.hue = crit ? '#ffd700' : bl.fire ? '#ff8a2b' : bl.slow ? '#7fd8ff' : bl.boom ? '#ffb347' : bl.pierce ? '#ffffff' : bl.home ? '#ff5de0' : null;
+      bullets.push(bl);
     }
     const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : owner === 'p' ? 1 - 0.05 * (lvl - 1) : 1;
     f.cd = f.maxCd = Math.round(g.cd * cdMul);
     beep(g.freq, gi === 3 ? 0.25 : 0.1, owner === 'p' ? 'square' : 'sawtooth', 0.05, -g.freq * 0.5);
   }
+  // ----- fire, ice, water, explosions -----
+  const inPuddle = f => puddles.some(p => Math.hypot(f.x - p.x, f.y - p.y) < p.r);
+  function ignite(f, power) { if (!inPuddle(f)) f.burn = Math.max(f.burn || 0, 300 * power); }
+  function placePuddle(f) {
+    const free = aimbot && f === player;
+    if (f.dead || (!free && f.water < 1)) return false;
+    if (!free) f.water--;
+    puddles.push({ x: f.x, y: f.y, r: 46, t: 900 }); if (puddles.length > 14) puddles.shift();
+    f.burn = 0; beep(500, 0.12, 'sine', 0.07, 300); burst(f.x, f.y, '#7fd8ff', 12);
+    return true;
+  }
+  function statusTick() {
+    for (const f of fighters) {
+      if (f.dead) { f.burn = 0; f.slow = 0; continue; }
+      if (f.burn > 0) {
+        if (inPuddle(f)) f.burn = 0;
+        else {
+          f.burn--; if (f.burn % 20 === 0) { f.hp -= 0.6; f.flash = 4; }
+          if (f.burn % 3 === 0) parts.push({ x: f.x + (Math.random() - 0.5) * 16, y: f.y - 6, vx: (Math.random() - 0.5) * 0.6, vy: -1 - Math.random(), life: 18, color: Math.random() < 0.5 ? '#ff8a2b' : '#ffd24d' });
+        }
+      }
+      if (f.slow > 0) f.slow--;
+      if (f.water < 3 && ++f.waterT >= 600) { f.water++; f.waterT = 0; }
+    }
+    for (const p of puddles) p.t--;
+    puddles = puddles.filter(p => p.t > 0);
+    if (aimbot && player.burn > 0 && !inPuddle(player)) placePuddle(player); // operator puts itself out
+  }
+  function explode(x, y, R, dmg, team, hitFighter) {
+    burst(x, y, '#ff9a4d', 26); burst(x, y, '#ffd24d', 12); shake = Math.max(shake, 12); beep(90, 0.22, 'sawtooth', 0.09, -50);
+    if (!hitFighter) for (const tg of fighters) if (tg.team !== team && !tg.dead && Math.hypot(tg.x - x, tg.y - y) < R + tg.r) { tg.hp -= dmg; tg.flash = 10; }
+    for (const o of obstacles) {
+      if (o.dead || (o.type !== 'c' && o.type !== 'b')) continue;
+      const cx = Math.max(o.x, Math.min(x, o.x + o.w)), cy = Math.max(o.y, Math.min(y, o.y + o.h));
+      if (Math.hypot(x - cx, y - cy) < R) { o.hp -= 2; if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, '#d9a05b', 12); } }
+    }
+    const dirt = obstacles.filter(o => o.type === 'd');
+    if (dirt.length) { const res = carveRect(dirt, x - R * 0.5, y - R * 0.5, x + R * 0.5, y + R * 0.5); if (res.dug) obstacles = obstacles.filter(o => o.type !== 'd').concat(res.out); }
+  }
   const botCdMul = () => diff().cd * Math.max(0.6, 1 - (round - 1) * 0.05);
 
   function tryBuild(p = player, tx = mouse.x, ty = mouse.y) {
-    if (p.blocks < 1) return;
+    if (p.blocks < 1 && !(aimbot && p === player)) return;
     const gx = Math.floor(tx / GRID) * GRID, gy = Math.floor(ty / GRID) * GRID;
     if (gx < 0 || gy < 0 || gx + GRID > W || gy + GRID > H) return;
     if (Math.hypot(gx + GRID / 2 - p.x, gy + GRID / 2 - p.y) > BUILD_RANGE) return;
     if (mode === 'ctf') for (const q of [BASE_P, BASE_B, flags.p, flags.b]) if (Math.hypot(gx + GRID / 2 - q.x, gy + GRID / 2 - q.y) < 60) return;
     const box = { x: gx, y: gy, w: GRID, h: GRID };
     for (const o of obstacles) if (gx < o.x + o.w && gx + GRID > o.x && gy < o.y + o.h && gy + GRID > o.y) return;
-    if (circleHitsRect(p.x, p.y, p.r + 3, box) || circleHitsRect(bot.x, bot.y, bot.r + 3, box)) return;
+    if (circleHitsRect(p.x, p.y, p.r + 3, box) || fighters.some(f => f !== p && circleHitsRect(f.x, f.y, f.r + 3, box))) return;
     obstacles.push({ x: gx, y: gy, w: GRID, h: GRID, type: 'b', hp: 4, maxHp: 4 });
-    p.blocks--;
+    if (!(aimbot && p === player)) p.blocks--;
     beep(160, 0.08, 'triangle', 0.08, 80);
   }
   function burst(x, y, color, n) {
@@ -519,42 +761,55 @@
     if (keys['s'] || (mode !== '2p' && keys['arrowdown'])) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
-    if (mode === 'ctf' && keys['e'] && !player.dead && ++player.digT >= shovelDelay(shovelLv)) { player.digT = 0; dig(player, player.aim, shovelLv); }
-    if (player.digAng != null && !player.dead && ((player.digT2 = (player.digT2 || 0) + 1) >= shovelDelay(shovelLv))) { player.digT2 = 0; dig(player, player.digAng, shovelLv); }
-    const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !bot.dead);
+    if (mode === 'ctf' && keys['e'] && !player.dead && ++player.digT >= shovelDelay(shovel())) { player.digT = 0; dig(player, player.aim, shovel()); }
+    if (player.digAng != null && !player.dead && ((player.digT2 = (player.digT2 || 0) + 1) >= shovelDelay(shovel()))) { player.digT2 = 0; dig(player, player.digAng, shovel()); }
+    foe = nearestFoe(player) || bot;
+    for (const f of fighters) { f.vxm = f.x - (f.lx ?? f.x); f.vym = f.y - (f.ly ?? f.y); f.lx = f.x; f.ly = f.y; }
+    const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !foe.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
-    const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
+    const psp = (mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2) * (player.slow > 0 ? 0.5 : 1);
     const ox0 = player.x, oy0 = player.y;
-    if (!player.dead) moveFighter(player, mx * psp, my * psp);
+    const hasGhost = ghostOwned || aimbot;
+    const inWall = hasGhost && obstacles.some(o => circleHitsRect(player.x, player.y, player.r, o));
+    const wantG = hasGhost && keys['g'] && (aimbot || player.ghostE > 0);
+    player.ghosting = !player.dead && (wantG || inWall);
+    if (!player.dead) {
+      if (player.ghosting) {
+        player.x = Math.max(player.r, Math.min(W - player.r, player.x + mx * psp));
+        player.y = Math.max(player.r, Math.min(H - player.r, player.y + my * psp));
+        if (wantG && !aimbot) player.ghostE--;
+      } else { moveFighter(player, mx * psp, my * psp); if (player.ghostE < GHOST_MAX) player.ghostE += 0.5; }
+    }
     if (auto) {
       if (Math.hypot(player.x - ox0, player.y - oy0) < psp * 0.4) { if (++player.stuck > 8) { player.stuck = 0; player.strafe *= -1; player.detour = Math.random() < 0.5 ? -1 : 1; player.detourT = 50; } }
       else player.stuck = 0;
     }
     player.aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-    const bvx = bot.x - (bot.lx ?? bot.x), bvy = bot.y - (bot.ly ?? bot.y); bot.lx = bot.x; bot.ly = bot.y;
+    const bvx = foe.vxm, bvy = foe.vym;
     let autoFire = false;
-    if (aimbot && !bot.dead) {
+    if (aimbot && !foe.dead) {
       // OP aim: predict where the target will be when the bullet arrives
-      if (aimPro && player.cd <= 0) player.gun = pickGun(Math.hypot(bot.x - player.x, bot.y - player.y), lineClear(player.x, player.y, bot.x, bot.y));
+      if (aimPro && player.cd <= 0) player.gun = pickGun(Math.hypot(foe.x - player.x, foe.y - player.y), lineClear(player.x, player.y, foe.x, foe.y));
       const spd = GUNS[player.gun].speed;
-      let tx = bot.x, ty = bot.y;
-      for (let i = 0; i < 4; i++) { const t = Math.hypot(tx - player.x, ty - player.y) / spd; tx = bot.x + bvx * t; ty = bot.y + bvy * t; }
+      let tx = foe.x, ty = foe.y;
+      for (let i = 0; i < 4; i++) { const t = Math.hypot(tx - player.x, ty - player.y) / spd; tx = foe.x + bvx * t; ty = foe.y + bvy * t; }
       player.aim = Math.atan2(ty - player.y, tx - player.x);
-      autoFire = lineClear(player.x, player.y, bot.x, bot.y);
+      autoFire = lineClear(player.x, player.y, foe.x, foe.y);
     }
     if (player.cd > 0) player.cd--;
     if ((mouse.down || keys[' '] || autoFire) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
     if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
 
-    if (mode === '2p') updateP2(); else if (!bot.dead) updateBot();
-    if (bot.blocks < MAX_BLOCKS && ++bot.blockT >= 150) { bot.blocks++; bot.blockT = 0; }
+    if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) updateBot(f);
+    for (const f of fighters) if (f !== player && f.blocks < MAX_BLOCKS && ++f.blockT >= 150) { f.blocks++; f.blockT = 0; }
 
     // bullets
     for (const b of bullets) {
-      if (aimbot && b.owner === 'p' && !b.miss && !bot.dead) { // OP: bullets curve toward the target
+      const hr = (aimbot && b.owner === 'p' && !b.miss) ? 0.35 : (b.home || 0), ht = foeNear(b.team, b.x, b.y); // OP aim + seeking perks: bullets curve toward the target
+      if (hr > 0 && ht && !ht.dead) {
         const sp = Math.hypot(b.vx, b.vy), cur = Math.atan2(b.vy, b.vx);
-        let d = Math.atan2(bot.y - b.y, bot.x - b.x) - cur; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
-        const na = cur + Math.max(-0.35, Math.min(0.35, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
+        let d = Math.atan2(ht.y - b.y, ht.x - b.x) - cur; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
+        const na = cur + Math.max(-hr, Math.min(hr, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
       }
       b.x += b.vx; b.y += b.vy; b.life--;
       if (b.life <= 0) { b.dead = true; continue; }
@@ -563,16 +818,21 @@
       for (const o of obstacles) {
         if (o.dead) continue;
         if (b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h) {
-          if (b.bounce > 0) { const px = b.x - b.vx, py = b.y - b.vy; if (px <= o.x || px >= o.x + o.w) b.vx *= -1; else b.vy *= -1; b.x += b.vx; b.y += b.vy; b.bounce--; } else b.dead = true;
+          if (b.bounce > 0) { const px = b.x - b.vx, py = b.y - b.vy; if (px <= o.x || px >= o.x + o.w) b.vx *= -1; else b.vy *= -1; b.x += b.vx; b.y += b.vy; b.bounce--; } else if (!(b.pierce && o.type !== 'w' && o.type !== 'd')) b.dead = true;
           if (o.type !== 'w' && o.type !== 'd') { const c = o.type === 'b' ? '#4fe0c0' : '#d9a05b'; o.hp -= (b.obs || 1); sfx.crate(); burst(b.x, b.y, c, 5); if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, c, 14); } }
           else { if (o.type === 'd' && b.obs > 1) carve(b.x, b.y, 10 + b.r * 1.5); burst(b.x, b.y, o.type === 'd' ? '#a07a4a' : '#8f84d6', 3); }
           break;
         }
       }
+      if (b.dead && b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, false);
       if (b.dead) continue;
-      const target = b.owner === 'p' ? bot : player;
-      if (!target.dead && Math.hypot(b.x - target.x, b.y - target.y) < target.r + b.r - 1) {
+      let target = null;
+      for (const f of fighters) if (f.team !== b.team && !f.dead && Math.hypot(b.x - f.x, b.y - f.y) < f.r + b.r - 1) { target = f; break; }
+      if (target) {
         b.dead = true; target.hp -= b.dmg; target.flash = 10; shake = 8;
+        if (b.fire) ignite(target, b.fire);
+        if (b.slow) target.slow = Math.max(target.slow || 0, 90 * b.slow);
+        if (b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, true);
         burst(b.x, b.y, target.color, 10); sfx.hit();
       }
     }
@@ -580,14 +840,18 @@
     obstacles = obstacles.filter(o => !o.dead);
     for (const p of parts) { p.x += p.vx; p.y += p.vy; p.life--; }
     parts = parts.filter(p => p.life > 0);
+    statusTick();
     if (player.flash > 0) player.flash--;
-    if (bot.flash > 0) bot.flash--;
+    for (const f of fighters) if (f.flash > 0 && f !== player) f.flash--;
     if (shake > 0) shake--;
     if (toast && toast.t > 0) toast.t--;
 
     if (mode === 'ctf') ctfTick();
-    else if (bot.hp <= 0) endRound(true);
-    else if (player.hp <= 0) endRound(false);
+    else {
+      for (const f of fighters) if (!f.dead && f.hp <= 0) { f.dead = true; burst(f.x, f.y, f.color, 22); sfx.hit(); }
+      if (fighters.every(f => f.team !== 1 || f.dead)) endRound(true);
+      else if (fighters.every(f => f.team !== 0 || f.dead)) endRound(false);
+    }
   }
 
   // Aimbot autopilot: while you hold shoot, it dodges bullets, finds a clear shot and keeps a good distance
@@ -595,7 +859,7 @@
   function pickGun(dist, los) {
     const prefs0 = !los ? [5, 6, 0] : dist < 200 ? [1, 4, 5, 2, 0] : dist < 420 ? [7, 5, 4, 0, 2] : [3, 7, 0];
     const prefs = [8].concat(prefs0);
-    for (const g of prefs) if (owned[g]) return g;
+    for (const g of prefs) if (own(g)) return g;
     return 0;
   }
   // --- smart navigation for the autopilot: finds the cheapest route (digging through dirt costs extra) ---
@@ -615,7 +879,7 @@
   function findPath(sx, sy, tx, ty) {
     const cl = (v, m) => Math.max(0, Math.min(m - 1, v));
     const si = cl(Math.floor(sx / CELL), navCols), sj = cl(Math.floor(sy / CELL), navRows), ti = cl(Math.floor(tx / CELL), navCols), tj = cl(Math.floor(ty / CELL), navRows);
-    const n = navCols * navRows, dist = new Float32Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), heap = [];
+    const n = navCols * navRows, dist = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), heap = [];
     const push = (d, i) => { heap.push([d, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
     const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
     const start = sj * navCols + si; dist[start] = 0; push(0, start);
@@ -653,6 +917,11 @@
       const c = Math.cos(a), s = Math.sin(a), dx = vx * c - vy * s, dy = vx * s + vy * c;
       if (!blocked(p.x + dx * 30, p.y + dy * 30, p.r + 1) && !blocked(p.x + dx * 15, p.y + dy * 15, p.r + 1)) return [dx, dy];
     }
+    // tight spot: take any direction that lets us slide along the wall a little
+    for (const a of [0.5, -0.5, 1, -1, 1.6, -1.6, 2.2, -2.2]) {
+      const c = Math.cos(a), s = Math.sin(a), dx = vx * c - vy * s, dy = vx * s + vy * c;
+      if (!blocked(p.x + dx * 3, p.y + dy * 3, p.r)) return [dx, dy];
+    }
     return [vx, vy];
   }
   // walk to a spot: straight if clear, otherwise along the best path (digging where the path goes through dirt)
@@ -660,15 +929,19 @@
     const dx = gx - p.x, dy = gy - p.y;
     if (Math.hypot(dx, dy) < 6) return [0, 0];
     const canDig = mode === 'ctf';
-    if (corridorClear(p.x, p.y, gx, gy, p.r + 1)) { p.path = null; return safeDir(p, dx, dy); }
-    if (!p.path || --p.pathT <= 0 || Math.hypot(gx - p.pathGX, gy - p.pathGY) > 50) {
+    // stalled? (barely moved in half a second)
+    if (!p.ck) p.ck = { x: p.x, y: p.y, t: 0 };
+    if (++p.ck.t >= 30) { p.stalled = Math.hypot(p.x - p.ck.x, p.y - p.ck.y) < 12; p.ck = { x: p.x, y: p.y, t: 0 }; }
+    if (corridorClear(p.x, p.y, gx, gy, p.r + 1)) { p.path = null; p.pathT = 0; return safeDir(p, dx, dy); }
+    if (p.pathT === undefined || --p.pathT <= 0 || Math.hypot(gx - p.pathGX, gy - p.pathGY) > 50) {
       buildNav(canDig); p.path = findPath(p.x, p.y, gx, gy); p.pathT = 12; p.pathGX = gx; p.pathGY = gy;
     }
     if (p.path && p.path.length > 1) {
       let tgt = p.path[1];
       for (let i = Math.min(p.path.length - 1, 14); i >= 2; i--) if (corridorClear(p.x, p.y, p.path[i][0], p.path[i][1], p.r + 1)) { tgt = p.path[i]; break; }
       const tx = tgt[0] - p.x, ty = tgt[1] - p.y, m = Math.hypot(tx, ty) || 1;
-      if (canDig && blocked(p.x + tx / m * (p.r + 10), p.y + ty / m * (p.r + 10), 4)) { p.digAng = Math.atan2(ty, tx); return [tx / m, ty / m]; }
+      // can't fit through (or stuck)? dig the way open
+      if (canDig && (p.stalled || blocked(p.x + tx / m * (p.r + 6), p.y + ty / m * (p.r + 6), p.r - 1))) { p.digAng = Math.atan2(ty, tx); return [tx / m, ty / m]; }
       return safeDir(p, tx, ty);
     }
     if (canDig) { p.digAng = Math.atan2(dy, dx); const m = Math.hypot(dx, dy) || 1; return [dx / m, dy / m]; }
@@ -676,7 +949,7 @@
   }
   function dodgeVec(p) {
     for (const bl of bullets) {
-      if (bl.owner === 'p') continue;
+      if (bl.team === p.team) continue;
       const rx = p.x - bl.x, ry = p.y - bl.y, sp = Math.hypot(bl.vx, bl.vy) || 1;
       const along = (rx * bl.vx + ry * bl.vy) / sp, cross = (rx * bl.vy - ry * bl.vx) / sp;
       if (along > 0 && along < 280 && Math.abs(cross) < 36) { const sg = cross >= 0 ? 1 : -1; return [bl.vy / sp * sg, -bl.vx / sp * sg]; }
@@ -707,9 +980,9 @@
       }
       return navTo(p, g.x, g.y);
     }
-    const dx = bot.x - p.x, dy = bot.y - p.y, dist = Math.hypot(dx, dy) || 1;
-    if (!corridorClear(p.x, p.y, bot.x, bot.y, 4) || !lineClear(p.x, p.y, bot.x, bot.y)) return navTo(p, bot.x, bot.y);
-    p.path = null;
+    const dx = foe.x - p.x, dy = foe.y - p.y, dist = Math.hypot(dx, dy) || 1;
+    if (!corridorClear(p.x, p.y, foe.x, foe.y, 4) || !lineClear(p.x, p.y, foe.x, foe.y)) return navTo(p, foe.x, foe.y);
+    p.path = null; p.pathT = 0;
     return strafeMove(p, dx / dist, dy / dist, dist);
   }
 
@@ -718,22 +991,24 @@
     if (keys['arrowleft']) mx--; if (keys['arrowright']) mx++;
     if (keys['arrowup']) my--; if (keys['arrowdown']) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; bot.aim = Math.atan2(my, mx); }
-    moveFighter(bot, mx * 3.2, my * 3.2);
+    const sp2 = bot.slow > 0 ? 1.6 : 3.2; moveFighter(bot, mx * sp2, my * sp2);
     if (bot.cd > 0) bot.cd--;
     if (keys['enter'] && bot.cd <= 0) fire(bot, 'p2', bot.gun);
   }
-  function updateBot() {
-    const b = bot;
+  function updateBot(b) {
+    const fo = mode === 'ctf' ? player : nearestFoe(b);
+    if (!fo) return;
     if (b.cd > 0) b.cd--;
-    const dx = player.x - b.x, dy = player.y - b.y, dist = Math.hypot(dx, dy) || 1;
-    const los = !player.dead && lineClear(b.x, b.y, player.x, player.y);
+    const dx = fo.x - b.x, dy = fo.y - b.y, dist = Math.hypot(dx, dy) || 1;
+    const los = !fo.dead && lineClear(b.x, b.y, fo.x, fo.y);
     const goal = mode === 'ctf' ? botGoal() : null;
-    const speed = Math.min(3.4, diff().speed + round * 0.04) * (mode === 'ctf' && flags.p.carrier === b ? 0.85 : 1);
+    if (b.burn > 0 && diffName !== 'easy' && b.water > 0) { b.burnAge = (b.burnAge || 0) + 1; if (b.burnAge > ({ medium: 90, hard: 50, insane: 25 }[diffName] || 90)) { placePuddle(b); b.burnAge = 0; } } else b.burnAge = 0;
+    const speed = Math.min(3.4, diff().speed + round * 0.04) * (mode === 'ctf' && flags.p.carrier === b ? 0.85 : 1) * (b.slow > 0 ? 0.5 : 1);
 
     // dodge incoming bullets
     let dodge = 0;
     for (const bl of bullets) {
-      if (bl.owner !== 'p') continue;
+      if (bl.team === b.team) continue;
       const rx = b.x - bl.x, ry = b.y - bl.y, sp = Math.hypot(bl.vx, bl.vy);
       const along = (rx * bl.vx + ry * bl.vy) / sp;
       const cross = (rx * bl.vy - ry * bl.vx) / sp;
@@ -742,14 +1017,15 @@
 
     let vx = 0, vy = 0;
     const ux = dx / dist, uy = dy / dist;
-    if (dodge && Math.random() < diff().dodge) {
-      vx = uy * dodge; vy = -ux * dodge; // sidestep
+    if (dodge && !(b.dodgeT > 0) && Math.random() < diff().dodge) { b.dodgeT = 12; b.dodgeD = dodge; }
+    if (b.dodgeT > 0) {
+      b.dodgeT--; vx = uy * b.dodgeD; vy = -ux * b.dodgeD; // sidestep (held for a few frames so it doesn't twitch)
     } else if (goal) {
-      const gx = goal.x - b.x, gy = goal.y - b.y, gd = Math.hypot(gx, gy) || 1;
-      const nx = gx / gd, ny = gy / gd;
-      vx = nx; vy = ny;
-      if (mode === 'ctf' && blocked(b.x + nx * (b.r + 10), b.y + ny * (b.r + 10), 4)) { b.stuck = 0; b.detourT = 0; if (++b.digT >= 8) { b.digT = 0; dig(b, Math.atan2(ny, nx), 2); } }
-      if (b.detourT > 0) { b.detourT--; vx += -ny * (b.detour || 1) * 1.6; vy += nx * (b.detour || 1) * 1.6; }
+      b.digAng = null;
+      const nv = navTo(b, goal.x, goal.y); vx = nv[0]; vy = nv[1];
+      if (b.digAng != null) { b.stuck = 0; if (++b.digT >= 8) { b.digT = 0; dig(b, b.digAng, 2); } }
+    } else if (!los) { // no clear way to the player: follow a real path around the walls
+      const nv = navTo(b, fo.x, fo.y); vx = nv[0]; vy = nv[1];
     } else {
       if (--b.strafeT <= 0) { b.strafe = Math.random() < 0.5 ? -1 : 1; b.strafeT = 40 + Math.random() * 80; }
       const want = los ? 270 : 0;
@@ -757,6 +1033,7 @@
       vx = ux * push + -uy * b.strafe * (los ? 0.9 : 0.3);
       vy = uy * push + ux * b.strafe * (los ? 0.9 : 0.3);
     }
+    for (const o of fighters) { if (o === b || o.dead) continue; const ddx = b.x - o.x, ddy = b.y - o.y, dd = Math.hypot(ddx, ddy); if (dd > 0 && dd < 44) { vx += ddx / dd * 0.8; vy += ddy / dd * 0.8; } }
     const m = Math.hypot(vx, vy) || 1;
     const ox = b.x, oy = b.y;
     moveFighter(b, vx / m * speed, vy / m * speed);
@@ -764,17 +1041,22 @@
     if (Math.hypot(b.x - ox, b.y - oy) < speed * 0.4) { if (++b.stuck > 8) { b.strafe *= -1; b.strafeT = 40; b.stuck = 0; b.detour = Math.random() < 0.5 ? -1 : 1; b.detourT = 50; } } else b.stuck = 0;
 
     // aim + shoot
-    const err = Math.max(0.02, diff().err - round * 0.008);
-    const target = Math.atan2(dy, dx);
+    const ins = diffName === 'insane';
+    const err = ins ? 0.012 : Math.max(0.02, diff().err - round * 0.008);
+    let tx = fo.x, ty = fo.y;
+    if (ins) for (let i = 0; i < 3; i++) { const t = Math.hypot(tx - b.x, ty - b.y) / 11; tx = fo.x + fo.vxm * t; ty = fo.y + fo.vym * t; } // insane bots lead their shots
+    const target = Math.atan2(ty - b.y, tx - b.x);
     let ad = target - b.aim; while (ad > Math.PI) ad -= 6.283; while (ad < -Math.PI) ad += 6.283;
-    b.aim += Math.max(-0.12, Math.min(0.12, ad));
-    if (los && b.cd <= 0 && Math.abs(ad) < 0.15 && Math.random() < diff().fireP + round * 0.01) {
+    const cap = ins ? 0.5 : 0.12;
+    b.aim += Math.max(-cap, Math.min(cap, ad));
+    if (los && b.cd <= 0 && Math.abs(ad) < (ins ? 0.12 : 0.15) && Math.random() < diff().fireP + round * 0.01) {
       // pick a gun that suits the distance (from the ones this difficulty allows)
       const ok = diff().guns;
       let gi = 0;
       if (dist < 220 && ok.includes(1)) gi = 1;
       else if (dist > 450 && ok.includes(3)) gi = 3;
       else if (dist < 400 && ok.includes(2)) gi = 2;
+      if (ins) gi = 8; // insane bots carry the Mega Blaster
       b.gun = gi;
       const real = b.aim; b.aim += (Math.random() - 0.5) * 2 * err; fire(b, 'b', gi); b.aim = real;
     }
@@ -783,21 +1065,21 @@
   function endRound(won) {
     state = 'over';
     if (mode === '2p') {
-      won ? score1++ : score2++; layoutIdx++; sfx.win();
+      won ? score1++ : score2++; layoutIdx++; mapSeed = randMap(); sfx.win();
       showOverlay(true, '🏆 Player ' + (won ? '1' : '2') + ' wins!', 'Score: P1 <b>' + score1 + '</b> – <b>' + score2 + '</b> P2', 'Next round', startRound, false, p => {
         const b = document.createElement('button'); b.textContent = '🏠 Main menu'; b.onclick = () => showMenu(); p.appendChild(b);
       });
       return;
     }
     if (won) {
-      const gain = 10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName]; coins += gain; saveStuff();
-      wins++; round++; layoutIdx++;
+      const gain = 10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] + (mode === 'team' ? 5 * (teamSize - 1) : 0); coins += gain; saveStuff();
+      wins++; round++; layoutIdx++; mapSeed = randMap();
       if (wins > best) { best = wins; try { localStorage.setItem('jawBattleBest_' + diffName, best); } catch (e) {} }
       sfx.win();
-      showOverlay(true, '🎉 You win!', 'Win streak: <b>' + wins + '</b> &nbsp; 🏆 Best: ' + best + '<br>💰 +' + gain + ' coins (you have ' + coins + ')<br>The next bot is a little tougher...', 'Next round', startRound);
+      showOverlay(true, (mode === 'team' ? '🎉 Your team wins!' : '🎉 You win!'), 'Win streak: <b>' + wins + '</b> &nbsp; 🏆 Best: ' + best + '<br>💰 +' + gain + ' coins (you have ' + coinText() + ')<br>The next bot is a little tougher...', 'Next round', startRound);
     } else {
       sfx.lose(); coins += 2; saveStuff();
-      showOverlay(true, '💥 Bot wins!', 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>💰 +2 coins (you have ' + coins + ')<br>Change the difficulty if you like:', 'Try again', newGame, true, menuLinks);
+      showOverlay(true, (mode === 'team' ? '💥 Your team lost!' : '💥 Bot wins!'), 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>💰 +2 coins (you have ' + coinText() + ')<br>Change the difficulty if you like:', 'Try again', newGame, true, mainMenuBtn);
     }
   }
 
@@ -824,6 +1106,88 @@
     ctx.restore();
   }
 
+  // ---------- pretty maps ----------
+  const DECOR = ['logs', 'pumpkins', 'wheat', 'berries', 'mushrooms', 'acorns', 'fog', 'logs'];
+  let bgImg = null;
+  function makeBackground(seed, th) {
+    const c = document.createElement('canvas'); c.width = MAP_W; c.height = MAP_H;
+    const g = c.getContext('2d'), r = rng(seed * 977 + 3), rx = () => r() * MAP_W, ry = () => r() * MAP_H;
+    g.fillStyle = th.floor; g.fillRect(0, 0, MAP_W, MAP_H);
+    g.fillStyle = 'rgba(255,255,255,.035)';
+    for (let y = 0; y < MAP_H; y += 40) for (let x = (y / 40 % 2) * 40; x < MAP_W; x += 80) g.fillRect(x, y, 40, 40);
+    const kind = DECOR[th.idx];
+    g.lineCap = 'round';
+    // falling leaves everywhere
+    const LEAF = ['#e8731a', '#c9411f', '#f2b632', '#a8481c', '#d98a2b', '#8c3a1a'];
+    for (let i = 0; i < 280; i++) {
+      g.save(); g.translate(rx(), ry()); g.rotate(r() * 6.283); g.globalAlpha = 0.45 + r() * 0.35; g.fillStyle = LEAF[Math.floor(r() * LEAF.length)];
+      g.beginPath(); g.ellipse(0, 0, 4 + r() * 5, 2 + r() * 2.5, 0, 0, 6.283); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 1; g.beginPath(); g.moveTo(-7, 0); g.lineTo(6, 0); g.stroke(); g.restore();
+    }
+    g.globalAlpha = 1;
+    if (kind === 'pumpkins') {
+      for (let i = 0; i < 34; i++) { const x = rx(), y = ry(), pr = 8 + r() * 6; g.fillStyle = '#f08a24'; g.beginPath(); g.ellipse(x, y, pr * 1.15, pr, 0, 0, 6.283); g.fill(); g.strokeStyle = '#b85d0e'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y - pr); g.quadraticCurveTo(x - pr * 0.6, y, x, y + pr); g.moveTo(x, y - pr); g.quadraticCurveTo(x + pr * 0.6, y, x, y + pr); g.stroke(); g.fillStyle = '#4a7a2a'; g.fillRect(x - 1.5, y - pr - 4, 3, 5); }
+    } else if (kind === 'wheat') {
+      for (let i = 0; i < 150; i++) { const x = rx(), y = ry(); g.strokeStyle = '#d9b64a'; g.lineWidth = 1.6; g.globalAlpha = 0.7; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 4, y - 14); g.stroke(); g.fillStyle = '#f0cf63'; g.beginPath(); g.ellipse(x, y - 15, 2, 5, 0, 0, 6.283); g.fill(); }
+    } else if (kind === 'berries') {
+      for (let i = 0; i < 90; i++) { const x = rx(), y = ry(); g.globalAlpha = 0.9; g.fillStyle = '#c4142c'; g.beginPath(); g.arc(x, y, 3.2, 0, 6.283); g.fill(); g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(x - 1.5, y - 1.5, 1.5, 1.5); }
+    } else if (kind === 'mushrooms') {
+      for (let i = 0; i < 40; i++) { const x = rx(), y = ry(); g.globalAlpha = 0.95; g.fillStyle = '#f2e8d0'; g.fillRect(x - 2, y, 4, 7); g.fillStyle = r() < 0.5 ? '#c4442a' : '#a8742f'; g.beginPath(); g.arc(x, y, 7, Math.PI, 0); g.fill(); g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(x - 3, y - 4, 2, 2); g.fillRect(x + 1, y - 3, 2, 2); }
+    } else if (kind === 'acorns') {
+      for (let i = 0; i < 80; i++) { const x = rx(), y = ry(); g.globalAlpha = 0.95; g.fillStyle = '#b07a3a'; g.beginPath(); g.ellipse(x, y + 2, 3.5, 5, 0, 0, 6.283); g.fill(); g.fillStyle = '#6b4420'; g.beginPath(); g.arc(x, y - 1, 4.2, Math.PI, 0); g.fill(); g.fillRect(x - 0.7, y - 6, 1.4, 3); }
+    } else if (kind === 'fog') {
+      for (let i = 0; i < 16; i++) { g.globalAlpha = 0.05; g.fillStyle = '#fff'; g.beginPath(); g.ellipse(rx(), ry(), 120 + r() * 140, 30 + r() * 40, 0, 0, 6.283); g.fill(); }
+    } else { // fallen logs
+      for (let i = 0; i < 22; i++) { const x = rx(), y = ry(), len = 26 + r() * 22; g.save(); g.translate(x, y); g.rotate(r() * 3.14); g.globalAlpha = 0.9; g.fillStyle = '#6b4420'; g.fillRect(-len / 2, -4, len, 8); g.fillStyle = '#c99a5b'; g.beginPath(); g.ellipse(len / 2, 0, 3, 4, 0, 0, 6.283); g.fill(); g.restore(); }
+    }
+    g.globalAlpha = 1;
+    const vg = g.createRadialGradient(MAP_W / 2, MAP_H / 2, MAP_H * 0.35, MAP_W / 2, MAP_H / 2, MAP_W * 0.62);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = vg; g.fillRect(0, 0, MAP_W, MAP_H);
+    g.globalAlpha = 0.55; g.strokeStyle = th.edge; g.lineWidth = 8; g.strokeRect(4, 4, MAP_W - 8, MAP_H - 8); g.globalAlpha = 1;
+    return c;
+  }
+  const hash2 = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  // stone bricks lined up on one big grid, so walls that were cut apart still look like one wall
+  function drawWallBody(o) {
+    const BH = 16, BW = 32;
+    ctx.save(); ctx.beginPath(); ctx.rect(o.x, o.y, o.w, o.h); ctx.clip();
+    ctx.fillStyle = theme.wall; ctx.fillRect(o.x, o.y, o.w, o.h);
+    for (let y = Math.floor(o.y / BH) * BH; y < o.y + o.h; y += BH) {
+      const row = Math.round(y / BH), off = row % 2 ? BW / 2 : 0;
+      for (let x = Math.floor((o.x - off) / BW) * BW + off; x < o.x + o.w; x += BW) {
+        const h = hash2(Math.round(x / BW), row);
+        ctx.fillStyle = h < 0.5 ? 'rgba(255,255,255,' + (0.03 + h * 0.2) + ')' : 'rgba(0,0,0,' + ((h - 0.5) * 0.3) + ')';
+        ctx.fillRect(x + 1, y + 1, BW - 2, BH - 2);
+      }
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; ctx.beginPath();
+    for (let y = Math.floor(o.y / BH) * BH; y <= o.y + o.h; y += BH) {
+      const row = Math.round(y / BH), off = row % 2 ? BW / 2 : 0;
+      ctx.moveTo(o.x, y); ctx.lineTo(o.x + o.w, y);
+      for (let x = Math.floor((o.x - off) / BW) * BW + off; x < o.x + o.w; x += BW) { ctx.moveTo(x, y); ctx.lineTo(x, y + BH); }
+    }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(o.x, o.y, o.w, 3);
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(o.x, o.y + o.h - 3, o.w, 3);
+    ctx.restore();
+  }
+  function drawCrateCell(x, y, w, h, mine) {
+    ctx.fillStyle = mine ? '#1f9c86' : '#b9803f'; ctx.fillRect(x, y, w, h);
+    if (mine) {
+      const gr = ctx.createLinearGradient(x, y, x + w, y + h); gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,.05)'); gr.addColorStop(1, 'rgba(0,0,0,.25)');
+      ctx.fillStyle = gr; ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#7ff5da'; ctx.lineWidth = 3; ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+      ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + 15, y + 7); ctx.lineTo(x + 7, y + 15); ctx.closePath(); ctx.fill();
+      return;
+    }
+    ctx.strokeStyle = 'rgba(80,45,10,.55)'; ctx.lineWidth = 2; ctx.beginPath();
+    for (let k = 1; k < 4; k++) { ctx.moveTo(x, y + h * k / 4); ctx.lineTo(x + w, y + h * k / 4); }
+    ctx.stroke();
+    ctx.strokeStyle = '#7a4f1f'; ctx.lineWidth = 4; ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+    ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + 4, y + 4); ctx.lineTo(x + w - 4, y + h - 4); ctx.moveTo(x + w - 4, y + 4); ctx.lineTo(x + 4, y + h - 4); ctx.stroke();
+    ctx.fillStyle = '#d6d6d6'; for (const [nx, ny] of [[6, 6], [w - 6, 6], [6, h - 6], [w - 6, h - 6]]) { ctx.beginPath(); ctx.arc(x + nx, y + ny, 2, 0, 6.283); ctx.fill(); }
+    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(x + 2, y + 2, w - 4, 3);
+  }
   let dirtPat = null;
   function dirtPattern() {
     if (dirtPat) return dirtPat;
@@ -839,35 +1203,40 @@
     ctx.save();
     if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     ctx.clearRect(-10, -10, W + 20, H + 20);
-    // floor grid
-    ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = 1;
-    for (let x = 0; x <= W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (let y = 0; y <= H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    if (bgImg) ctx.drawImage(bgImg, 0, 0);
 
     if (obstacles) {
+      // 1) soft shadows on the floor
+      ctx.fillStyle = 'rgba(0,0,0,.3)';
+      for (const o of obstacles) ctx.fillRect(o.x + 5, o.y + 8, o.w, o.h);
+      // 2) dark outlines (only show around the outside of connected pieces)
       for (const o of obstacles) {
-        if (o.type === 'd') {
-          ctx.fillStyle = dirtPattern(); ctx.fillRect(o.x, o.y, o.w, o.h);
-        } else if (o.type === 'w') {
-          ctx.fillStyle = '#5a4bb5'; ctx.fillRect(o.x, o.y, o.w, o.h);
-          ctx.strokeStyle = '#8f84d6'; ctx.lineWidth = 3; ctx.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
-        } else {
-          const mine = o.type === 'b';
-          ctx.fillStyle = mine ? '#1f9c86' : '#b9803f'; ctx.fillRect(o.x, o.y, o.w, o.h);
-          ctx.strokeStyle = mine ? '#4fe0c0' : '#7a4f1f'; ctx.lineWidth = 3; ctx.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
-          ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x + o.w, o.y + o.h); ctx.moveTo(o.x + o.w, o.y); ctx.lineTo(o.x, o.y + o.h); ctx.stroke();
+        if (o.type === 'd') { ctx.fillStyle = '#2e1b0c'; ctx.fillRect(o.x - 3, o.y - 3, o.w + 6, o.h + 6); }
+        else if (o.type === 'w') { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(o.x - 2, o.y - 2, o.w + 4, o.h + 4); }
+      }
+      // 3) the bodies
+      for (const o of obstacles) {
+        if (o.type === 'd') { ctx.fillStyle = dirtPattern(); ctx.fillRect(o.x, o.y, o.w, o.h); }
+        else if (o.type === 'w') drawWallBody(o);
+        else {
+          for (let yy = o.y; yy < o.y + o.h - 0.5; yy += 40) for (let xx = o.x; xx < o.x + o.w - 0.5; xx += 40) drawCrateCell(xx, yy, Math.min(40, o.x + o.w - xx), Math.min(40, o.y + o.h - yy), o.type === 'b');
           if (o.hp < o.maxHp) { ctx.fillStyle = 'rgba(0,0,0,' + (0.6 * (o.maxHp - o.hp) / o.maxHp) + ')'; ctx.fillRect(o.x, o.y, o.w, o.h); }
         }
       }
       // build preview
-      if (state === 'play' && player.blocks > 0) {
+      if (state === 'play' && (player.blocks > 0 || aimbot)) {
         const gx = Math.floor(mouse.x / GRID) * GRID, gy = Math.floor(mouse.y / GRID) * GRID;
         const inRange = Math.hypot(gx + GRID / 2 - player.x, gy + GRID / 2 - player.y) <= BUILD_RANGE;
         ctx.strokeStyle = inRange ? 'rgba(79,224,192,.7)' : 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
         ctx.strokeRect(gx + 1, gy + 1, GRID - 2, GRID - 2); ctx.setLineDash([]);
       }
+      for (const pd of puddles) {
+        const fade = Math.min(1, pd.t / 120), rip = 1 + Math.sin(Date.now() / 250 + pd.x) * 0.04;
+        ctx.globalAlpha = 0.5 * fade; ctx.fillStyle = '#4aa8ff'; ctx.beginPath(); ctx.ellipse(pd.x, pd.y + 6, pd.r * rip, pd.r * 0.7 * rip, 0, 0, 6.283); ctx.fill();
+        ctx.globalAlpha = 0.7 * fade; ctx.strokeStyle = '#bfe4ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(pd.x, pd.y + 6, pd.r * 0.6 * rip, pd.r * 0.4 * rip, 0, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1;
+      }
       for (const b of bullets) {
-        ctx.fillStyle = b.owner === 'p' ? b.color : '#ffc2d6';
+        ctx.fillStyle = b.hue || (b.owner === 'p' ? b.color : '#ffc2d6');
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.283); ctx.fill();
         ctx.fillStyle = b.owner === 'p' ? 'rgba(79,209,255,.35)' : 'rgba(255,107,154,.35)';
         ctx.beginPath(); ctx.arc(b.x - b.vx * 0.8, b.y - b.vy * 0.8, 4, 0, 6.283); ctx.fill();
@@ -880,8 +1249,10 @@
         drawFlag(flags.p.x, flags.p.y, '#4fd1ff', !!flags.p.carrier);
         drawFlag(flags.b.x, flags.b.y, '#ff6b9a', !!flags.b.carrier);
       }
-      if (!player.dead) drawFighter(player, t);
-      if (!bot.dead) drawFighter(bot, t);
+      for (const f of fighters) { if (f.dead) continue; if (f === player) { ctx.globalAlpha = player.ghosting ? 0.45 : 1; drawFighter(player, t); ctx.globalAlpha = 1; } else drawFighter(f, t); }
+      if (mode === 'team') for (const f of fighters) { if (f.dead || f === player) continue; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(f.x - 18, f.y - 34, 36, 6); ctx.fillStyle = f.team === 0 ? '#4fd1ff' : '#ff6b9a'; ctx.fillRect(f.x - 17, f.y - 33, 34 * Math.max(0, f.hp) / f.maxHp, 4); }
+      ctx.font = '22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const f of fighters) { if (f.dead) continue; if (f.burn > 0) ctx.fillText('🔥', f.x + Math.sin(Date.now() / 90) * 4, f.y - 28); if (f.slow > 0) ctx.fillText('❄️', f.x, f.y - 30); }
       for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.color; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }
       ctx.globalAlpha = 1;
       // HUD
@@ -898,34 +1269,53 @@
         ctx.globalAlpha = 1; ctx.font = '700 20px system-ui, sans-serif';
       };
       bar(16, 150, player, '#4fd1ff', mode === '2p' ? 'P1' : 'YOU', false);
-      bar(W - 166, 150, bot, '#ff6b9a', mode === '2p' ? 'P2' : 'BOT', true);
+      if (mode === 'team') {
+        const mini = (x, y, f, col, right) => { ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(x, y, 110, 8); ctx.fillStyle = col; const w = 110 * Math.max(0, f.hp) / f.maxHp; ctx.fillRect(right ? x + 110 - w : x, y, w, 8); if (f.dead) { ctx.font = '12px system-ui'; ctx.textAlign = right ? 'right' : 'left'; ctx.fillStyle = '#fff'; ctx.fillText('💀', right ? x - 4 : x + 114, y - 2); } };
+        let ai = 0, ei = 0;
+        for (const f of fighters) { if (f === player) continue; if (f.team === 0) mini(16, 62 + (ai++) * 16, f, f.color, false); else mini(W - 126, 14 + (ei++) * 16, f, f.color, true); }
+      } else bar(W - 166, 150, bot, '#ff6b9a', mode === '2p' ? 'P2' : 'BOT', true);
       ctx.textAlign = 'center'; ctx.fillStyle = '#cfc8f5';
-      ctx.fillText(mode === 'ctf' ? 'You ' + caps1 + ' – ' + caps2 + ' Bot  (first to ' + CTF_WIN + ')' : mode === '2p' ? 'P1 ' + score1 + ' – ' + score2 + ' P2' : 'Round ' + round + '  •  Streak ' + wins, W / 2, 12);
+      ctx.fillText(mode === 'team' ? '⚔️ ' + teamSize + ' vs ' + teamSize + '  •  Round ' + round + '  •  Streak ' + wins : mode === 'ctf' ? 'You ' + caps1 + ' – ' + caps2 + ' Bot  (first to ' + CTF_WIN + ')' : mode === '2p' ? 'P1 ' + score1 + ' – ' + score2 + ' P2' : 'Round ' + round + '  •  Streak ' + wins, W / 2, 12);
       ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(mode === '2p' ? '👥 2 Players' : diff().label, W / 2, 38);
-      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 PRO Aimbot ON' : '🎯 Aimbot ON', W / 2, 80); }
+      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 OPERATOR PRO  (O = drive yourself)' : '🕶️ OPERATOR  (O = autopilot)', W / 2, 80); }
       if (mode === 'ctf') {
         ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.textAlign = 'center';
-        const hint = aimPro ? '🤖 PRO autopilot is playing Capture the Flag for you' : flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
+        const hint = aimPro ? '🤖 OPERATOR PRO autopilot is playing Capture the Flag' : flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
         if (hint) ctx.fillText(hint, W / 2, 60);
-        ctx.font = '600 13px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText('⛏ Hold E to dig (Shovel Lv ' + shovelLv + ')', W / 2, 100);
+        ctx.font = '600 13px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText('⛏ Hold E to dig (Shovel Lv ' + shovel() + ')', W / 2, 100);
         if (banner && banner.t > 0) { ctx.font = '900 44px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(banner.text, W / 2, H / 2 - 24); }
       }
       if (toast && toast.t > 0) { ctx.font = '900 30px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd24d'; ctx.fillText(toast.text, W / 2, H - 90); ctx.textBaseline = 'top'; }
       // gun slots + wall blocks
       ctx.textBaseline = 'middle';
-      for (let i = 0; i < GUNS.length; i++) {
-        const x = 16 + i * 76, y = H - 34, sel = player.gun === i; ctx.globalAlpha = owned[i] ? 1 : 0.35;
+      for (let sl = 0; sl < GUNS.length; sl++) {
+        const i = gunOrder[sl], x = 16 + sl * 76, y = H - 34, sel = player.gun === i; ctx.globalAlpha = own(i) ? 1 : 0.35;
         ctx.fillStyle = sel ? 'rgba(255,176,32,.9)' : 'rgba(255,255,255,.1)';
         ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill();
         ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 36, y + 9);
-        if (owned[i]) {
-          ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(gunLevel(i) >= 5 ? 'Lv5 MAX' : 'Lv' + gunLevel(i), x + 36, y + 19);
+        ctx.font = '700 13px system-ui, sans-serif'; ctx.fillText((own(i) ? (sl + 1) + ' ' : '🔒 ') + GUNS[i].icon, x + 36, y + 9);
+        if (own(i)) {
+          ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText((GUNS[i].short || GUNS[i].name) + (gunLevel(i) >= 5 ? ' MAX' : ' L' + gunLevel(i)), x + 36, y + 19);
         }
         ctx.globalAlpha = 1;
       }
+      { // water slot in the hot bar
+        const x = 16 + GUNS.length * 76, y = H - 34, burning = player.burn > 0;
+        ctx.globalAlpha = 1; ctx.fillStyle = burning && Math.floor(Date.now() / 150) % 2 ? 'rgba(255,138,43,.95)' : 'rgba(80,170,255,.4)';
+        ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill();
+        ctx.fillStyle = '#e8f6ff'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('0 💧 Water', x + 36, y + 9);
+        ctx.font = '700 9px system-ui, sans-serif'; ctx.fillText(aimbot ? '∞' : '×' + player.water, x + 36, y + 19);
+      }
+      if (player.burn > 0 && !player.dead) { ctx.font = '900 24px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = '#ff8a2b'; ctx.fillText("🔥 YOU'RE BURNING! Press 0 or Q for water 💧", W / 2, 120); ctx.textBaseline = 'middle'; }
+      if (ghostOwned || aimbot) {
+        const gw = 120, gx = W - 16 - gw, gy = H - 50, fr = aimbot ? 1 : Math.max(0, player.ghostE) / GHOST_MAX;
+        ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(gx, gy, gw, 8);
+        ctx.fillStyle = '#b9a6ff'; ctx.fillRect(gx, gy, gw * fr, 8);
+        ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = '#b9a6ff'; ctx.fillText('👻 hold G', gx - 6, gy + 4);
+      }
       ctx.textAlign = 'right'; ctx.fillStyle = '#4fe0c0'; ctx.font = '700 15px system-ui, sans-serif';
-      ctx.fillText('🧱 ' + '■'.repeat(player.blocks) + '□'.repeat(MAX_BLOCKS - player.blocks) + '  (B)', W - 16, H - 20);
+      ctx.fillText(aimbot ? '🧱 ∞  (B)' : '🧱 ' + '■'.repeat(player.blocks) + '□'.repeat(MAX_BLOCKS - player.blocks) + '  (B)', W - 16, H - 20);
     }
     ctx.restore();
   }
