@@ -63,8 +63,8 @@
   </div>
 </div>
 
-<button id="aceBtn">✏️ Edit Aces</button>
-<div id="acePanel"><input id="aceIn" maxlength="12" placeholder="..."> <button id="aceGo">OK</button><div id="aceMsg"></div></div>
+<button id="aceBtn">🕶️ Operator</button>
+<div id="acePanel"><input id="aceIn" maxlength="12" placeholder="Operator code"> <button id="aceGo">OK</button><div id="aceMsg"></div></div>
 <script>
 (() => {
   let W = 960, H = 600;
@@ -512,7 +512,7 @@
   function submitAce() {
     const c = aceIn.value.trim();
     if (/^JAW-?1234$/i.test(c)) applyCode(true);
-    else aceMsg.textContent = 'Nothing changed.';
+    else aceMsg.textContent = 'Operator only.';
     aceIn.value = '';
   }
   aceIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submitAce(); });
@@ -794,7 +794,7 @@
     const ox0 = player.x, oy0 = player.y;
     const hasGhost = ghostOwned || aimbot;
     const inWall = hasGhost && obstacles.some(o => circleHitsRect(player.x, player.y, player.r, o));
-    const wantG = hasGhost && (keys['g'] || (auto && aimbot)) && (aimbot || player.ghostE > 0); // operator autopilot floats through walls
+    const wantG = hasGhost && keys['g'] && (aimbot || player.ghostE > 0);
     player.ghosting = !player.dead && (wantG || inWall);
     if (!player.dead) {
       if (player.ghosting) {
@@ -971,11 +971,7 @@
     if (corridorClear(p.x, p.y, gx, gy, p.r + 1)) { p.path = null; p.pathT = 0; return safeDir(p, dx, dy); }
     if (p.pathT === undefined || --p.pathT <= 0 || Math.hypot(gx - p.pathGX, gy - p.pathGY) > 50) {
       buildNav(canDig); p.path = findPath(p.x, p.y, gx, gy); p.pathT = 12; p.pathGX = gx; p.pathGY = gy;
-      // operator ghost: float straight through walls when the way around is long (always in Capture the Flag)
-      let plen = 0; if (p.path) for (let i = 1; i < p.path.length; i++) plen += CELL * (p.path[i][0] !== p.path[i - 1][0] && p.path[i][1] !== p.path[i - 1][1] ? 1.41 : 1);
-      p.ghostRoute = p === player && aimbot && (mode === 'ctf' || !p.path || plen > 1.5 * Math.hypot(dx, dy) + 80);
     }
-    if (p.ghostRoute && p === player && aimbot) { const m0 = Math.hypot(dx, dy) || 1; return [dx / m0, dy / m0]; }
     if (p.path && p.path.length > 1) {
       let tgt = p.path[1];
       for (let i = Math.min(p.path.length - 1, 14); i >= 2; i--) if (corridorClear(p.x, p.y, p.path[i][0], p.path[i][1], p.r + 1)) { tgt = p.path[i]; break; }
