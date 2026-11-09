@@ -134,9 +134,16 @@
     if (Array.isArray(lv)) gunLv = gunLv.map((_, i) => Math.max(1, Math.min(5, +lv[i] || 1)));
     else if (Array.isArray(x)) gunLv = gunLv.map((_, i) => { let l = 1; for (let k = 1; k < XP_AT.length; k++) if ((+x[i] || 0) >= XP_AT[k]) l = k + 1; return l; });
   } catch (e) {}
-  const gunLevel = i => gunLv[i];
+  const gunLevel = i => aimbot ? 5 : gunLv[i];
   const upCost = lv => [30, 60, 100, 150][lv - 1];
   let aimbot = false, aimPro = false, aimShots = 0;
+  // OPERATOR mode (the secret code): everything unlocked and maxed, infinite coins, free ghost, infinite walls
+  const own = i => aimbot || owned[i];
+  const shovel = () => aimbot ? 5 : shovelLv;
+  const coinText = () => aimbot ? '∞' : coins;
+  let ghostOwned = false;
+  try { ghostOwned = localStorage.getItem('jawBattleGhost') === '1'; } catch (e) {}
+  const GHOST_MAX = 240, GHOST_COST = 400;
   try { const v = localStorage.getItem('jawBattleAimbot'); aimbot = v === '1' || v === '2'; aimPro = v === '2'; } catch (e) {}
   let daily = { last: '', streak: 0 };
   try { const d = JSON.parse(localStorage.getItem('jawBattleDaily') || 'null'); if (d && typeof d.last === 'string') daily = { last: d.last, streak: +d.streak || 0 }; } catch (e) {}
@@ -153,28 +160,28 @@
     [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'square', 0.07), i * 90));
     showMenu('🎁 You got ' + gain + ' coins! Day ' + streak + ' in a row.');
   }
-  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); } catch (e) {} }
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); localStorage.setItem('jawBattleGhost', ghostOwned ? '1' : '0'); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
   loadBest();
 
   // ---------- guns ----------
   const GUNS = [
     { name: 'Pistol',      cd: 16, n: 1, spread: 0.02, speed: 9,   dmg: 4, life: 140, freq: 520, color: '#bff3ff', cost: 0 },
-    { name: 'Shotgun',     cd: 50, n: 5, spread: 0.40, speed: 8,   dmg: 1, life: 38,  freq: 220, color: '#ffe08a', cost: 20, info: '5 pellets, great up close' },
-    { name: 'Machine Gun', short: 'M.Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 0.6, life: 100, freq: 700, color: '#c8ffb0', cost: 35, info: 'Super fast, tiny damage' },
-    { name: 'Sniper',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 12, life: 80,  freq: 300, color: '#ffffff', cost: 50, info: 'Slow, but 3 hearts per hit!' },
-    { name: 'Triple Shot', short: 'Triple',  cd: 28, n: 3, spread: 0.30, speed: 9,   dmg: 2,   life: 120, freq: 450, color: '#ffb3f0', cost: 40, info: '3 bullets in a fan (+1 bullet per level!)' },
-    { name: 'Bouncer',     short: 'Bouncer', cd: 22, n: 1, spread: 0.03, speed: 8,   dmg: 3,   life: 200, freq: 380, color: '#7dffb0', cost: 60, info: 'Bullets bounce off walls!', bounce: 3 },
-    { name: 'Cannon',      short: 'Cannon',  cd: 70, n: 1, spread: 0,    speed: 5,   dmg: 8,   life: 200, freq: 110, color: '#ff9a4d', cost: 75, info: 'Huge slow ball, smashes blocks', r: 11, obs: 3 },
-    { name: 'Laser',       short: 'Laser',   cd: 9,  n: 1, spread: 0.02, speed: 15,  dmg: 1.2, life: 90,  freq: 900, color: '#ff5de0', cost: 90, info: 'Fast zappy shots' },
-    { name: 'Mega Blaster', short: 'MEGA', cd: 7, n: 2, spread: 0.06, speed: 14, dmg: 2.5, life: 130, freq: 600, color: '#ffd700', cost: 150, info: 'OP! Rapid double shots that blast through dirt', r: 7, obs: 3 },
+    { name: 'Shotgun',     cd: 50, n: 5, spread: 0.40, speed: 8,   dmg: 1, life: 38,  freq: 220, color: '#ffe08a', cost: 50, info: '5 pellets, great up close' },
+    { name: 'Machine Gun', short: 'M.Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 0.6, life: 100, freq: 700, color: '#c8ffb0', cost: 100, info: 'Super fast, tiny damage' },
+    { name: 'Sniper',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 12, life: 80,  freq: 300, color: '#ffffff', cost: 500, info: 'Slow, but 3 hearts per hit!' },
+    { name: 'Triple Shot', short: 'Triple',  cd: 28, n: 3, spread: 0.30, speed: 9,   dmg: 2,   life: 120, freq: 450, color: '#ffb3f0', cost: 150, info: '3 bullets in a fan (+1 bullet per level!)' },
+    { name: 'Bouncer',     short: 'Bouncer', cd: 22, n: 1, spread: 0.03, speed: 8,   dmg: 3,   life: 200, freq: 380, color: '#7dffb0', cost: 350, info: 'Bullets bounce off walls!', bounce: 3 },
+    { name: 'Cannon',      short: 'Cannon',  cd: 70, n: 1, spread: 0,    speed: 5,   dmg: 8,   life: 200, freq: 110, color: '#ff9a4d', cost: 700, info: 'Huge slow ball, smashes blocks', r: 11, obs: 3 },
+    { name: 'Laser',       short: 'Laser',   cd: 9,  n: 1, spread: 0.02, speed: 15,  dmg: 1.2, life: 90,  freq: 900, color: '#ff5de0', cost: 250, info: 'Fast zappy shots' },
+    { name: 'Mega Blaster', short: 'MEGA', cd: 7, n: 2, spread: 0.06, speed: 14, dmg: 2.5, life: 130, freq: 600, color: '#ffd700', cost: 1000, info: 'OP! Rapid double shots that blast through dirt', r: 7, obs: 3 },
   ];
 
   // ---------- building ----------
   const GRID = 40, BUILD_RANGE = 240, MAX_BLOCKS = 8;
 
   function makeFighter(x, y, color, isBot) {
-    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, digT: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
+    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, digT: 0, ghostE: 240, ghosting: false, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
              // bot brain
              strafe: 1, strafeT: 0, dodge: 0, stuck: 0 };
   }
@@ -228,8 +235,8 @@
       (note ? '<b style="color:#ffb020">' + note + '</b><br>' : '') + 'Beat the bot before it beats you! Pick your difficulty:<br>' +
       '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
       '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
-      '<b>Pause:</b> P or Esc<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! The whole middle is solid dirt, so hold <b>E</b> to dig tunnels with your shovel.<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
-      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame1P, true, menuLinks);
+      '<b>Pause:</b> P or Esc &nbsp; <b>Ghost Boots</b> (shop): hold G to float through walls<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! The whole middle is solid dirt, so hold <b>E</b> to dig tunnels with your shovel.<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
+      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coinText() + '</b>', 'Play!', newGame1P, true, menuLinks);
     setMenuFlag(true);
   }
   // ---------- capture the flag ----------
@@ -298,7 +305,7 @@
     const gain = won ? 15 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] : 3;
     coins += gain; saveStuff();
     showOverlay(true, won ? '🏆 You win the flag battle!' : '💥 The bot captured 3 flags!',
-      'Final score: You <b>' + caps1 + '</b> – <b>' + caps2 + '</b> Bot<br>💰 +' + gain + ' coins (you have ' + coins + ')', 'Play again', newCTF, true, p => {
+      'Final score: You <b>' + caps1 + '</b> – <b>' + caps2 + '</b> Bot<br>💰 +' + gain + ' coins (you have ' + coinText() + ')', 'Play again', newCTF, true, p => {
         const b = document.createElement('button'); b.textContent = '🏠 Main menu'; b.onclick = () => showMenu(); p.appendChild(b);
       });
   }
@@ -329,7 +336,7 @@
     else { aimbot = true; aimPro = false; }
     try { localStorage.setItem('jawBattleAimbot', aimPro ? '2' : aimbot ? '1' : '0'); } catch (e) {}
     beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
-    showMenu(aimPro ? '🤖 PRO Aimbot ON!' : aimbot ? '🎯 Aimbot ON!' : '🎯 Aimbot OFF.');
+    showMenu(aimPro ? '🤖 OPERATOR PRO ON! Everything maxed, infinite coins, ghost + walls!' : aimbot ? '🕶️ OPERATOR ON! Everything maxed, infinite coins, ghost + walls!' : '🕶️ Operator OFF.');
   }
   addEventListener('keydown', e => {
     if (!onMenu || e.key.length !== 1 || e.ctrlKey || e.metaKey) return;
@@ -353,24 +360,36 @@
 
   // ---------- gun shop ----------
   function showShop() {
-    showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Buy guns, then upgrade them! Each level = +10% damage and faster shooting.', 'Back', () => showMenu(), false, p => {
+    showOverlay(true, '🛒 Gun Shop', (aimbot ? '🕶️ <b>OPERATOR</b>: everything is unlocked and maxed, and coins are infinite!<br>' : '') + '💰 Coins: <b>' + coinText() + '</b><br>Buy guns, then upgrade them! Each level = +10% damage and faster shooting.', 'Back', () => showMenu(), false, p => {
       { // shovel
         const row = document.createElement('div'); row.className = 'row';
         const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left';
-        label.innerHTML = '<b>⛏ Shovel</b> (Lv ' + shovelLv + ') – dig faster and make bigger tunnels in Capture the Flag';
+        label.innerHTML = '<b>⛏ Shovel</b> (Lv ' + shovel() + ') – dig faster and make bigger tunnels in Capture the Flag';
         const btn = document.createElement('button');
-        if (shovelLv >= 5) { btn.textContent = '⭐ MAX level'; btn.disabled = true; }
+        if (shovel() >= 5) { btn.textContent = '⭐ MAX level'; btn.disabled = true; }
         else {
           const c = upCost(shovelLv); btn.textContent = '⬆️ Upgrade to Lv ' + (shovelLv + 1) + ' 💰' + c; btn.disabled = coins < c;
           btn.onclick = () => { if (coins >= c) { coins -= c; shovelLv++; saveStuff(); [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80)); showShop(); } };
         }
         row.append(label, btn); p.appendChild(row);
       }
+      { // ghost boots
+        const row = document.createElement('div'); row.className = 'row';
+        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left';
+        label.innerHTML = '<b>👻 Ghost Boots</b> – hold <b>G</b> to float through walls, blocks and dirt (it recharges)';
+        const btn = document.createElement('button');
+        if (ghostOwned || aimbot) { btn.textContent = '✅ Owned'; btn.disabled = true; }
+        else {
+          btn.textContent = 'Buy 💰' + GHOST_COST; btn.disabled = coins < GHOST_COST;
+          btn.onclick = () => { if (coins >= GHOST_COST) { coins -= GHOST_COST; ghostOwned = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } };
+        }
+        row.append(label, btn); p.appendChild(row);
+      }
       for (let i = 0; i < GUNS.length; i++) {
         const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
-        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b>' + (owned[i] ? ' (Lv ' + gunLevel(i) + ')' : '') + ' – ' + g.info;
+        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b>' + (own(i) ? ' (Lv ' + gunLevel(i) + ')' : '') + ' – ' + g.info;
         const btn = document.createElement('button');
-        if (owned[i]) {
+        if (own(i)) {
           const lv = gunLevel(i);
           if (lv >= 5) { btn.textContent = '⭐ MAX level'; btn.disabled = true; }
           else {
@@ -404,16 +423,16 @@
     if ([' ', '/', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
     keys[k] = true;
     if (state === 'play') {
-      if (k >= '1' && k <= '9' && owned[+k - 1]) player.gun = +k - 1;
+      if (k >= '1' && k <= '9' && own(+k - 1)) player.gun = +k - 1;
       if (k === 'b' && !e.repeat) tryBuild();
       if (mode === '2p' && !e.repeat) {
         if (k === 'shift') tryBuild(bot, bot.x + Math.cos(bot.aim) * 60, bot.y + Math.sin(bot.aim) * 60);
-        if (k === '/') for (let i = 1; i <= GUNS.length; i++) { const g = (bot.gun + i) % GUNS.length; if (owned[g]) { bot.gun = g; break; } }
+        if (k === '/') for (let i = 1; i <= GUNS.length; i++) { const g = (bot.gun + i) % GUNS.length; if (own(g)) { bot.gun = g; break; } }
       }
     }
   });
   addEventListener('wheel', e => {
-    if (state === 'play') { const step = e.deltaY > 0 ? 1 : GUNS.length - 1; let g = player.gun; for (let i = 0; i < GUNS.length; i++) { g = (g + step) % GUNS.length; if (owned[g]) { player.gun = g; break; } } }
+    if (state === 'play') { const step = e.deltaY > 0 ? 1 : GUNS.length - 1; let g = player.gun; for (let i = 0; i < GUNS.length; i++) { g = (g + step) % GUNS.length; if (own(g)) { player.gun = g; break; } } }
   }, { passive: true });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -490,7 +509,7 @@
   const botCdMul = () => diff().cd * Math.max(0.6, 1 - (round - 1) * 0.05);
 
   function tryBuild(p = player, tx = mouse.x, ty = mouse.y) {
-    if (p.blocks < 1) return;
+    if (p.blocks < 1 && !(aimbot && p === player)) return;
     const gx = Math.floor(tx / GRID) * GRID, gy = Math.floor(ty / GRID) * GRID;
     if (gx < 0 || gy < 0 || gx + GRID > W || gy + GRID > H) return;
     if (Math.hypot(gx + GRID / 2 - p.x, gy + GRID / 2 - p.y) > BUILD_RANGE) return;
@@ -499,7 +518,7 @@
     for (const o of obstacles) if (gx < o.x + o.w && gx + GRID > o.x && gy < o.y + o.h && gy + GRID > o.y) return;
     if (circleHitsRect(p.x, p.y, p.r + 3, box) || circleHitsRect(bot.x, bot.y, bot.r + 3, box)) return;
     obstacles.push({ x: gx, y: gy, w: GRID, h: GRID, type: 'b', hp: 4, maxHp: 4 });
-    p.blocks--;
+    if (!(aimbot && p === player)) p.blocks--;
     beep(160, 0.08, 'triangle', 0.08, 80);
   }
   function burst(x, y, color, n) {
@@ -519,13 +538,23 @@
     if (keys['s'] || (mode !== '2p' && keys['arrowdown'])) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
-    if (mode === 'ctf' && keys['e'] && !player.dead && ++player.digT >= shovelDelay(shovelLv)) { player.digT = 0; dig(player, player.aim, shovelLv); }
-    if (player.digAng != null && !player.dead && ((player.digT2 = (player.digT2 || 0) + 1) >= shovelDelay(shovelLv))) { player.digT2 = 0; dig(player, player.digAng, shovelLv); }
+    if (mode === 'ctf' && keys['e'] && !player.dead && ++player.digT >= shovelDelay(shovel())) { player.digT = 0; dig(player, player.aim, shovel()); }
+    if (player.digAng != null && !player.dead && ((player.digT2 = (player.digT2 || 0) + 1) >= shovelDelay(shovel()))) { player.digT2 = 0; dig(player, player.digAng, shovel()); }
     const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !bot.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
     const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
     const ox0 = player.x, oy0 = player.y;
-    if (!player.dead) moveFighter(player, mx * psp, my * psp);
+    const hasGhost = ghostOwned || aimbot;
+    const inWall = hasGhost && obstacles.some(o => circleHitsRect(player.x, player.y, player.r, o));
+    const wantG = hasGhost && keys['g'] && (aimbot || player.ghostE > 0);
+    player.ghosting = !player.dead && (wantG || inWall);
+    if (!player.dead) {
+      if (player.ghosting) {
+        player.x = Math.max(player.r, Math.min(W - player.r, player.x + mx * psp));
+        player.y = Math.max(player.r, Math.min(H - player.r, player.y + my * psp));
+        if (wantG && !aimbot) player.ghostE--;
+      } else { moveFighter(player, mx * psp, my * psp); if (player.ghostE < GHOST_MAX) player.ghostE += 0.5; }
+    }
     if (auto) {
       if (Math.hypot(player.x - ox0, player.y - oy0) < psp * 0.4) { if (++player.stuck > 8) { player.stuck = 0; player.strafe *= -1; player.detour = Math.random() < 0.5 ? -1 : 1; player.detourT = 50; } }
       else player.stuck = 0;
@@ -595,7 +624,7 @@
   function pickGun(dist, los) {
     const prefs0 = !los ? [5, 6, 0] : dist < 200 ? [1, 4, 5, 2, 0] : dist < 420 ? [7, 5, 4, 0, 2] : [3, 7, 0];
     const prefs = [8].concat(prefs0);
-    for (const g of prefs) if (owned[g]) return g;
+    for (const g of prefs) if (own(g)) return g;
     return 0;
   }
   // --- smart navigation for the autopilot: finds the cheapest route (digging through dirt costs extra) ---
@@ -794,10 +823,10 @@
       wins++; round++; layoutIdx++;
       if (wins > best) { best = wins; try { localStorage.setItem('jawBattleBest_' + diffName, best); } catch (e) {} }
       sfx.win();
-      showOverlay(true, '🎉 You win!', 'Win streak: <b>' + wins + '</b> &nbsp; 🏆 Best: ' + best + '<br>💰 +' + gain + ' coins (you have ' + coins + ')<br>The next bot is a little tougher...', 'Next round', startRound);
+      showOverlay(true, '🎉 You win!', 'Win streak: <b>' + wins + '</b> &nbsp; 🏆 Best: ' + best + '<br>💰 +' + gain + ' coins (you have ' + coinText() + ')<br>The next bot is a little tougher...', 'Next round', startRound);
     } else {
       sfx.lose(); coins += 2; saveStuff();
-      showOverlay(true, '💥 Bot wins!', 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>💰 +2 coins (you have ' + coins + ')<br>Change the difficulty if you like:', 'Try again', newGame, true, menuLinks);
+      showOverlay(true, '💥 Bot wins!', 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>💰 +2 coins (you have ' + coinText() + ')<br>Change the difficulty if you like:', 'Try again', newGame, true, menuLinks);
     }
   }
 
@@ -860,7 +889,7 @@
         }
       }
       // build preview
-      if (state === 'play' && player.blocks > 0) {
+      if (state === 'play' && (player.blocks > 0 || aimbot)) {
         const gx = Math.floor(mouse.x / GRID) * GRID, gy = Math.floor(mouse.y / GRID) * GRID;
         const inRange = Math.hypot(gx + GRID / 2 - player.x, gy + GRID / 2 - player.y) <= BUILD_RANGE;
         ctx.strokeStyle = inRange ? 'rgba(79,224,192,.7)' : 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
@@ -880,7 +909,7 @@
         drawFlag(flags.p.x, flags.p.y, '#4fd1ff', !!flags.p.carrier);
         drawFlag(flags.b.x, flags.b.y, '#ff6b9a', !!flags.b.carrier);
       }
-      if (!player.dead) drawFighter(player, t);
+      if (!player.dead) { ctx.globalAlpha = player.ghosting ? 0.45 : 1; drawFighter(player, t); ctx.globalAlpha = 1; }
       if (!bot.dead) drawFighter(bot, t);
       for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.color; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }
       ctx.globalAlpha = 1;
@@ -902,30 +931,36 @@
       ctx.textAlign = 'center'; ctx.fillStyle = '#cfc8f5';
       ctx.fillText(mode === 'ctf' ? 'You ' + caps1 + ' – ' + caps2 + ' Bot  (first to ' + CTF_WIN + ')' : mode === '2p' ? 'P1 ' + score1 + ' – ' + score2 + ' P2' : 'Round ' + round + '  •  Streak ' + wins, W / 2, 12);
       ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(mode === '2p' ? '👥 2 Players' : diff().label, W / 2, 38);
-      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 PRO Aimbot ON' : '🎯 Aimbot ON', W / 2, 80); }
+      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 OPERATOR PRO' : '🕶️ OPERATOR', W / 2, 80); }
       if (mode === 'ctf') {
         ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.textAlign = 'center';
-        const hint = aimPro ? '🤖 PRO autopilot is playing Capture the Flag for you' : flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
+        const hint = aimPro ? '🤖 OPERATOR PRO autopilot is playing Capture the Flag' : flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
         if (hint) ctx.fillText(hint, W / 2, 60);
-        ctx.font = '600 13px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText('⛏ Hold E to dig (Shovel Lv ' + shovelLv + ')', W / 2, 100);
+        ctx.font = '600 13px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText('⛏ Hold E to dig (Shovel Lv ' + shovel() + ')', W / 2, 100);
         if (banner && banner.t > 0) { ctx.font = '900 44px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(banner.text, W / 2, H / 2 - 24); }
       }
       if (toast && toast.t > 0) { ctx.font = '900 30px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd24d'; ctx.fillText(toast.text, W / 2, H - 90); ctx.textBaseline = 'top'; }
       // gun slots + wall blocks
       ctx.textBaseline = 'middle';
       for (let i = 0; i < GUNS.length; i++) {
-        const x = 16 + i * 76, y = H - 34, sel = player.gun === i; ctx.globalAlpha = owned[i] ? 1 : 0.35;
+        const x = 16 + i * 76, y = H - 34, sel = player.gun === i; ctx.globalAlpha = own(i) ? 1 : 0.35;
         ctx.fillStyle = sel ? 'rgba(255,176,32,.9)' : 'rgba(255,255,255,.1)';
         ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill();
         ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 36, y + 9);
-        if (owned[i]) {
+        ctx.fillText((own(i) ? (i + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 36, y + 9);
+        if (own(i)) {
           ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(gunLevel(i) >= 5 ? 'Lv5 MAX' : 'Lv' + gunLevel(i), x + 36, y + 19);
         }
         ctx.globalAlpha = 1;
       }
+      if (ghostOwned || aimbot) {
+        const gw = 120, gx = W - 16 - gw, gy = H - 50, fr = aimbot ? 1 : Math.max(0, player.ghostE) / GHOST_MAX;
+        ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(gx, gy, gw, 8);
+        ctx.fillStyle = '#b9a6ff'; ctx.fillRect(gx, gy, gw * fr, 8);
+        ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = '#b9a6ff'; ctx.fillText('👻 hold G', gx - 6, gy + 4);
+      }
       ctx.textAlign = 'right'; ctx.fillStyle = '#4fe0c0'; ctx.font = '700 15px system-ui, sans-serif';
-      ctx.fillText('🧱 ' + '■'.repeat(player.blocks) + '□'.repeat(MAX_BLOCKS - player.blocks) + '  (B)', W - 16, H - 20);
+      ctx.fillText(aimbot ? '🧱 ∞  (B)' : '🧱 ' + '■'.repeat(player.blocks) + '□'.repeat(MAX_BLOCKS - player.blocks) + '  (B)', W - 16, H - 20);
     }
     ctx.restore();
   }
