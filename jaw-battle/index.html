@@ -239,7 +239,7 @@
   }
   function genMap(seed, md) {
     const r = rng(seed), W2 = MAP_W / 2;
-    const th = THEMES[Math.floor(r() * THEMES.length)];
+    const ti = Math.floor(r() * THEMES.length), th = Object.assign({ idx: ti }, THEMES[ti]);
     const name = ADJ[Math.floor(r() * ADJ.length)] + ' ' + NOUN[Math.floor(r() * NOUN.length)];
     let list = [];
     const add = (x, y, w, h, type) => list.push({ x, y, w, h, type, hp: 3, maxHp: 3 });
@@ -286,7 +286,7 @@
   function startRound() {
     setArena(MAP_W, MAP_H);
     const mp = genMap(mapSeed, mode === 'ctf' ? 'ctf' : 'battle');
-    theme = mp.theme; cv.style.background = theme.floor;
+    theme = mp.theme; cv.style.background = theme.floor; bgImg = makeBackground(mapSeed, theme);
     if (mode === 'ctf') { BASE_P.x = 60; BASE_P.y = H / 2; BASE_B.x = W - 60; BASE_B.y = H / 2; }
     obstacles = mp.obstacles;
     player = makeFighter(80, H / 2, '#4fd1ff', false);
@@ -982,6 +982,86 @@
     ctx.restore();
   }
 
+  // ---------- pretty maps ----------
+  const DECOR = ['sparkle', 'tufts', 'dunes', 'waves', 'sprinkles', 'cracks', 'sparkle', 'runes'];
+  let bgImg = null;
+  function makeBackground(seed, th) {
+    const c = document.createElement('canvas'); c.width = MAP_W; c.height = MAP_H;
+    const g = c.getContext('2d'), r = rng(seed * 977 + 3), rx = () => r() * MAP_W, ry = () => r() * MAP_H;
+    g.fillStyle = th.floor; g.fillRect(0, 0, MAP_W, MAP_H);
+    g.fillStyle = 'rgba(255,255,255,.035)';
+    for (let y = 0; y < MAP_H; y += 40) for (let x = (y / 40 % 2) * 40; x < MAP_W; x += 80) g.fillRect(x, y, 40, 40);
+    const kind = DECOR[th.idx];
+    g.lineCap = 'round';
+    if (kind === 'sparkle' || kind === 'runes') {
+      for (let i = 0; i < 140; i++) { g.fillStyle = th.edge; g.globalAlpha = 0.12 + r() * 0.2; g.beginPath(); g.arc(rx(), ry(), 1 + r() * 2.5, 0, 6.283); g.fill(); }
+      for (let i = 0; i < 26; i++) { const x = rx(), y = ry(), k = 4 + r() * 5; g.globalAlpha = 0.25; g.strokeStyle = th.edge; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x - k, y); g.lineTo(x + k, y); g.moveTo(x, y - k); g.lineTo(x, y + k); g.stroke(); }
+      if (kind === 'runes') for (let i = 0; i < 14; i++) { g.globalAlpha = 0.14; g.strokeStyle = th.edge; g.lineWidth = 3; g.beginPath(); g.arc(rx(), ry(), 30 + r() * 50, 0, 6.283); g.stroke(); }
+    } else if (kind === 'tufts') {
+      for (let i = 0; i < 220; i++) { const x = rx(), y = ry(); g.globalAlpha = 0.5; g.strokeStyle = r() < 0.5 ? '#3e9a5e' : '#58b878'; g.lineWidth = 2; g.beginPath(); for (const d of [-5, 0, 5]) { g.moveTo(x, y); g.lineTo(x + d, y - 8 - r() * 5); } g.stroke(); }
+      for (let i = 0; i < 45; i++) { g.globalAlpha = 0.85; g.fillStyle = ['#ffe45e', '#ff8fb1', '#ffffff', '#b78cff'][Math.floor(r() * 4)]; g.beginPath(); g.arc(rx(), ry(), 2.5 + r() * 1.5, 0, 6.283); g.fill(); }
+    } else if (kind === 'dunes' || kind === 'waves') {
+      const wave = kind === 'waves';
+      for (let i = 0; i < 55; i++) {
+        const x = rx(), y = ry(), len = 70 + r() * 110; g.globalAlpha = 0.16; g.strokeStyle = wave ? '#a8d4ff' : '#ffd9a0'; g.lineWidth = 3; g.beginPath(); g.moveTo(x, y);
+        if (wave) for (let k = 1; k <= 8; k++) g.lineTo(x + k * len / 8, y + Math.sin(k * 1.3) * 5); else g.quadraticCurveTo(x + len / 2, y - 14, x + len, y);
+        g.stroke();
+      }
+      for (let i = 0; i < 70; i++) { g.globalAlpha = wave ? 0.3 : 0.35; g.fillStyle = wave ? '#d6ecff' : '#8a5a2b'; g.beginPath(); if (wave) { g.strokeStyle = '#d6ecff'; g.lineWidth = 1.5; g.arc(rx(), ry(), 2 + r() * 4, 0, 6.283); g.stroke(); } else { g.ellipse(rx(), ry(), 2 + r() * 4, 1.5 + r() * 2, 0, 0, 6.283); g.fill(); } }
+    } else if (kind === 'sprinkles') {
+      for (let i = 0; i < 260; i++) { g.save(); g.translate(rx(), ry()); g.rotate(r() * 3.14); g.globalAlpha = 0.55; g.fillStyle = ['#ffd1e8', '#fff3a6', '#b8f0ff', '#d6c2ff', '#ffffff'][Math.floor(r() * 5)]; g.fillRect(-5, -1.5, 10, 3); g.restore(); }
+    } else { // cracks
+      for (let i = 0; i < 55; i++) { let x = rx(), y = ry(); g.globalAlpha = 0.28; g.strokeStyle = '#000'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 30; y += (r() - 0.5) * 30; g.lineTo(x, y); } g.stroke(); }
+      for (let i = 0; i < 50; i++) { g.globalAlpha = 0.25; g.fillStyle = '#fff'; g.beginPath(); g.ellipse(rx(), ry(), 2 + r() * 4, 1.5 + r() * 2, 0, 0, 6.283); g.fill(); }
+    }
+    g.globalAlpha = 1;
+    const vg = g.createRadialGradient(MAP_W / 2, MAP_H / 2, MAP_H * 0.35, MAP_W / 2, MAP_H / 2, MAP_W * 0.62);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = vg; g.fillRect(0, 0, MAP_W, MAP_H);
+    g.globalAlpha = 0.55; g.strokeStyle = th.edge; g.lineWidth = 8; g.strokeRect(4, 4, MAP_W - 8, MAP_H - 8); g.globalAlpha = 1;
+    return c;
+  }
+  const hash2 = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  // stone bricks lined up on one big grid, so walls that were cut apart still look like one wall
+  function drawWallBody(o) {
+    const BH = 16, BW = 32;
+    ctx.save(); ctx.beginPath(); ctx.rect(o.x, o.y, o.w, o.h); ctx.clip();
+    ctx.fillStyle = theme.wall; ctx.fillRect(o.x, o.y, o.w, o.h);
+    for (let y = Math.floor(o.y / BH) * BH; y < o.y + o.h; y += BH) {
+      const row = Math.round(y / BH), off = row % 2 ? BW / 2 : 0;
+      for (let x = Math.floor((o.x - off) / BW) * BW + off; x < o.x + o.w; x += BW) {
+        const h = hash2(Math.round(x / BW), row);
+        ctx.fillStyle = h < 0.5 ? 'rgba(255,255,255,' + (0.03 + h * 0.2) + ')' : 'rgba(0,0,0,' + ((h - 0.5) * 0.3) + ')';
+        ctx.fillRect(x + 1, y + 1, BW - 2, BH - 2);
+      }
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; ctx.beginPath();
+    for (let y = Math.floor(o.y / BH) * BH; y <= o.y + o.h; y += BH) {
+      const row = Math.round(y / BH), off = row % 2 ? BW / 2 : 0;
+      ctx.moveTo(o.x, y); ctx.lineTo(o.x + o.w, y);
+      for (let x = Math.floor((o.x - off) / BW) * BW + off; x < o.x + o.w; x += BW) { ctx.moveTo(x, y); ctx.lineTo(x, y + BH); }
+    }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(o.x, o.y, o.w, 3);
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(o.x, o.y + o.h - 3, o.w, 3);
+    ctx.restore();
+  }
+  function drawCrateCell(x, y, w, h, mine) {
+    ctx.fillStyle = mine ? '#1f9c86' : '#b9803f'; ctx.fillRect(x, y, w, h);
+    if (mine) {
+      const gr = ctx.createLinearGradient(x, y, x + w, y + h); gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,.05)'); gr.addColorStop(1, 'rgba(0,0,0,.25)');
+      ctx.fillStyle = gr; ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#7ff5da'; ctx.lineWidth = 3; ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+      ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + 15, y + 7); ctx.lineTo(x + 7, y + 15); ctx.closePath(); ctx.fill();
+      return;
+    }
+    ctx.strokeStyle = 'rgba(80,45,10,.55)'; ctx.lineWidth = 2; ctx.beginPath();
+    for (let k = 1; k < 4; k++) { ctx.moveTo(x, y + h * k / 4); ctx.lineTo(x + w, y + h * k / 4); }
+    ctx.stroke();
+    ctx.strokeStyle = '#7a4f1f'; ctx.lineWidth = 4; ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+    ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + 4, y + 4); ctx.lineTo(x + w - 4, y + h - 4); ctx.moveTo(x + w - 4, y + 4); ctx.lineTo(x + 4, y + h - 4); ctx.stroke();
+    ctx.fillStyle = '#d6d6d6'; for (const [nx, ny] of [[6, 6], [w - 6, 6], [6, h - 6], [w - 6, h - 6]]) { ctx.beginPath(); ctx.arc(x + nx, y + ny, 2, 0, 6.283); ctx.fill(); }
+    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(x + 2, y + 2, w - 4, 3);
+  }
   let dirtPat = null;
   function dirtPattern() {
     if (dirtPat) return dirtPat;
@@ -997,23 +1077,23 @@
     ctx.save();
     if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     ctx.clearRect(-10, -10, W + 20, H + 20);
-    // floor grid
-    ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = 1;
-    for (let x = 0; x <= W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (let y = 0; y <= H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    if (bgImg) ctx.drawImage(bgImg, 0, 0);
 
     if (obstacles) {
+      // 1) soft shadows on the floor
+      ctx.fillStyle = 'rgba(0,0,0,.3)';
+      for (const o of obstacles) ctx.fillRect(o.x + 5, o.y + 8, o.w, o.h);
+      // 2) dark outlines (only show around the outside of connected pieces)
       for (const o of obstacles) {
-        if (o.type === 'd') {
-          ctx.fillStyle = dirtPattern(); ctx.fillRect(o.x, o.y, o.w, o.h);
-        } else if (o.type === 'w') {
-          ctx.fillStyle = theme.wall; ctx.fillRect(o.x, o.y, o.w, o.h);
-          ctx.strokeStyle = theme.edge; ctx.lineWidth = 3; ctx.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
-        } else {
-          const mine = o.type === 'b';
-          ctx.fillStyle = mine ? '#1f9c86' : '#b9803f'; ctx.fillRect(o.x, o.y, o.w, o.h);
-          ctx.strokeStyle = mine ? '#4fe0c0' : '#7a4f1f'; ctx.lineWidth = 3; ctx.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
-          ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x + o.w, o.y + o.h); ctx.moveTo(o.x + o.w, o.y); ctx.lineTo(o.x, o.y + o.h); ctx.stroke();
+        if (o.type === 'd') { ctx.fillStyle = '#2e1b0c'; ctx.fillRect(o.x - 3, o.y - 3, o.w + 6, o.h + 6); }
+        else if (o.type === 'w') { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(o.x - 2, o.y - 2, o.w + 4, o.h + 4); }
+      }
+      // 3) the bodies
+      for (const o of obstacles) {
+        if (o.type === 'd') { ctx.fillStyle = dirtPattern(); ctx.fillRect(o.x, o.y, o.w, o.h); }
+        else if (o.type === 'w') drawWallBody(o);
+        else {
+          for (let yy = o.y; yy < o.y + o.h - 0.5; yy += 40) for (let xx = o.x; xx < o.x + o.w - 0.5; xx += 40) drawCrateCell(xx, yy, Math.min(40, o.x + o.w - xx), Math.min(40, o.y + o.h - yy), o.type === 'b');
           if (o.hp < o.maxHp) { ctx.fillStyle = 'rgba(0,0,0,' + (0.6 * (o.maxHp - o.hp) / o.maxHp) + ')'; ctx.fillRect(o.x, o.y, o.w, o.h); }
         }
       }
