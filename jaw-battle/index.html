@@ -170,6 +170,9 @@
   // where each gun sits in the gun bar (you can rearrange it)
   let gunOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
   try { const o = JSON.parse(localStorage.getItem('jawBattleOrder') || 'null'); if (Array.isArray(o) && o.length === 9 && [...o].sort((a, b) => a - b).every((v, i) => v === i)) gunOrder = o; } catch (e) {}
+  // character skins
+  let skinId = 'sky', skinsOwned = ['sky'];
+  try { const v = localStorage.getItem('jawBattleSkin'); if (v) skinId = v; const o = JSON.parse(localStorage.getItem('jawBattleSkins') || 'null'); if (Array.isArray(o)) skinsOwned = o.concat(['sky']); } catch (e) {}
   let ghostOwned = false;
   try { ghostOwned = localStorage.getItem('jawBattleGhost') === '1'; } catch (e) {}
   const GHOST_MAX = 240, GHOST_COST = 2000;
@@ -212,7 +215,7 @@
     [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'square', 0.07), i * 90));
     showMenu('🎁 You got ' + gain + ' coins! Day ' + streak + ' in a row.');
   }
-  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); localStorage.setItem('jawBattleGhost', ghostOwned ? '1' : '0'); localStorage.setItem('jawBattleOrder', JSON.stringify(gunOrder)); } catch (e) {} }
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); localStorage.setItem('jawBattleGhost', ghostOwned ? '1' : '0'); localStorage.setItem('jawBattleOrder', JSON.stringify(gunOrder)); localStorage.setItem('jawBattleSkin', skinId); localStorage.setItem('jawBattleSkins', JSON.stringify(skinsOwned)); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
   loadBest();
 
@@ -359,6 +362,7 @@
     player = makeFighter(80, H / 2, '#4fd1ff', false); player.team = 0;
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true); bot.team = 1; bot.isBot = mode !== '2p';
     player.gun = startGun();
+    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; }
     fighters = [player, bot];
     player.lane = newLane(); bot.lane = newLane();
     if (mode === 'team') buildTeams();
@@ -543,7 +547,20 @@
   }
 
   // ---------- gun shop ----------
-  let shopTab = 'guns', arrSel = null;
+  let shopTab = 'guns', arrSel = null, previews = [], previewOn = false;
+  function paintPreview(c, k, t) {
+    const g = c.getContext('2d'); g.clearRect(0, 0, 76, 76); g.save(); g.translate(38, 38); const r = 26;
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(0, r - 2, r, 7, 0, 0, 6.283); g.fill();
+    g.fillStyle = k.base; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r, 0.35, 6.283 - 0.35); g.closePath(); g.fill();
+    if (k.paint) { g.save(); g.clip(); k.paint(g, t, r); g.restore(); }
+    g.fillStyle = '#fff'; for (const sg of [-1, 1]) { const a = sg * 0.35; g.beginPath(); g.moveTo(Math.cos(a) * (r - 12), Math.sin(a) * (r - 12)); g.lineTo(Math.cos(a) * r, Math.sin(a) * r); g.lineTo(Math.cos(a + sg * 0.35) * (r - 3), Math.sin(a + sg * 0.35) * (r - 3)); g.closePath(); g.fill(); }
+    g.fillStyle = k.eye || '#120b2e'; g.beginPath(); g.arc(-4, -10, 4, 0, 6.283); g.fill(); g.restore();
+  }
+  function startPreviews() {
+    if (previewOn) return; previewOn = true;
+    const tick = () => { if (!previews.length || !previews[0][0].isConnected) { previewOn = false; return; } const t = Date.now(); for (const [c, k] of previews) paintPreview(c, k, t); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
   const upSound = () => [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80));
   function mkCard(icon, title, lines, btnText, btnDisabled, onBtn, cls) {
     const c = document.createElement('div'); c.className = 'scard' + (cls ? ' ' + cls : '');
@@ -554,7 +571,7 @@
   function showShop() {
     showOverlay(true, '💎 ARMORY', '🪙 <b style="font-size:22px">' + coinText() + '</b>', 'Back', () => showMenu(), false, p => {
       const tabs = document.createElement('div'); tabs.className = 'row';
-      for (const [id, label] of [['guns', '🔫 Guns'], ['gear', '🧰 Gear'], ['arrange', '🔧 Arrange']]) {
+      for (const [id, label] of [['guns', '🔫 Guns'], ['gear', '🧰 Gear'], ['skins', '🎨 Skins'], ['arrange', '🔧 Arrange']]) {
         const t = document.createElement('button'); t.textContent = label; t.className = shopTab === id ? 'on' : ''; t.onclick = () => { shopTab = id; arrSel = null; showShop(); }; tabs.appendChild(t);
       }
       p.appendChild(tabs);
@@ -577,6 +594,16 @@
         grid.appendChild(mkCard('👻', 'Ghost Boots', 'Hold <b>G</b> to float through walls, blocks and dirt (it recharges)<br>' + (aimbot ? '🕶️ FREE with Operator!' : ''), gh ? '🏆 Owned' : '💎 Buy 🪙' + GHOST_COST, gh || coins < GHOST_COST,
           () => { if (coins >= GHOST_COST) { coins -= GHOST_COST; ghostOwned = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } }));
         grid.appendChild(mkCard('💧', 'Water', 'Always free! Press <b>0</b> or <b>Q</b> to drop a puddle that puts out fire. You get 3 charges and they come back.', '🏆 Free', true));
+      } else if (shopTab === 'skins') {
+        previews = [];
+        for (const k of SKINS) {
+          const has = ownSkin(k.id), on = skinId === k.id;
+          const card = mkCard('', k.name, (k.anim ? '✨ Animated' : 'Classic color') + (k.info ? '<br>' + k.info : ''), on ? '✅ Equipped' : has ? '👕 Equip' : '💎 Buy 🪙' + k.cost, on || (!has && coins < k.cost),
+            () => { if (!has) { if (coins < k.cost) return; coins -= k.cost; skinsOwned.push(k.id); beep(880, 0.15, 'square', 0.07); } skinId = k.id; saveStuff(); showShop(); }, has ? '' : 'locked');
+          const cv2 = document.createElement('canvas'); cv2.width = cv2.height = 76; cv2.style.cssText = 'width:76px;height:76px'; card.querySelector('.ic').appendChild(cv2);
+          previews.push([cv2, k]); grid.appendChild(card);
+        }
+        startPreviews();
       } else {
         arrangePanel(p, () => showShop());
       }
@@ -1136,6 +1163,34 @@
   }
 
   // ---------- drawing ----------
+  // ---------- skins ----------
+  const sparkle = (g, t, r, n, col) => { for (let i = 0; i < n; i++) { const a = i * 2.4, d = (0.15 + (i * 0.37 % 0.8)) * r, tw = (Math.sin(t / 260 + i * 1.9) + 1) / 2; g.globalAlpha = 0.25 + 0.75 * tw; g.fillStyle = col; g.beginPath(); g.arc(Math.cos(a) * d, Math.sin(a) * d, 1 + tw * 1.6, 0, 6.283); g.fill(); } g.globalAlpha = 1; };
+  const SKINS = [
+    { id: 'sky', name: 'Sky Blue', icon: '🔵', base: '#4fd1ff', cost: 0 },
+    { id: 'red', name: 'Fire Red', icon: '🔴', base: '#ff4d4d', cost: 100 },
+    { id: 'green', name: 'Lime Green', icon: '🟢', base: '#4ddf6a', cost: 100 },
+    { id: 'yellow', name: 'Sunny Yellow', icon: '🟡', base: '#ffd93d', cost: 100 },
+    { id: 'purple', name: 'Grape Purple', icon: '🟣', base: '#a56bff', cost: 100 },
+    { id: 'orange', name: 'Pumpkin Orange', icon: '🟠', base: '#ff9a3d', cost: 100 },
+    { id: 'pink', name: 'Bubblegum Pink', icon: '🌸', base: '#ff7ac8', cost: 100 },
+    { id: 'white', name: 'Snow White', icon: '⚪', base: '#f4f4f4', cost: 100 },
+    { id: 'water', name: 'Water', icon: '🌊', base: '#1f78e8', cost: 600, anim: true, eye: '#06204a', info: 'Rippling waves',
+      paint(g, t, r) { g.fillStyle = '#1f78e8'; g.fillRect(-r, -r, 2 * r, 2 * r); g.lineWidth = 2; for (let k = 0; k < 6; k++) { g.strokeStyle = 'rgba(255,255,255,' + (0.18 + 0.1 * (k % 2)) + ')'; g.beginPath(); for (let x = -r; x <= r; x += 4) { const y = -r + k * 7 + Math.sin(x / 6 + t / 220 + k) * 2.5; x === -r ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke(); } g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.ellipse(-r * 0.35, -r * 0.45, 4, 2.4, -0.5, 0, 6.283); g.fill(); } },
+    { id: 'ice', name: 'Frost', icon: '❄️', base: '#9fdcff', cost: 700, anim: true, eye: '#0a2a55', info: 'Glittery ice',
+      paint(g, t, r) { g.fillStyle = '#9fdcff'; g.fillRect(-r, -r, 2 * r, 2 * r); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-r, -3); g.lineTo(-2, 4); g.lineTo(6, -2); g.lineTo(r, 6); g.moveTo(-2, 4); g.lineTo(-4, r); g.stroke(); sparkle(g, t, r, 9, '#fff'); } },
+    { id: 'leaves', name: 'Autumn Leaves', icon: '🍂', base: '#b8541a', cost: 800, anim: true, eye: '#2a0d00', info: 'Swirling fall leaves',
+      paint(g, t, r) { g.fillStyle = '#b8541a'; g.fillRect(-r, -r, 2 * r, 2 * r); const cols = ['#ffb02e', '#e8731a', '#c9411f', '#f2d04a']; for (let i = 0; i < 9; i++) { const a = t / 900 + i * 0.7, d = r * (0.2 + (i % 4) * 0.2); g.save(); g.translate(Math.cos(a) * d, Math.sin(a * 1.1) * d); g.rotate(a * 2 + i); g.fillStyle = cols[i % 4]; g.beginPath(); g.ellipse(0, 0, 5, 2.4, 0, 0, 6.283); g.fill(); g.restore(); } } },
+    { id: 'lava', name: 'Lava', icon: '🌋', base: '#c2300a', cost: 900, anim: true, eye: '#1a0500', info: 'Flowing molten lava',
+      paint(g, t, r) { g.fillStyle = '#7a1500'; g.fillRect(-r, -r, 2 * r, 2 * r); const cols = ['#ff8a1a', '#ffd23a', '#ff5a1a']; for (let i = 0; i < 7; i++) { const x = Math.sin(t / 700 + i * 1.7) * r * 0.65, y = Math.cos(t / 900 + i * 2.3) * r * 0.65, rr = r * (0.38 + 0.12 * Math.sin(t / 400 + i)); const gr = g.createRadialGradient(x, y, 1, x, y, rr); gr.addColorStop(0, cols[i % 3]); gr.addColorStop(1, 'rgba(255,90,26,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } sparkle(g, t, r, 6, '#fff3a0'); } },
+    { id: 'rainbow', name: 'Rainbow', icon: '🌈', base: '#ff7ac8', cost: 1000, anim: true, eye: '#1a1a1a', info: 'Cycling colors',
+      paint(g, t, r) { const gr = g.createLinearGradient(-r, -r, r, r), h = (t / 8) % 360; for (let k = 0; k <= 4; k++) gr.addColorStop(k / 4, 'hsl(' + ((h + k * 70) % 360) + ',90%,60%)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } },
+    { id: 'galaxy', name: 'Galaxy', icon: '🌌', base: '#150b3a', cost: 1200, anim: true, eye: '#ffffff', info: 'Twinkling stars',
+      paint(g, t, r) { g.fillStyle = '#0d0630'; g.fillRect(-r, -r, 2 * r, 2 * r); const gr = g.createRadialGradient(Math.cos(t / 1500) * r * 0.4, Math.sin(t / 1500) * r * 0.4, 1, 0, 0, r); gr.addColorStop(0, 'rgba(255,90,200,.55)'); gr.addColorStop(1, 'rgba(80,40,200,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); sparkle(g, t, r, 14, '#fff'); } },
+    { id: 'death', name: 'Black Death', icon: '🖤', base: '#0a0a0f', cost: 1500, anim: true, eye: '#ff3b4a', info: 'Dark smoke with a red glow',
+      paint(g, t, r) { g.fillStyle = '#07070c'; g.fillRect(-r, -r, 2 * r, 2 * r); for (let i = 0; i < 4; i++) { const a = t / 700 + i * 1.57, x = Math.cos(a) * r * 0.5, y = Math.sin(a * 1.3) * r * 0.5, gr = g.createRadialGradient(x, y, 1, x, y, r * 0.9); gr.addColorStop(0, 'rgba(120,30,170,.55)'); gr.addColorStop(1, 'rgba(120,30,170,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } const p = (Math.sin(t / 250) + 1) / 2; g.strokeStyle = 'rgba(255,40,60,' + (0.3 + 0.4 * p) + ')'; g.lineWidth = 2.5; g.beginPath(); g.arc(0, 0, r - 2, 0, 6.283); g.stroke(); } },
+  ];
+  const skinById = id => SKINS.find(k => k.id === id) || SKINS[0];
+  const ownSkin = id => aimbot || skinsOwned.includes(id);
   function drawFighter(f, t) {
     ctx.save(); ctx.translate(f.x, f.y);
     // shadow
@@ -1144,6 +1199,8 @@
     const open = 0.25 + 0.5 * (f.cd > 0 ? 1 - f.cd / (f.maxCd || 1) : 1) * (f.cd > 0 ? 0.6 : 0.35);
     ctx.fillStyle = f.flash > 0 && (f.flash % 4 < 2) ? '#fff' : f.color;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, f.r, open, 6.283 - open); ctx.closePath(); ctx.fill();
+    const sk = f.skin ? skinById(f.skin) : null, hit = f.flash > 0 && (f.flash % 4 < 2);
+    if (sk && sk.paint && !hit) { ctx.save(); ctx.clip(); ctx.rotate(-f.aim); sk.paint(ctx, t || 0, f.r); ctx.restore(); }
     // teeth
     ctx.fillStyle = '#fff';
     for (const s of [-1, 1]) {
@@ -1154,7 +1211,7 @@
       ctx.closePath(); ctx.fill();
     }
     // eye
-    ctx.fillStyle = '#120b2e'; ctx.beginPath(); ctx.arc(-3, -7, 3, 0, 6.283); ctx.fill();
+    ctx.fillStyle = sk && sk.eye ? sk.eye : '#120b2e'; ctx.beginPath(); ctx.arc(-3, -7, 3, 0, 6.283); ctx.fill();
     ctx.restore();
   }
 
@@ -1302,6 +1359,7 @@
         drawFlag(flags.b.x, flags.b.y, '#ff6b9a', !!flags.b.carrier);
       }
       for (const f of fighters) { if (f.dead) continue; const flick = f.invuln > 0 && Math.floor(Date.now() / 90) % 2 ? 0.35 : 1; if (f === player) { ctx.globalAlpha = player.ghosting ? 0.45 : flick; drawFighter(player, t); ctx.globalAlpha = 1; } else { ctx.globalAlpha = flick; drawFighter(f, t); ctx.globalAlpha = 1; } }
+      if (mode === 'team' && !player.dead) { ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#4fd1ff'; ctx.fillText('▼', player.x, player.y - 36); }
       if (mode === 'team') for (const f of fighters) { if (f.dead || f === player) continue; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(f.x - 18, f.y - 34, 36, 6); ctx.fillStyle = f.team === 0 ? '#4fd1ff' : '#ff6b9a'; ctx.fillRect(f.x - 17, f.y - 33, 34 * Math.max(0, f.hp) / f.maxHp, 4); }
       ctx.font = '22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (const f of fighters) { if (f.dead) continue; if (f.burn > 0) ctx.fillText('🔥', f.x + Math.sin(Date.now() / 90) * 4, f.y - 28); if (f.slow > 0) ctx.fillText('❄️', f.x, f.y - 30); }
