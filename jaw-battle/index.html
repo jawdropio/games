@@ -521,7 +521,7 @@
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
     if (mode === 'ctf' && keys['e'] && !player.dead && ++player.digT >= shovelDelay(shovelLv)) { player.digT = 0; dig(player, player.aim, shovelLv); }
     if (player.digAng != null && !player.dead && ((player.digT2 = (player.digT2 || 0) + 1) >= shovelDelay(shovelLv))) { player.digT2 = 0; dig(player, player.digAng, shovelLv); }
-    const auto = aimbot && (mouse.down || keys[' '] || (aimPro && mode !== 'ctf')) && !bot.dead && !player.dead;
+    const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !bot.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
     const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
     const ox0 = player.x, oy0 = player.y;
@@ -598,29 +598,41 @@
     for (const g of prefs) if (owned[g]) return g;
     return 0;
   }
-  // --- path finding so the autopilot walks AROUND walls (grid + breadth-first search) ---
-  const CELL = 20, DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  // --- smart navigation for the autopilot: finds the cheapest route (digging through dirt costs extra) ---
+  const CELL = 20, DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]], DIG_COST = 5;
   let navGrid = null, navCols = 0, navRows = 0;
-  function buildNav() {
+  function buildNav(canDig) {
     navCols = Math.ceil(W / CELL); navRows = Math.ceil(H / CELL); navGrid = new Uint8Array(navCols * navRows);
     const r = player.r + 3;
-    for (let j = 0; j < navRows; j++) for (let i = 0; i < navCols; i++) navGrid[j * navCols + i] = blocked(i * CELL + CELL / 2, j * CELL + CELL / 2, r) ? 1 : 0;
+    for (let j = 0; j < navRows; j++) for (let i = 0; i < navCols; i++) {
+      const x = i * CELL + CELL / 2, y = j * CELL + CELL / 2;
+      let c = 1;
+      if (x < r || y < r || x > W - r || y > H - r) c = 255;
+      else for (const o of obstacles) if (circleHitsRect(x, y, r, o)) { c = canDig ? DIG_COST : 255; break; }
+      navGrid[j * navCols + i] = c;
+    }
   }
   function findPath(sx, sy, tx, ty) {
     const cl = (v, m) => Math.max(0, Math.min(m - 1, v));
     const si = cl(Math.floor(sx / CELL), navCols), sj = cl(Math.floor(sy / CELL), navRows), ti = cl(Math.floor(tx / CELL), navCols), tj = cl(Math.floor(ty / CELL), navRows);
-    const prev = new Int32Array(navCols * navRows).fill(-2), q = [sj * navCols + si];
-    prev[q[0]] = -1; let found = -1;
-    for (let h = 0; h < q.length; h++) {
-      const c = q[h], ci = c % navCols, cj = (c / navCols) | 0;
+    const n = navCols * navRows, dist = new Float32Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), heap = [];
+    const push = (d, i) => { heap.push([d, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+    const start = sj * navCols + si; dist[start] = 0; push(0, start);
+    let found = -1;
+    while (heap.length) {
+      const [d, c] = pop();
+      if (d > dist[c]) continue;
+      const ci = c % navCols, cj = (c / navCols) | 0;
       if (Math.abs(ci - ti) <= 1 && Math.abs(cj - tj) <= 1) { found = c; break; }
       for (const [di, dj] of DIRS) {
         const ni = ci + di, nj = cj + dj;
         if (ni < 0 || nj < 0 || ni >= navCols || nj >= navRows) continue;
-        const n = nj * navCols + ni;
-        if (prev[n] !== -2 || navGrid[n]) continue;
-        if (di && dj && (navGrid[cj * navCols + ni] || navGrid[nj * navCols + ci])) continue; // no cutting corners
-        prev[n] = c; q.push(n);
+        const nn = nj * navCols + ni, cost = navGrid[nn];
+        if (cost === 255) continue;
+        if (di && dj && (navGrid[cj * navCols + ni] === 255 || navGrid[nj * navCols + ci] === 255)) continue; // no cutting corners
+        const nd = d + cost * (di && dj ? 1.41 : 1);
+        if (nd < dist[nn]) { dist[nn] = nd; prev[nn] = c; push(nd, nn); }
       }
     }
     if (found < 0) return null;
@@ -643,29 +655,62 @@
     }
     return [vx, vy];
   }
-  function autoMove() {
-    player.digAng = null;
-    const p = player, dx = bot.x - p.x, dy = bot.y - p.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
+  // walk to a spot: straight if clear, otherwise along the best path (digging where the path goes through dirt)
+  function navTo(p, gx, gy) {
+    const dx = gx - p.x, dy = gy - p.y;
+    if (Math.hypot(dx, dy) < 6) return [0, 0];
+    const canDig = mode === 'ctf';
+    if (corridorClear(p.x, p.y, gx, gy, p.r + 1)) { p.path = null; return safeDir(p, dx, dy); }
+    if (!p.path || --p.pathT <= 0 || Math.hypot(gx - p.pathGX, gy - p.pathGY) > 50) {
+      buildNav(canDig); p.path = findPath(p.x, p.y, gx, gy); p.pathT = 12; p.pathGX = gx; p.pathGY = gy;
+    }
+    if (p.path && p.path.length > 1) {
+      let tgt = p.path[1];
+      for (let i = Math.min(p.path.length - 1, 14); i >= 2; i--) if (corridorClear(p.x, p.y, p.path[i][0], p.path[i][1], p.r + 1)) { tgt = p.path[i]; break; }
+      const tx = tgt[0] - p.x, ty = tgt[1] - p.y, m = Math.hypot(tx, ty) || 1;
+      if (canDig && blocked(p.x + tx / m * (p.r + 10), p.y + ty / m * (p.r + 10), 4)) { p.digAng = Math.atan2(ty, tx); return [tx / m, ty / m]; }
+      return safeDir(p, tx, ty);
+    }
+    if (canDig) { p.digAng = Math.atan2(dy, dx); const m = Math.hypot(dx, dy) || 1; return [dx / m, dy / m]; }
+    return safeDir(p, dx, dy);
+  }
+  function dodgeVec(p) {
     for (const bl of bullets) {
       if (bl.owner === 'p') continue;
       const rx = p.x - bl.x, ry = p.y - bl.y, sp = Math.hypot(bl.vx, bl.vy) || 1;
       const along = (rx * bl.vx + ry * bl.vy) / sp, cross = (rx * bl.vy - ry * bl.vx) / sp;
-      if (along > 0 && along < 280 && Math.abs(cross) < 36) { const sg = cross >= 0 ? 1 : -1; return safeDir(p, bl.vy / sp * sg, -bl.vx / sp * sg); }
+      if (along > 0 && along < 280 && Math.abs(cross) < 36) { const sg = cross >= 0 ? 1 : -1; return [bl.vy / sp * sg, -bl.vx / sp * sg]; }
     }
-    if (!corridorClear(p.x, p.y, bot.x, bot.y, 4) || !lineClear(p.x, p.y, bot.x, bot.y)) {
-      // no clear shot: find a real path around the walls
-      if (!p.path || --p.pathT <= 0) { buildNav(); p.path = findPath(p.x, p.y, bot.x, bot.y); p.pathT = 12; }
-      if (p.path && p.path.length > 1) {
-        let tgt = p.path[1];
-        for (let i = Math.min(p.path.length - 1, 14); i >= 2; i--) if (corridorClear(p.x, p.y, p.path[i][0], p.path[i][1], p.r + 1)) { tgt = p.path[i]; break; }
-        return safeDir(p, tgt[0] - p.x, tgt[1] - p.y);
-      }
-      p.digAng = Math.atan2(uy, ux); return [ux, uy]; // walled in: dig straight toward the target
-    }
-    p.path = null;
+    return null;
+  }
+  // Capture the Flag brain for the autopilot (same rules the bot follows)
+  function playerGoal() {
+    if (flags.p.carrier === bot && !bot.dead) return { x: bot.x, y: bot.y, kind: 'bot' };   // they have my flag: hunt them
+    if (!atBase(flags.p, BASE_P)) return { x: flags.p.x, y: flags.p.y, kind: 'flag' };      // my flag was dropped: bring it home
+    if (flags.b.carrier === player) return { x: BASE_P.x, y: BASE_P.y, kind: 'home' };      // I have their flag: run home
+    return { x: flags.b.x, y: flags.b.y, kind: 'flag' };                                      // go grab their flag
+  }
+  function strafeMove(p, ux, uy, dist, wantFar) {
     if (--p.strafeT <= 0) { p.strafe = Math.random() < 0.5 ? -1 : 1; p.strafeT = 40 + Math.random() * 60; }
-    const push = dist > 320 ? 1 : dist < 200 ? -1 : 0;
+    const push = dist > (wantFar || 320) ? 1 : dist < 200 ? -1 : 0;
     return safeDir(p, ux * push - uy * p.strafe * 0.9, uy * push + ux * p.strafe * 0.9);
+  }
+  function autoMove() {
+    const p = player; p.digAng = null;
+    const dv = dodgeVec(p);
+    if (dv) return safeDir(p, dv[0], dv[1]);
+    if (mode === 'ctf') {
+      const g = playerGoal();
+      if (g.kind === 'bot' && !bot.dead && corridorClear(p.x, p.y, bot.x, bot.y, 4) && lineClear(p.x, p.y, bot.x, bot.y)) {
+        const d = Math.hypot(bot.x - p.x, bot.y - p.y) || 1;
+        return strafeMove(p, (bot.x - p.x) / d, (bot.y - p.y) / d, d, 200);
+      }
+      return navTo(p, g.x, g.y);
+    }
+    const dx = bot.x - p.x, dy = bot.y - p.y, dist = Math.hypot(dx, dy) || 1;
+    if (!corridorClear(p.x, p.y, bot.x, bot.y, 4) || !lineClear(p.x, p.y, bot.x, bot.y)) return navTo(p, bot.x, bot.y);
+    p.path = null;
+    return strafeMove(p, dx / dist, dy / dist, dist);
   }
 
   function updateP2() {
@@ -860,7 +905,7 @@
       if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 PRO Aimbot ON' : '🎯 Aimbot ON', W / 2, 80); }
       if (mode === 'ctf') {
         ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.textAlign = 'center';
-        const hint = flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
+        const hint = aimPro ? '🤖 PRO autopilot is playing Capture the Flag for you' : flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
         if (hint) ctx.fillText(hint, W / 2, 60);
         ctx.font = '600 13px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText('⛏ Hold E to dig (Shovel Lv ' + shovelLv + ')', W / 2, 100);
         if (banner && banner.t > 0) { ctx.font = '900 44px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(banner.text, W / 2, H / 2 - 24); }
