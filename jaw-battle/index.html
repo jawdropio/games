@@ -141,6 +141,9 @@
   const own = i => aimbot || owned[i];
   const shovel = () => aimbot ? 5 : shovelLv;
   const coinText = () => aimbot ? '∞' : coins;
+  // where each gun sits in the gun bar (you can rearrange it)
+  let gunOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  try { const o = JSON.parse(localStorage.getItem('jawBattleOrder') || 'null'); if (Array.isArray(o) && o.length === 9 && [...o].sort((a, b) => a - b).every((v, i) => v === i)) gunOrder = o; } catch (e) {}
   let ghostOwned = false;
   try { ghostOwned = localStorage.getItem('jawBattleGhost') === '1'; } catch (e) {}
   const GHOST_MAX = 240, GHOST_COST = 400;
@@ -160,7 +163,7 @@
     [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'square', 0.07), i * 90));
     showMenu('🎁 You got ' + gain + ' coins! Day ' + streak + ' in a row.');
   }
-  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); localStorage.setItem('jawBattleGhost', ghostOwned ? '1' : '0'); } catch (e) {} }
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); localStorage.setItem('jawBattleGhost', ghostOwned ? '1' : '0'); localStorage.setItem('jawBattleOrder', JSON.stringify(gunOrder)); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
   loadBest();
 
@@ -354,7 +357,8 @@
     const a = document.createElement('button'); a.textContent = '🛒 Gun Shop'; a.onclick = showShop;
     const c = document.createElement('button'); c.textContent = '👥 2 Players'; c.onclick = newGame2P;
     const f = document.createElement('button'); f.textContent = '🚩 Capture the Flag'; f.onclick = newCTF;
-    row.append(a, c, f);
+    const ar = document.createElement('button'); ar.textContent = '🔧 Arrange Guns'; ar.onclick = () => showArrange(() => showMenu());
+    row.append(a, c, f, ar);
     p.appendChild(row);
   }
 
@@ -408,7 +412,26 @@
   function pause() {
     if (state !== 'play') return;
     state = 'paused';
-    showOverlay(true, '⏸ Paused', 'Take a breather!', 'Resume', resume);
+    showPauseScreen();
+  }
+  function showPauseScreen() {
+    showOverlay(true, '⏸ Paused', 'Take a breather!', 'Resume', resume, false, p => {
+      const b = document.createElement('button'); b.textContent = '🔧 Arrange my guns'; b.onclick = () => showArrange(showPauseScreen); p.appendChild(b);
+    });
+  }
+  function showArrange(back) {
+    showOverlay(true, '🔧 Arrange Guns', 'Move your guns left or right. The number keys <b>1-9</b> follow this order!', 'Done', back, false, p => {
+      for (let sl = 0; sl < GUNS.length; sl++) {
+        const gi = gunOrder[sl], row = document.createElement('div'); row.className = 'row';
+        const label = document.createElement('span'); label.style.cssText = 'min-width:190px;text-align:left';
+        label.innerHTML = '<b>' + (sl + 1) + '.</b> ' + GUNS[gi].name + (own(gi) ? '' : ' 🔒');
+        const l = document.createElement('button'); l.textContent = '◀'; l.disabled = sl === 0;
+        const r = document.createElement('button'); r.textContent = '▶'; r.disabled = sl === GUNS.length - 1;
+        const swap = d => { [gunOrder[sl], gunOrder[sl + d]] = [gunOrder[sl + d], gunOrder[sl]]; saveStuff(); beep(600, 0.05, 'square', 0.05); showArrange(back); };
+        l.onclick = () => swap(-1); r.onclick = () => swap(1);
+        row.append(label, l, r); p.appendChild(row);
+      }
+    });
   }
   function resume() { if (state === 'paused') { state = 'play'; showOverlay(false); } }
   pauseBtn.addEventListener('click', () => state === 'paused' ? resume() : pause());
@@ -423,7 +446,7 @@
     if ([' ', '/', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
     keys[k] = true;
     if (state === 'play') {
-      if (k >= '1' && k <= '9' && own(+k - 1)) player.gun = +k - 1;
+      if (k >= '1' && k <= '9' && own(gunOrder[+k - 1])) player.gun = gunOrder[+k - 1];
       if (k === 'b' && !e.repeat) tryBuild();
       if (mode === '2p' && !e.repeat) {
         if (k === 'shift') tryBuild(bot, bot.x + Math.cos(bot.aim) * 60, bot.y + Math.sin(bot.aim) * 60);
@@ -432,7 +455,7 @@
     }
   });
   addEventListener('wheel', e => {
-    if (state === 'play') { const step = e.deltaY > 0 ? 1 : GUNS.length - 1; let g = player.gun; for (let i = 0; i < GUNS.length; i++) { g = (g + step) % GUNS.length; if (own(g)) { player.gun = g; break; } } }
+    if (state === 'play') { const step = e.deltaY > 0 ? 1 : GUNS.length - 1; let sl = gunOrder.indexOf(player.gun); for (let i = 0; i < GUNS.length; i++) { sl = (sl + step) % GUNS.length; if (own(gunOrder[sl])) { player.gun = gunOrder[sl]; break; } } }
   }, { passive: true });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -942,12 +965,12 @@
       if (toast && toast.t > 0) { ctx.font = '900 30px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd24d'; ctx.fillText(toast.text, W / 2, H - 90); ctx.textBaseline = 'top'; }
       // gun slots + wall blocks
       ctx.textBaseline = 'middle';
-      for (let i = 0; i < GUNS.length; i++) {
-        const x = 16 + i * 76, y = H - 34, sel = player.gun === i; ctx.globalAlpha = own(i) ? 1 : 0.35;
+      for (let sl = 0; sl < GUNS.length; sl++) {
+        const i = gunOrder[sl], x = 16 + sl * 76, y = H - 34, sel = player.gun === i; ctx.globalAlpha = own(i) ? 1 : 0.35;
         ctx.fillStyle = sel ? 'rgba(255,176,32,.9)' : 'rgba(255,255,255,.1)';
         ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill();
         ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText((own(i) ? (i + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 36, y + 9);
+        ctx.fillText((own(i) ? (sl + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 36, y + 9);
         if (own(i)) {
           ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(gunLevel(i) >= 5 ? 'Lv5 MAX' : 'Lv' + gunLevel(i), x + 36, y + 19);
         }
