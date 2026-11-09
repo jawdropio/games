@@ -13,7 +13,7 @@
   a { color:#a99ee0; text-decoration:none; font-weight:700; }
   button { font:inherit; font-weight:800; background:#6c4cff; color:#fff; border:0; border-radius:10px; padding:8px 16px; cursor:pointer; }
   button:hover { background:#8269ff; }
-  #overlay { position:fixed; inset:0; background:rgba(10,6,30,.78); display:grid; place-items:center; text-align:center; }
+  #overlay { overflow:auto; position:fixed; inset:0; background:rgba(10,6,30,.78); display:grid; place-items:center; text-align:center; }
   #overlay.hide { display:none; }
   #panel { margin:0 0 18px; display:flex; flex-direction:column; gap:8px; align-items:center; }
   #panel .row { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
@@ -22,6 +22,10 @@
   #panel button:disabled { opacity:.5; cursor:default; }
   #panel input { font:inherit; font-weight:800; font-size:18px; width:130px; text-align:center; text-transform:uppercase; padding:8px; border-radius:10px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; }
   .code { font-size:30px; font-weight:900; letter-spacing:3px; color:#ffb020; }
+  #aceBtn { position:fixed; left:0; top:50%; z-index:20; display:none; font-size:11px; padding:5px 8px; border-radius:0 8px 8px 0; background:#2c2268; opacity:.65; }
+  #acePanel { position:fixed; left:0; top:calc(50% + 32px); z-index:20; display:none; background:#1d1445; padding:8px; border-radius:0 10px 10px 0; font-size:12px; }
+  #acePanel input { font:inherit; width:110px; padding:5px; border-radius:6px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; text-transform:uppercase; }
+  #acePanel button { font-size:12px; padding:5px 10px; }
   #diffRow { display:flex; gap:8px; justify-content:center; margin:0 0 18px; flex-wrap:wrap; }
   #diffRow button { background:#2c2268; font-size:16px; padding:8px 14px; }
   #diffRow button.on { background:#ffb020; color:#2a1a00; }
@@ -46,9 +50,11 @@
   </div>
 </div>
 
+<button id="aceBtn">✏️ Edit Aces</button>
+<div id="acePanel"><input id="aceIn" maxlength="12" placeholder="..."> <button id="aceGo">OK</button><div id="aceMsg"></div></div>
 <script>
 (() => {
-  const W = 960, H = 600;
+  let W = 960, H = 600;
   const cv = document.getElementById('c'), ctx = cv.getContext('2d');
   const overlay = document.getElementById('overlay');
   const ovTitle = document.getElementById('ovTitle'), ovText = document.getElementById('ovText'), ovBtn = document.getElementById('ovBtn');
@@ -61,6 +67,7 @@
     cv.style.height = H * s + 'px';
   }
   addEventListener('resize', resize); resize();
+  function setArena(w, h) { if (W === w && H === h) return; W = w; H = h; cv.width = w; cv.height = h; resize(); }
 
   // ---------- sound ----------
   let ac = null;
@@ -116,9 +123,37 @@
   try { const d = localStorage.getItem('jawBattleDiff'); if (DIFFS[d]) diffName = d; } catch (e) {}
   const diff = () => DIFFS[diffName];
   // coins + owned guns (saved in the browser)
-  let coins = 0, owned = [true, false, false, false], startMap = 0;
-  try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o) && o.length === 4) owned = o.map(Boolean); owned[0] = true; } catch (e) {}
-  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); } catch (e) {} }
+  let mode = '1p', score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false, false, false, false, false, false], startMap = 0;
+  try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o)) owned = owned.map((_, i) => !!o[i]); owned[0] = true; } catch (e) {}
+  // gun levels: guns level up by dealing damage with them
+  const XP_AT = [0, 40, 100, 200, 400]; // only used to carry over levels earned before upgrades were for sale
+  let gunLv = Array(9).fill(1), toast = null, shovelLv = 1;
+  try { shovelLv = Math.max(1, Math.min(5, +localStorage.getItem('jawBattleShovel') || 1)); } catch (e) {}
+  try {
+    const lv = JSON.parse(localStorage.getItem('jawBattleLv') || 'null'), x = JSON.parse(localStorage.getItem('jawBattleXP') || 'null');
+    if (Array.isArray(lv)) gunLv = gunLv.map((_, i) => Math.max(1, Math.min(5, +lv[i] || 1)));
+    else if (Array.isArray(x)) gunLv = gunLv.map((_, i) => { let l = 1; for (let k = 1; k < XP_AT.length; k++) if ((+x[i] || 0) >= XP_AT[k]) l = k + 1; return l; });
+  } catch (e) {}
+  const gunLevel = i => gunLv[i];
+  const upCost = lv => [30, 60, 100, 150][lv - 1];
+  let aimbot = false, aimPro = false, aimShots = 0;
+  try { const v = localStorage.getItem('jawBattleAimbot'); aimbot = v === '1' || v === '2'; aimPro = v === '2'; } catch (e) {}
+  let daily = { last: '', streak: 0 };
+  try { const d = JSON.parse(localStorage.getItem('jawBattleDaily') || 'null'); if (d && typeof d.last === 'string') daily = { last: d.last, streak: +d.streak || 0 }; } catch (e) {}
+  const dayStr = ms => { const d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+  const dailyReady = () => daily.last !== dayStr(Date.now());
+  const dailyReward = streak => 50 + 10 * (Math.min(streak, 7) - 1);
+  function claimDaily() {
+    if (!dailyReady()) return;
+    const streak = daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1;
+    const gain = dailyReward(streak);
+    coins += gain; daily = { last: dayStr(Date.now()), streak };
+    try { localStorage.setItem('jawBattleDaily', JSON.stringify(daily)); } catch (e) {}
+    saveStuff();
+    [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'square', 0.07), i * 90));
+    showMenu('🎁 You got ' + gain + ' coins! Day ' + streak + ' in a row.');
+  }
+  function saveStuff() { try { localStorage.setItem('jawBattleCoins', coins); localStorage.setItem('jawBattleGuns', JSON.stringify(owned)); localStorage.setItem('jawBattleLv', JSON.stringify(gunLv)); localStorage.setItem('jawBattleShovel', shovelLv); } catch (e) {} }
   function loadBest() { best = 0; try { best = +localStorage.getItem('jawBattleBest_' + diffName) || 0; } catch (e) {} }
   loadBest();
 
@@ -126,24 +161,32 @@
   const GUNS = [
     { name: 'Pistol',      cd: 16, n: 1, spread: 0.02, speed: 9,   dmg: 4, life: 140, freq: 520, color: '#bff3ff', cost: 0 },
     { name: 'Shotgun',     cd: 50, n: 5, spread: 0.40, speed: 8,   dmg: 1, life: 38,  freq: 220, color: '#ffe08a', cost: 20, info: '5 pellets, great up close' },
-    { name: 'Machine Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 0.6, life: 100, freq: 700, color: '#c8ffb0', cost: 35, info: 'Super fast, tiny damage' },
+    { name: 'Machine Gun', short: 'M.Gun', cd: 6,  n: 1, spread: 0.14, speed: 9.5, dmg: 0.6, life: 100, freq: 700, color: '#c8ffb0', cost: 35, info: 'Super fast, tiny damage' },
     { name: 'Sniper',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 12, life: 80,  freq: 300, color: '#ffffff', cost: 50, info: 'Slow, but 3 hearts per hit!' },
+    { name: 'Triple Shot', short: 'Triple',  cd: 28, n: 3, spread: 0.30, speed: 9,   dmg: 2,   life: 120, freq: 450, color: '#ffb3f0', cost: 40, info: '3 bullets in a fan (+1 bullet per level!)' },
+    { name: 'Bouncer',     short: 'Bouncer', cd: 22, n: 1, spread: 0.03, speed: 8,   dmg: 3,   life: 200, freq: 380, color: '#7dffb0', cost: 60, info: 'Bullets bounce off walls!', bounce: 3 },
+    { name: 'Cannon',      short: 'Cannon',  cd: 70, n: 1, spread: 0,    speed: 5,   dmg: 8,   life: 200, freq: 110, color: '#ff9a4d', cost: 75, info: 'Huge slow ball, smashes blocks', r: 11, obs: 3 },
+    { name: 'Laser',       short: 'Laser',   cd: 9,  n: 1, spread: 0.02, speed: 15,  dmg: 1.2, life: 90,  freq: 900, color: '#ff5de0', cost: 90, info: 'Fast zappy shots' },
+    { name: 'Mega Blaster', short: 'MEGA', cd: 7, n: 2, spread: 0.06, speed: 14, dmg: 2.5, life: 130, freq: 600, color: '#ffd700', cost: 150, info: 'OP! Rapid double shots that blast through dirt', r: 7, obs: 3 },
   ];
 
   // ---------- building ----------
   const GRID = 40, BUILD_RANGE = 240, MAX_BLOCKS = 8;
 
   function makeFighter(x, y, color, isBot) {
-    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
+    return { x, y, r: 17, hp: 20, maxHp: 20, gun: 0, digT: 0, blocks: 5, blockT: 0, color, isBot, aim: isBot ? Math.PI : 0, cd: 0, flash: 0,
              // bot brain
              strafe: 1, strafeT: 0, dodge: 0, stuck: 0 };
   }
 
   function startRound() {
-    obstacles = layouts[layoutIdx % layouts.length].map(o => ({ x:o[0], y:o[1], w:o[2], h:o[3], type:o[4], hp:3, maxHp:3 }));
+    setArena(mode === 'ctf' ? 1440 : 960, mode === 'ctf' ? 900 : 600);
+    if (mode === 'ctf') { BASE_P.x = 60; BASE_P.y = H / 2; BASE_B.x = W - 60; BASE_B.y = H / 2; }
+    obstacles = (mode === 'ctf' ? CTF_LAYOUT : layouts[layoutIdx % layouts.length]).map(o => ({ x:o[0], y:o[1], w:o[2], h:o[3], type:o[4], hp:3, maxHp:3 }));
     player = makeFighter(80, H / 2, '#4fd1ff', false);
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true);
-    bullets = []; parts = [];
+    bullets = []; parts = []; flags = null;
+    if (mode === 'ctf') initFlags();
     state = 'play';
     showOverlay(false);
   }
@@ -172,6 +215,7 @@
   function showOverlay(show, title, text, btn, action, showDiff, build, diffHook) {
     overlay.classList.toggle('hide', !show);
     if (!show) return;
+    setMenuFlag(false);
     diffRow.style.display = showDiff ? 'flex' : 'none';
     onDiff = diffHook || null;
     if (showDiff) renderDiff();
@@ -179,30 +223,161 @@
     ovTitle.textContent = title; ovText.innerHTML = text; ovBtn.textContent = btn; ovAction = action;
   }
   ovBtn.addEventListener('click', () => ovAction());
-  function showMenu() {
+  function showMenu(note) {
     showOverlay(true, '🦷 JAW BATTLE',
-      'Beat the bot before it beats you! Pick your difficulty:<br>' +
+      (note ? '<b style="color:#ffb020">' + note + '</b><br>' : '') + 'Beat the bot before it beats you! Pick your difficulty:<br>' +
       '<b>Move:</b> WASD / arrows &nbsp; <b>Aim:</b> mouse &nbsp; <b>Shoot:</b> click or Space<br>' +
       '<b>Switch gun:</b> 1-4 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
-      '<b>Pause:</b> P or Esc<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
-      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame, true, menuLinks);
+      '<b>Pause:</b> P or Esc<br>🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! The whole middle is solid dirt, so hold <b>E</b> to dig tunnels with your shovel.<br>👥 <b>2 Players:</b> P1 = WASD + mouse. P2 = arrow keys (faces where it walks), Enter shoots, Shift builds, / switches gun.<br>📱 Touch: drag left to move, drag right to aim &amp; shoot.' +
+      (best ? '<br>🏆 Best win streak: ' + best : '') + '<br>💰 Coins: <b>' + coins + '</b>', 'Play!', newGame1P, true, menuLinks);
+    setMenuFlag(true);
   }
+  // ---------- capture the flag ----------
+  const BASE_P = { x: 60, y: 300 }, BASE_B = { x: 900, y: 300 }, BASE_R = 46, CTF_WIN = 3;
+  const CTF_LAYOUT = [ [220,0,1000,900,'d'] ]; // one giant block of dirt between the two bases: dig through it!
+  let flags = null, caps1 = 0, caps2 = 0, banner = null;
+  const atBase = (fl, base) => fl.x === base.x && fl.y === base.y;
+  function initFlags() { flags = { p: { x: BASE_P.x, y: BASE_P.y, carrier: null }, b: { x: BASE_B.x, y: BASE_B.y, carrier: null } }; }
+  function newCTF() { mode = 'ctf'; caps1 = caps2 = 0; banner = null; round = 1; startRound(); }
+  function ctfRespawn(f, x) { f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
+  function ctfScore(who) {
+    who === 'p' ? caps1++ : caps2++;
+    banner = { text: who === 'p' ? '🚩 You scored!' : '🚩 Bot scored!', t: 110 };
+    sfx[who === 'p' ? 'win' : 'lose']();
+    initFlags(); bullets = [];
+    ctfRespawn(player, 80); ctfRespawn(bot, W - 80);
+    if (caps1 >= CTF_WIN || caps2 >= CTF_WIN) endCTF(caps1 >= CTF_WIN);
+  }
+  function ctfTick() {
+    if (banner && banner.t > 0) banner.t--;
+    const sides = [[player, flags.p, flags.b, BASE_P, 'p'], [bot, flags.b, flags.p, BASE_B, 'b']];
+    for (const [f, mine, theirs, base, who] of sides) {
+      if (f.dead) continue;
+      if (!theirs.carrier && Math.hypot(f.x - theirs.x, f.y - theirs.y) < f.r + 14) { theirs.carrier = f; beep(740, 0.12, 'square', 0.06); }
+      if (!mine.carrier && !atBase(mine, base) && Math.hypot(f.x - mine.x, f.y - mine.y) < f.r + 14) { mine.x = base.x; mine.y = base.y; beep(500, 0.12, 'triangle', 0.07); }
+      if (theirs.carrier === f && atBase(mine, base) && Math.hypot(f.x - base.x, f.y - base.y) < BASE_R) { ctfScore(who); return; }
+    }
+    for (const fl of [flags.p, flags.b]) if (fl.carrier) { fl.x = fl.carrier.x; fl.y = fl.carrier.y; }
+    for (const f of [player, bot]) {
+      if (!f.dead && f.hp <= 0) {
+        f.dead = true; f.respawn = 150; burst(f.x, f.y, f.color, 20);
+        for (const fl of [flags.p, flags.b]) if (fl.carrier === f) fl.carrier = null;
+      } else if (f.dead && --f.respawn <= 0) ctfRespawn(f, f === player ? 80 : W - 80);
+    }
+  }
+  // digging (Capture the Flag): hold E to carve a tunnel through whatever is in front of you
+  // carve a square hole (half-size hs) out of every wall / block / dirt it touches
+  function carve(hx, hy, hs) {
+    const hx1 = hx - hs, hx2 = hx + hs, hy1 = hy - hs, hy2 = hy + hs, out = [];
+    let dug = false;
+    for (const o of obstacles) {
+      if (hx1 >= o.x + o.w || hx2 <= o.x || hy1 >= o.y + o.h || hy2 <= o.y) { out.push(o); continue; }
+      dug = true;
+      const ix1 = Math.max(o.x, hx1), ix2 = Math.min(o.x + o.w, hx2), iy1 = Math.max(o.y, hy1), iy2 = Math.min(o.y + o.h, hy2);
+      for (const [x, y, w, h] of [[o.x, o.y, ix1 - o.x, o.h], [ix2, o.y, o.x + o.w - ix2, o.h], [ix1, o.y, ix2 - ix1, iy1 - o.y], [ix1, iy2, ix2 - ix1, o.y + o.h - iy2]])
+        if (w >= 6 && h >= 6) out.push(Object.assign({}, o, { x, y, w, h }));
+    }
+    if (dug) { obstacles = out; burst(hx, hy, '#c9b48a', 8); }
+    return dug;
+  }
+  // the shovel: higher level = bigger holes, dug faster
+  const shovelSize = lv => 18 + 4 * lv, shovelDelay = lv => Math.max(3, Math.round(10 - 1.2 * lv));
+  function dig(f, ang, lv) {
+    if (ang === undefined) ang = f.aim;
+    const hs = shovelSize(lv || 1);
+    if (carve(f.x + Math.cos(ang) * (hs - 2), f.y + Math.sin(ang) * (hs - 2), hs)) beep(140, 0.06, 'triangle', 0.06);
+  }
+  function botGoal() {
+    if (flags.b.carrier === player) return { x: player.x, y: player.y };
+    if (!atBase(flags.b, BASE_B)) return { x: flags.b.x, y: flags.b.y };
+    if (flags.p.carrier === bot) return BASE_B;
+    return { x: flags.p.x, y: flags.p.y };
+  }
+  function endCTF(won) {
+    state = 'over';
+    const gain = won ? 15 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] : 3;
+    coins += gain; saveStuff();
+    showOverlay(true, won ? '🏆 You win the flag battle!' : '💥 The bot captured 3 flags!',
+      'Final score: You <b>' + caps1 + '</b> – <b>' + caps2 + '</b> Bot<br>💰 +' + gain + ' coins (you have ' + coins + ')', 'Play again', newCTF, true, p => {
+        const b = document.createElement('button'); b.textContent = '🏠 Main menu'; b.onclick = () => showMenu(); p.appendChild(b);
+      });
+  }
+  function drawFlag(x, y, color, carried) {
+    const oy = carried ? -26 : -4;
+    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, y + oy + 6); ctx.lineTo(x, y + oy - 28); ctx.stroke();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(x, y + oy - 28); ctx.lineTo(x + 24, y + oy - 20); ctx.lineTo(x, y + oy - 12); ctx.closePath(); ctx.fill();
+  }
+  function newGame1P() { mode = '1p'; newGame(); }
+  function newGame2P() { mode = '2p'; score1 = score2 = 0; newGame(); }
+  // secret codes: type them on the start screen (there is no box!)
+  let onMenu = false, typed = '', pendingCode = null;
+  const aceBtn = document.getElementById('aceBtn'), acePanel = document.getElementById('acePanel'), aceIn = document.getElementById('aceIn'), aceMsg = document.getElementById('aceMsg');
+  function setMenuFlag(v) { onMenu = v; aceBtn.style.display = v ? 'block' : 'none'; if (!v) acePanel.style.display = 'none'; }
+  aceBtn.onclick = () => { acePanel.style.display = acePanel.style.display === 'block' ? 'none' : 'block'; aceMsg.textContent = ''; aceIn.value = ''; aceIn.focus(); };
+  function submitAce() {
+    const c = aceIn.value.trim();
+    if (/^JAW-?1234$/i.test(c)) applyCode(true);
+    else if (/^JAW-?123$/i.test(c)) applyCode(false);
+    else aceMsg.textContent = 'Nothing changed.';
+    aceIn.value = '';
+  }
+  aceIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submitAce(); });
+  document.getElementById('aceGo').onclick = submitAce;
+  function applyCode(pro) {
+    if (pro) { aimPro = !aimPro; aimbot = aimPro; }
+    else if (aimbot && !aimPro) aimbot = false;
+    else { aimbot = true; aimPro = false; }
+    try { localStorage.setItem('jawBattleAimbot', aimPro ? '2' : aimbot ? '1' : '0'); } catch (e) {}
+    beep(aimbot ? 900 : 300, 0.15, 'square', 0.07);
+    showMenu(aimPro ? '🤖 PRO Aimbot ON!' : aimbot ? '🎯 Aimbot ON!' : '🎯 Aimbot OFF.');
+  }
+  addEventListener('keydown', e => {
+    if (!onMenu || e.key.length !== 1 || e.ctrlKey || e.metaKey) return;
+    typed = (typed + e.key.toLowerCase()).slice(-8);
+    if (pendingCode && e.key === '4') { clearTimeout(pendingCode); pendingCode = null; typed = ''; applyCode(true); }
+    else if (typed.endsWith('jaw123')) { typed = ''; pendingCode = setTimeout(() => { pendingCode = null; if (onMenu) applyCode(false); }, 700); }
+  });
   function menuLinks(p) {
+    const dr = document.createElement('div'); dr.className = 'row';
+    const db = document.createElement('button');
+    if (dailyReady()) { db.textContent = '🎁 Claim daily coins! (+' + dailyReward(daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1) + ')'; db.className = 'on'; db.onclick = claimDaily; }
+    else { db.textContent = '🎁 Daily coins claimed ✅ (come back tomorrow!)'; db.disabled = true; }
+    dr.appendChild(db); p.appendChild(dr);
     const row = document.createElement('div'); row.className = 'row';
     const a = document.createElement('button'); a.textContent = '🛒 Gun Shop'; a.onclick = showShop;
-    const b = document.createElement('button'); b.textContent = '🎲 Make / Join a Game'; b.onclick = showSetup;
-    row.append(a, b); p.appendChild(row);
+    const c = document.createElement('button'); c.textContent = '👥 2 Players'; c.onclick = newGame2P;
+    const f = document.createElement('button'); f.textContent = '🚩 Capture the Flag'; f.onclick = newCTF;
+    row.append(a, c, f);
+    p.appendChild(row);
   }
 
   // ---------- gun shop ----------
   function showShop() {
-    showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Win rounds to earn coins!', 'Back', showMenu, false, p => {
-      for (let i = 1; i < GUNS.length; i++) {
-        const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
-        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b> – ' + g.info;
+    showOverlay(true, '🛒 Gun Shop', '💰 Coins: <b>' + coins + '</b><br>Buy guns, then upgrade them! Each level = +10% damage and faster shooting.', 'Back', () => showMenu(), false, p => {
+      { // shovel
+        const row = document.createElement('div'); row.className = 'row';
+        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left';
+        label.innerHTML = '<b>⛏ Shovel</b> (Lv ' + shovelLv + ') – dig faster and make bigger tunnels in Capture the Flag';
         const btn = document.createElement('button');
-        if (owned[i]) { btn.textContent = '✅ Owned'; btn.disabled = true; }
+        if (shovelLv >= 5) { btn.textContent = '⭐ MAX level'; btn.disabled = true; }
         else {
+          const c = upCost(shovelLv); btn.textContent = '⬆️ Upgrade to Lv ' + (shovelLv + 1) + ' 💰' + c; btn.disabled = coins < c;
+          btn.onclick = () => { if (coins >= c) { coins -= c; shovelLv++; saveStuff(); [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80)); showShop(); } };
+        }
+        row.append(label, btn); p.appendChild(row);
+      }
+      for (let i = 0; i < GUNS.length; i++) {
+        const g = GUNS[i], row = document.createElement('div'); row.className = 'row';
+        const label = document.createElement('span'); label.style.cssText = 'min-width:260px;text-align:left'; label.innerHTML = '<b>' + g.name + '</b>' + (owned[i] ? ' (Lv ' + gunLevel(i) + ')' : '') + ' – ' + g.info;
+        const btn = document.createElement('button');
+        if (owned[i]) {
+          const lv = gunLevel(i);
+          if (lv >= 5) { btn.textContent = '⭐ MAX level'; btn.disabled = true; }
+          else {
+            const c = upCost(lv); btn.textContent = '⬆️ Upgrade to Lv ' + (lv + 1) + ' 💰' + c; btn.disabled = coins < c;
+            btn.onclick = () => { if (coins >= c) { coins -= c; gunLv[i]++; saveStuff(); [700, 900, 1200].forEach((f, k) => setTimeout(() => beep(f, 0.14, 'square', 0.07), k * 80)); showShop(); } };
+          }
+        } else {
           btn.textContent = 'Buy 💰' + g.cost; btn.disabled = coins < g.cost;
           btn.onclick = () => { if (coins >= g.cost) { coins -= g.cost; owned[i] = true; saveStuff(); beep(880, 0.15, 'square', 0.07); showShop(); } };
         }
@@ -211,34 +386,6 @@
     });
   }
 
-  // ---------- make / join a game (challenge codes) ----------
-  const DL = { easy: 'E', medium: 'M', hard: 'H', insane: 'I' };
-  const makeCode = () => 'JAW-' + DL[diffName] + (startMap + 1);
-  function showSetup() {
-    const info = 'Pick a difficulty and a map, then share your code. Friends type it in on their own computer to play the <b>same game</b>, and you can compare win streaks!<br><small>(You each play on your own computer, not live together.)</small>';
-    const draw = () => showOverlay(true, '🎲 Make / Join a Game', info, 'Back', showMenu, true, p => {
-      const maps = document.createElement('div'); maps.className = 'row';
-      ['🗺️ Map 1', '🗺️ Map 2', '🗺️ Map 3'].forEach((t, i) => {
-        const b = document.createElement('button'); b.textContent = t; b.className = i === startMap ? 'on' : '';
-        b.onclick = () => { startMap = i; draw(); }; maps.appendChild(b);
-      });
-      const code = document.createElement('div'); code.innerHTML = 'Your game code:<br><span class="code">' + makeCode() + '</span>';
-      const join = document.createElement('div'); join.className = 'row';
-      const inp = document.createElement('input'); inp.placeholder = 'JAW-H2'; inp.maxLength = 8;
-      const go = document.createElement('button'); go.textContent = 'Join!';
-      const msg = document.createElement('div');
-      inp.addEventListener('keydown', e => e.stopPropagation());
-      go.onclick = () => {
-        const m = /^JAW-?([EMHI])([1-3])$/i.exec(inp.value.trim());
-        if (!m) { msg.textContent = '🤔 That code doesn\'t look right. Try one like JAW-H2.'; return; }
-        diffName = Object.keys(DL).find(k => DL[k] === m[1].toUpperCase()); startMap = +m[2] - 1; loadBest();
-        try { localStorage.setItem('jawBattleDiff', diffName); } catch (e) {}
-        newGame();
-      };
-      join.append(inp, go); p.append(maps, code, join, msg);
-    }, draw);
-    draw();
-  }
   function pause() {
     if (state !== 'play') return;
     state = 'paused';
@@ -254,15 +401,19 @@
   addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'p' || k === 'escape') { state === 'paused' ? resume() : pause(); return; }
-    if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+    if ([' ', '/', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
     keys[k] = true;
     if (state === 'play') {
-      if (k >= '1' && k <= '4' && owned[+k - 1]) player.gun = +k - 1;
+      if (k >= '1' && k <= '9' && owned[+k - 1]) player.gun = +k - 1;
       if (k === 'b' && !e.repeat) tryBuild();
+      if (mode === '2p' && !e.repeat) {
+        if (k === 'shift') tryBuild(bot, bot.x + Math.cos(bot.aim) * 60, bot.y + Math.sin(bot.aim) * 60);
+        if (k === '/') for (let i = 1; i <= GUNS.length; i++) { const g = (bot.gun + i) % GUNS.length; if (owned[g]) { bot.gun = g; break; } }
+      }
     }
   });
   addEventListener('wheel', e => {
-    if (state === 'play') { const step = e.deltaY > 0 ? 1 : 3; let g = player.gun; for (let i = 0; i < 4; i++) { g = (g + step) % 4; if (owned[g]) { player.gun = g; break; } } }
+    if (state === 'play') { const step = e.deltaY > 0 ? 1 : GUNS.length - 1; let g = player.gun; for (let i = 0; i < GUNS.length; i++) { g = (g + step) % GUNS.length; if (owned[g]) { player.gun = g; break; } } }
   }, { passive: true });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -324,22 +475,26 @@
   }
   function fire(f, owner, gi) {
     const g = GUNS[gi];
-    for (let i = 0; i < g.n; i++) {
-      const a = f.aim + (g.n > 1 ? (i / (g.n - 1) - 0.5) * g.spread : (Math.random() - 0.5) * g.spread);
-      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg, color: g.color });
+    const lvl = owner === 'p' ? gunLevel(gi) : 1, dmgMul = 1 + 0.1 * (lvl - 1); // each level: +10% damage, faster shooting
+    const missShot = owner === 'p' && aimbot && ++aimShots % 10 === 0; // aimbot misses every 10th shot
+    const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
+    const n = g.n + (gi === 4 && owner === 'p' ? lvl - 1 : 0), spread = g.spread + (n - g.n) * 0.08; // Triple Shot: +1 bullet per level
+    for (let i = 0; i < n; i++) {
+      const a = f.aim + missOff + (n > 1 ? (i / (n - 1) - 0.5) * spread : (Math.random() - 0.5) * spread);
+      bullets.push({ x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, life: g.life, dmg: g.dmg * dmgMul, base: g.dmg, gi, color: g.color, r: g.r || 5, bounce: g.bounce || 0, obs: g.obs || 1, miss: missShot });
     }
-    const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : 1;
+    const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : owner === 'p' ? 1 - 0.05 * (lvl - 1) : 1;
     f.cd = f.maxCd = Math.round(g.cd * cdMul);
     beep(g.freq, gi === 3 ? 0.25 : 0.1, owner === 'p' ? 'square' : 'sawtooth', 0.05, -g.freq * 0.5);
   }
   const botCdMul = () => diff().cd * Math.max(0.6, 1 - (round - 1) * 0.05);
 
-  function tryBuild() {
-    const p = player;
+  function tryBuild(p = player, tx = mouse.x, ty = mouse.y) {
     if (p.blocks < 1) return;
-    const gx = Math.floor(mouse.x / GRID) * GRID, gy = Math.floor(mouse.y / GRID) * GRID;
+    const gx = Math.floor(tx / GRID) * GRID, gy = Math.floor(ty / GRID) * GRID;
     if (gx < 0 || gy < 0 || gx + GRID > W || gy + GRID > H) return;
     if (Math.hypot(gx + GRID / 2 - p.x, gy + GRID / 2 - p.y) > BUILD_RANGE) return;
+    if (mode === 'ctf') for (const q of [BASE_P, BASE_B, flags.p, flags.b]) if (Math.hypot(gx + GRID / 2 - q.x, gy + GRID / 2 - q.y) < 60) return;
     const box = { x: gx, y: gy, w: GRID, h: GRID };
     for (const o of obstacles) if (gx < o.x + o.w && gx + GRID > o.x && gy < o.y + o.h && gy + GRID > o.y) return;
     if (circleHitsRect(p.x, p.y, p.r + 3, box) || circleHitsRect(bot.x, bot.y, bot.r + 3, box)) return;
@@ -358,36 +513,65 @@
   function update() {
     // player
     let mx = 0, my = 0;
-    if (keys['a'] || keys['arrowleft']) mx--;
-    if (keys['d'] || keys['arrowright']) mx++;
-    if (keys['w'] || keys['arrowup']) my--;
-    if (keys['s'] || keys['arrowdown']) my++;
+    if (keys['a'] || (mode !== '2p' && keys['arrowleft'])) mx--;
+    if (keys['d'] || (mode !== '2p' && keys['arrowright'])) mx++;
+    if (keys['w'] || (mode !== '2p' && keys['arrowup'])) my--;
+    if (keys['s'] || (mode !== '2p' && keys['arrowdown'])) my++;
     if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; }
     if (touch.dx || touch.dy) { mx = touch.dx; my = touch.dy; }
-    moveFighter(player, mx * 3.2, my * 3.2);
+    if (mode === 'ctf' && keys['e'] && !player.dead && ++player.digT >= shovelDelay(shovelLv)) { player.digT = 0; dig(player, player.aim, shovelLv); }
+    if (player.digAng != null && !player.dead && ((player.digT2 = (player.digT2 || 0) + 1) >= shovelDelay(shovelLv))) { player.digT2 = 0; dig(player, player.digAng, shovelLv); }
+    const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !bot.dead);
+    if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
+    const psp = mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2;
+    const ox0 = player.x, oy0 = player.y;
+    if (!player.dead) moveFighter(player, mx * psp, my * psp);
+    if (auto) {
+      if (Math.hypot(player.x - ox0, player.y - oy0) < psp * 0.4) { if (++player.stuck > 8) { player.stuck = 0; player.strafe *= -1; player.detour = Math.random() < 0.5 ? -1 : 1; player.detourT = 50; } }
+      else player.stuck = 0;
+    }
     player.aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+    const bvx = bot.x - (bot.lx ?? bot.x), bvy = bot.y - (bot.ly ?? bot.y); bot.lx = bot.x; bot.ly = bot.y;
+    let autoFire = false;
+    if (aimbot && !bot.dead) {
+      // OP aim: predict where the target will be when the bullet arrives
+      if (aimPro && player.cd <= 0) player.gun = pickGun(Math.hypot(bot.x - player.x, bot.y - player.y), lineClear(player.x, player.y, bot.x, bot.y));
+      const spd = GUNS[player.gun].speed;
+      let tx = bot.x, ty = bot.y;
+      for (let i = 0; i < 4; i++) { const t = Math.hypot(tx - player.x, ty - player.y) / spd; tx = bot.x + bvx * t; ty = bot.y + bvy * t; }
+      player.aim = Math.atan2(ty - player.y, tx - player.x);
+      autoFire = lineClear(player.x, player.y, bot.x, bot.y);
+    }
     if (player.cd > 0) player.cd--;
-    if ((mouse.down || keys[' ']) && player.cd <= 0) fire(player, 'p', player.gun);
+    if ((mouse.down || keys[' '] || autoFire) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
     if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
 
-    updateBot();
+    if (mode === '2p') updateP2(); else if (!bot.dead) updateBot();
+    if (bot.blocks < MAX_BLOCKS && ++bot.blockT >= 150) { bot.blocks++; bot.blockT = 0; }
 
     // bullets
     for (const b of bullets) {
+      if (aimbot && b.owner === 'p' && !b.miss && !bot.dead) { // OP: bullets curve toward the target
+        const sp = Math.hypot(b.vx, b.vy), cur = Math.atan2(b.vy, b.vx);
+        let d = Math.atan2(bot.y - b.y, bot.x - b.x) - cur; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
+        const na = cur + Math.max(-0.35, Math.min(0.35, d)); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
+      }
       b.x += b.vx; b.y += b.vy; b.life--;
-      if (b.x < 0 || b.x > W || b.y < 0 || b.y > H || b.life <= 0) { b.dead = true; continue; }
+      if (b.life <= 0) { b.dead = true; continue; }
+      if (b.x < 0 || b.x > W) { if (b.bounce > 0) { b.vx *= -1; b.x = b.x < 0 ? 0 : W; b.bounce--; } else { b.dead = true; continue; } }
+      if (b.y < 0 || b.y > H) { if (b.bounce > 0) { b.vy *= -1; b.y = b.y < 0 ? 0 : H; b.bounce--; } else { b.dead = true; continue; } }
       for (const o of obstacles) {
         if (o.dead) continue;
         if (b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h) {
-          b.dead = true;
-          if (o.type !== 'w') { const c = o.type === 'b' ? '#4fe0c0' : '#d9a05b'; o.hp--; sfx.crate(); burst(b.x, b.y, c, 5); if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, c, 14); } }
-          else burst(b.x, b.y, '#8f84d6', 3);
+          if (b.bounce > 0) { const px = b.x - b.vx, py = b.y - b.vy; if (px <= o.x || px >= o.x + o.w) b.vx *= -1; else b.vy *= -1; b.x += b.vx; b.y += b.vy; b.bounce--; } else b.dead = true;
+          if (o.type !== 'w' && o.type !== 'd') { const c = o.type === 'b' ? '#4fe0c0' : '#d9a05b'; o.hp -= (b.obs || 1); sfx.crate(); burst(b.x, b.y, c, 5); if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, c, 14); } }
+          else { if (o.type === 'd' && b.obs > 1) carve(b.x, b.y, 10 + b.r * 1.5); burst(b.x, b.y, o.type === 'd' ? '#a07a4a' : '#8f84d6', 3); }
           break;
         }
       }
       if (b.dead) continue;
       const target = b.owner === 'p' ? bot : player;
-      if (Math.hypot(b.x - target.x, b.y - target.y) < target.r + 4) {
+      if (!target.dead && Math.hypot(b.x - target.x, b.y - target.y) < target.r + b.r - 1) {
         b.dead = true; target.hp -= b.dmg; target.flash = 10; shake = 8;
         burst(b.x, b.y, target.color, 10); sfx.hit();
       }
@@ -399,17 +583,152 @@
     if (player.flash > 0) player.flash--;
     if (bot.flash > 0) bot.flash--;
     if (shake > 0) shake--;
+    if (toast && toast.t > 0) toast.t--;
 
-    if (bot.hp <= 0) endRound(true);
+    if (mode === 'ctf') ctfTick();
+    else if (bot.hp <= 0) endRound(true);
     else if (player.hp <= 0) endRound(false);
   }
 
+  // Aimbot autopilot: while you hold shoot, it dodges bullets, finds a clear shot and keeps a good distance
+  // PRO aimbot: picks the best gun you own for the situation
+  function pickGun(dist, los) {
+    const prefs0 = !los ? [5, 6, 0] : dist < 200 ? [1, 4, 5, 2, 0] : dist < 420 ? [7, 5, 4, 0, 2] : [3, 7, 0];
+    const prefs = [8].concat(prefs0);
+    for (const g of prefs) if (owned[g]) return g;
+    return 0;
+  }
+  // --- smart navigation for the autopilot: finds the cheapest route (digging through dirt costs extra) ---
+  const CELL = 20, DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]], DIG_COST = 5;
+  let navGrid = null, navCols = 0, navRows = 0;
+  function buildNav(canDig) {
+    navCols = Math.ceil(W / CELL); navRows = Math.ceil(H / CELL); navGrid = new Uint8Array(navCols * navRows);
+    const r = player.r + 3;
+    for (let j = 0; j < navRows; j++) for (let i = 0; i < navCols; i++) {
+      const x = i * CELL + CELL / 2, y = j * CELL + CELL / 2;
+      let c = 1;
+      if (x < r || y < r || x > W - r || y > H - r) c = 255;
+      else for (const o of obstacles) if (circleHitsRect(x, y, r, o)) { c = canDig ? DIG_COST : 255; break; }
+      navGrid[j * navCols + i] = c;
+    }
+  }
+  function findPath(sx, sy, tx, ty) {
+    const cl = (v, m) => Math.max(0, Math.min(m - 1, v));
+    const si = cl(Math.floor(sx / CELL), navCols), sj = cl(Math.floor(sy / CELL), navRows), ti = cl(Math.floor(tx / CELL), navCols), tj = cl(Math.floor(ty / CELL), navRows);
+    const n = navCols * navRows, dist = new Float32Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), heap = [];
+    const push = (d, i) => { heap.push([d, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+    const start = sj * navCols + si; dist[start] = 0; push(0, start);
+    let found = -1;
+    while (heap.length) {
+      const [d, c] = pop();
+      if (d > dist[c]) continue;
+      const ci = c % navCols, cj = (c / navCols) | 0;
+      if (Math.abs(ci - ti) <= 1 && Math.abs(cj - tj) <= 1) { found = c; break; }
+      for (const [di, dj] of DIRS) {
+        const ni = ci + di, nj = cj + dj;
+        if (ni < 0 || nj < 0 || ni >= navCols || nj >= navRows) continue;
+        const nn = nj * navCols + ni, cost = navGrid[nn];
+        if (cost === 255) continue;
+        if (di && dj && (navGrid[cj * navCols + ni] === 255 || navGrid[nj * navCols + ci] === 255)) continue; // no cutting corners
+        const nd = d + cost * (di && dj ? 1.41 : 1);
+        if (nd < dist[nn]) { dist[nn] = nd; prev[nn] = c; push(nd, nn); }
+      }
+    }
+    if (found < 0) return null;
+    const pts = [];
+    for (let c = found; c !== -1; c = prev[c]) pts.push([(c % navCols) * CELL + CELL / 2, ((c / navCols) | 0) * CELL + CELL / 2]);
+    return pts.reverse();
+  }
+  function corridorClear(x1, y1, x2, y2, r) {
+    const n = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 8);
+    for (let i = 1; i <= n; i++) if (blocked(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n, r)) return false;
+    return true;
+  }
+  // never step toward a wall: if the way is blocked, swing to the nearest free direction
+  function safeDir(p, vx, vy) {
+    const m = Math.hypot(vx, vy); if (!m) return [0, 0];
+    vx /= m; vy /= m;
+    for (const a of [0, 0.5, -0.5, 1, -1, 1.6, -1.6]) {
+      const c = Math.cos(a), s = Math.sin(a), dx = vx * c - vy * s, dy = vx * s + vy * c;
+      if (!blocked(p.x + dx * 30, p.y + dy * 30, p.r + 1) && !blocked(p.x + dx * 15, p.y + dy * 15, p.r + 1)) return [dx, dy];
+    }
+    return [vx, vy];
+  }
+  // walk to a spot: straight if clear, otherwise along the best path (digging where the path goes through dirt)
+  function navTo(p, gx, gy) {
+    const dx = gx - p.x, dy = gy - p.y;
+    if (Math.hypot(dx, dy) < 6) return [0, 0];
+    const canDig = mode === 'ctf';
+    if (corridorClear(p.x, p.y, gx, gy, p.r + 1)) { p.path = null; return safeDir(p, dx, dy); }
+    if (!p.path || --p.pathT <= 0 || Math.hypot(gx - p.pathGX, gy - p.pathGY) > 50) {
+      buildNav(canDig); p.path = findPath(p.x, p.y, gx, gy); p.pathT = 12; p.pathGX = gx; p.pathGY = gy;
+    }
+    if (p.path && p.path.length > 1) {
+      let tgt = p.path[1];
+      for (let i = Math.min(p.path.length - 1, 14); i >= 2; i--) if (corridorClear(p.x, p.y, p.path[i][0], p.path[i][1], p.r + 1)) { tgt = p.path[i]; break; }
+      const tx = tgt[0] - p.x, ty = tgt[1] - p.y, m = Math.hypot(tx, ty) || 1;
+      if (canDig && blocked(p.x + tx / m * (p.r + 10), p.y + ty / m * (p.r + 10), 4)) { p.digAng = Math.atan2(ty, tx); return [tx / m, ty / m]; }
+      return safeDir(p, tx, ty);
+    }
+    if (canDig) { p.digAng = Math.atan2(dy, dx); const m = Math.hypot(dx, dy) || 1; return [dx / m, dy / m]; }
+    return safeDir(p, dx, dy);
+  }
+  function dodgeVec(p) {
+    for (const bl of bullets) {
+      if (bl.owner === 'p') continue;
+      const rx = p.x - bl.x, ry = p.y - bl.y, sp = Math.hypot(bl.vx, bl.vy) || 1;
+      const along = (rx * bl.vx + ry * bl.vy) / sp, cross = (rx * bl.vy - ry * bl.vx) / sp;
+      if (along > 0 && along < 280 && Math.abs(cross) < 36) { const sg = cross >= 0 ? 1 : -1; return [bl.vy / sp * sg, -bl.vx / sp * sg]; }
+    }
+    return null;
+  }
+  // Capture the Flag brain for the autopilot (same rules the bot follows)
+  function playerGoal() {
+    if (flags.p.carrier === bot && !bot.dead) return { x: bot.x, y: bot.y, kind: 'bot' };   // they have my flag: hunt them
+    if (!atBase(flags.p, BASE_P)) return { x: flags.p.x, y: flags.p.y, kind: 'flag' };      // my flag was dropped: bring it home
+    if (flags.b.carrier === player) return { x: BASE_P.x, y: BASE_P.y, kind: 'home' };      // I have their flag: run home
+    return { x: flags.b.x, y: flags.b.y, kind: 'flag' };                                      // go grab their flag
+  }
+  function strafeMove(p, ux, uy, dist, wantFar) {
+    if (--p.strafeT <= 0) { p.strafe = Math.random() < 0.5 ? -1 : 1; p.strafeT = 40 + Math.random() * 60; }
+    const push = dist > (wantFar || 320) ? 1 : dist < 200 ? -1 : 0;
+    return safeDir(p, ux * push - uy * p.strafe * 0.9, uy * push + ux * p.strafe * 0.9);
+  }
+  function autoMove() {
+    const p = player; p.digAng = null;
+    const dv = dodgeVec(p);
+    if (dv) return safeDir(p, dv[0], dv[1]);
+    if (mode === 'ctf') {
+      const g = playerGoal();
+      if (g.kind === 'bot' && !bot.dead && corridorClear(p.x, p.y, bot.x, bot.y, 4) && lineClear(p.x, p.y, bot.x, bot.y)) {
+        const d = Math.hypot(bot.x - p.x, bot.y - p.y) || 1;
+        return strafeMove(p, (bot.x - p.x) / d, (bot.y - p.y) / d, d, 200);
+      }
+      return navTo(p, g.x, g.y);
+    }
+    const dx = bot.x - p.x, dy = bot.y - p.y, dist = Math.hypot(dx, dy) || 1;
+    if (!corridorClear(p.x, p.y, bot.x, bot.y, 4) || !lineClear(p.x, p.y, bot.x, bot.y)) return navTo(p, bot.x, bot.y);
+    p.path = null;
+    return strafeMove(p, dx / dist, dy / dist, dist);
+  }
+
+  function updateP2() {
+    let mx = 0, my = 0;
+    if (keys['arrowleft']) mx--; if (keys['arrowright']) mx++;
+    if (keys['arrowup']) my--; if (keys['arrowdown']) my++;
+    if (mx || my) { const m = Math.hypot(mx, my); mx /= m; my /= m; bot.aim = Math.atan2(my, mx); }
+    moveFighter(bot, mx * 3.2, my * 3.2);
+    if (bot.cd > 0) bot.cd--;
+    if (keys['enter'] && bot.cd <= 0) fire(bot, 'p2', bot.gun);
+  }
   function updateBot() {
     const b = bot;
     if (b.cd > 0) b.cd--;
     const dx = player.x - b.x, dy = player.y - b.y, dist = Math.hypot(dx, dy) || 1;
-    const los = lineClear(b.x, b.y, player.x, player.y);
-    const speed = Math.min(3.4, diff().speed + round * 0.04);
+    const los = !player.dead && lineClear(b.x, b.y, player.x, player.y);
+    const goal = mode === 'ctf' ? botGoal() : null;
+    const speed = Math.min(3.4, diff().speed + round * 0.04) * (mode === 'ctf' && flags.p.carrier === b ? 0.85 : 1);
 
     // dodge incoming bullets
     let dodge = 0;
@@ -425,6 +744,12 @@
     const ux = dx / dist, uy = dy / dist;
     if (dodge && Math.random() < diff().dodge) {
       vx = uy * dodge; vy = -ux * dodge; // sidestep
+    } else if (goal) {
+      const gx = goal.x - b.x, gy = goal.y - b.y, gd = Math.hypot(gx, gy) || 1;
+      const nx = gx / gd, ny = gy / gd;
+      vx = nx; vy = ny;
+      if (mode === 'ctf' && blocked(b.x + nx * (b.r + 10), b.y + ny * (b.r + 10), 4)) { b.stuck = 0; b.detourT = 0; if (++b.digT >= 8) { b.digT = 0; dig(b, Math.atan2(ny, nx), 2); } }
+      if (b.detourT > 0) { b.detourT--; vx += -ny * (b.detour || 1) * 1.6; vy += nx * (b.detour || 1) * 1.6; }
     } else {
       if (--b.strafeT <= 0) { b.strafe = Math.random() < 0.5 ? -1 : 1; b.strafeT = 40 + Math.random() * 80; }
       const want = los ? 270 : 0;
@@ -436,7 +761,7 @@
     const ox = b.x, oy = b.y;
     moveFighter(b, vx / m * speed, vy / m * speed);
     // stuck on a wall? try the other way
-    if (Math.hypot(b.x - ox, b.y - oy) < speed * 0.4) { if (++b.stuck > 8) { b.strafe *= -1; b.strafeT = 40; b.stuck = 0; } } else b.stuck = 0;
+    if (Math.hypot(b.x - ox, b.y - oy) < speed * 0.4) { if (++b.stuck > 8) { b.strafe *= -1; b.strafeT = 40; b.stuck = 0; b.detour = Math.random() < 0.5 ? -1 : 1; b.detourT = 50; } } else b.stuck = 0;
 
     // aim + shoot
     const err = Math.max(0.02, diff().err - round * 0.008);
@@ -457,6 +782,13 @@
 
   function endRound(won) {
     state = 'over';
+    if (mode === '2p') {
+      won ? score1++ : score2++; layoutIdx++; sfx.win();
+      showOverlay(true, '🏆 Player ' + (won ? '1' : '2') + ' wins!', 'Score: P1 <b>' + score1 + '</b> – <b>' + score2 + '</b> P2', 'Next round', startRound, false, p => {
+        const b = document.createElement('button'); b.textContent = '🏠 Main menu'; b.onclick = () => showMenu(); p.appendChild(b);
+      });
+      return;
+    }
     if (won) {
       const gain = 10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName]; coins += gain; saveStuff();
       wins++; round++; layoutIdx++;
@@ -492,6 +824,17 @@
     ctx.restore();
   }
 
+  let dirtPat = null;
+  function dirtPattern() {
+    if (dirtPat) return dirtPat;
+    const c = document.createElement('canvas'); c.width = c.height = 40;
+    const g = c.getContext('2d');
+    g.fillStyle = '#7a5230'; g.fillRect(0, 0, 40, 40);
+    g.fillStyle = '#6a4526'; for (const [x, y] of [[4, 6], [22, 4], [12, 20], [30, 24], [6, 33], [26, 34]]) g.fillRect(x, y, 6, 5);
+    g.fillStyle = '#8c6239'; for (const [x, y] of [[14, 8], [32, 12], [3, 24], [20, 30]]) g.fillRect(x, y, 4, 4);
+    g.strokeStyle = 'rgba(0,0,0,.18)'; g.strokeRect(0.5, 0.5, 39, 39);
+    dirtPat = ctx.createPattern(c, 'repeat'); return dirtPat;
+  }
   function draw(t) {
     ctx.save();
     if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
@@ -503,7 +846,9 @@
 
     if (obstacles) {
       for (const o of obstacles) {
-        if (o.type === 'w') {
+        if (o.type === 'd') {
+          ctx.fillStyle = dirtPattern(); ctx.fillRect(o.x, o.y, o.w, o.h);
+        } else if (o.type === 'w') {
           ctx.fillStyle = '#5a4bb5'; ctx.fillRect(o.x, o.y, o.w, o.h);
           ctx.strokeStyle = '#8f84d6'; ctx.lineWidth = 3; ctx.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
         } else {
@@ -523,11 +868,20 @@
       }
       for (const b of bullets) {
         ctx.fillStyle = b.owner === 'p' ? b.color : '#ffc2d6';
-        ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, 6.283); ctx.fill();
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.283); ctx.fill();
         ctx.fillStyle = b.owner === 'p' ? 'rgba(79,209,255,.35)' : 'rgba(255,107,154,.35)';
         ctx.beginPath(); ctx.arc(b.x - b.vx * 0.8, b.y - b.vy * 0.8, 4, 0, 6.283); ctx.fill();
       }
-      drawFighter(player, t); drawFighter(bot, t);
+      if (mode === 'ctf' && flags) {
+        for (const [base, col] of [[BASE_P, '#4fd1ff'], [BASE_B, '#ff6b9a']]) {
+          ctx.fillStyle = col + '22'; ctx.strokeStyle = col + '88'; ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
+          ctx.beginPath(); ctx.arc(base.x, base.y, BASE_R, 0, 6.283); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+        }
+        drawFlag(flags.p.x, flags.p.y, '#4fd1ff', !!flags.p.carrier);
+        drawFlag(flags.b.x, flags.b.y, '#ff6b9a', !!flags.b.carrier);
+      }
+      if (!player.dead) drawFighter(player, t);
+      if (!bot.dead) drawFighter(bot, t);
       for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.color; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }
       ctx.globalAlpha = 1;
       // HUD
@@ -543,19 +897,32 @@
         }
         ctx.globalAlpha = 1; ctx.font = '700 20px system-ui, sans-serif';
       };
-      bar(16, 150, player, '#4fd1ff', 'YOU', false);
-      bar(W - 166, 150, bot, '#ff6b9a', 'BOT', true);
+      bar(16, 150, player, '#4fd1ff', mode === '2p' ? 'P1' : 'YOU', false);
+      bar(W - 166, 150, bot, '#ff6b9a', mode === '2p' ? 'P2' : 'BOT', true);
       ctx.textAlign = 'center'; ctx.fillStyle = '#cfc8f5';
-      ctx.fillText('Round ' + round + '  •  Streak ' + wins, W / 2, 12);
-      ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(diff().label, W / 2, 38);
+      ctx.fillText(mode === 'ctf' ? 'You ' + caps1 + ' – ' + caps2 + ' Bot  (first to ' + CTF_WIN + ')' : mode === '2p' ? 'P1 ' + score1 + ' – ' + score2 + ' P2' : 'Round ' + round + '  •  Streak ' + wins, W / 2, 12);
+      ctx.font = '600 14px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText(mode === '2p' ? '👥 2 Players' : diff().label, W / 2, 38);
+      if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 PRO Aimbot ON' : '🎯 Aimbot ON', W / 2, 80); }
+      if (mode === 'ctf') {
+        ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.textAlign = 'center';
+        const hint = aimPro ? '🤖 PRO autopilot is playing Capture the Flag for you' : flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
+        if (hint) ctx.fillText(hint, W / 2, 60);
+        ctx.font = '600 13px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText('⛏ Hold E to dig (Shovel Lv ' + shovelLv + ')', W / 2, 100);
+        if (banner && banner.t > 0) { ctx.font = '900 44px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(banner.text, W / 2, H / 2 - 24); }
+      }
+      if (toast && toast.t > 0) { ctx.font = '900 30px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd24d'; ctx.fillText(toast.text, W / 2, H - 90); ctx.textBaseline = 'top'; }
       // gun slots + wall blocks
       ctx.textBaseline = 'middle';
       for (let i = 0; i < GUNS.length; i++) {
-        const x = 16 + i * 112, y = H - 34, sel = player.gun === i; ctx.globalAlpha = owned[i] ? 1 : 0.35;
+        const x = 16 + i * 76, y = H - 34, sel = player.gun === i; ctx.globalAlpha = owned[i] ? 1 : 0.35;
         ctx.fillStyle = sel ? 'rgba(255,176,32,.9)' : 'rgba(255,255,255,.1)';
-        ctx.beginPath(); ctx.roundRect(x, y, 104, 26, 8); ctx.fill();
-        ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 13px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + GUNS[i].name, x + 52, y + 14); ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill();
+        ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText((owned[i] ? (i + 1) + ' ' : '🔒 ') + (GUNS[i].short || GUNS[i].name), x + 36, y + 9);
+        if (owned[i]) {
+          ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(gunLevel(i) >= 5 ? 'Lv5 MAX' : 'Lv' + gunLevel(i), x + 36, y + 19);
+        }
+        ctx.globalAlpha = 1;
       }
       ctx.textAlign = 'right'; ctx.fillStyle = '#4fe0c0'; ctx.font = '700 15px system-ui, sans-serif';
       ctx.fillText('🧱 ' + '■'.repeat(player.blocks) + '□'.repeat(MAX_BLOCKS - player.blocks) + '  (B)', W - 16, H - 20);
