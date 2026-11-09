@@ -360,6 +360,7 @@
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true); bot.team = 1; bot.isBot = mode !== '2p';
     player.gun = startGun();
     fighters = [player, bot];
+    player.lane = newLane(); bot.lane = newLane();
     if (mode === 'team') buildTeams();
     foe = bot;
     bullets = []; parts = []; puddles = []; flags = null;
@@ -442,7 +443,8 @@
   const atBase = (fl, base) => fl.x === base.x && fl.y === base.y;
   function initFlags() { flags = { p: { x: BASE_P.x, y: BASE_P.y, carrier: null }, b: { x: BASE_B.x, y: BASE_B.y, carrier: null } }; }
   function newCTF() { mode = 'ctf'; caps1 = caps2 = 0; banner = null; round = 1; startRound(); }
-  function ctfRespawn(f, x) { if (f === player) f.gun = startGun(); f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
+  const newLane = () => H / 2 + (Math.random() - 0.5) * 520; // each life takes a different route so the bots don't always meet head-on
+  function ctfRespawn(f, x) { f.lane = newLane(); f.invuln = 90; if (f === player) f.gun = startGun(); f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
   function ctfScore(who) {
     who === 'p' ? caps1++ : caps2++;
     banner = { text: who === 'p' ? '🚩 You scored!' : '🚩 Bot scored!', t: 110 };
@@ -458,7 +460,7 @@
       if (f.dead) continue;
       if (!theirs.carrier && Math.hypot(f.x - theirs.x, f.y - theirs.y) < f.r + 14) { theirs.carrier = f; beep(740, 0.12, 'square', 0.06); }
       if (!mine.carrier && !atBase(mine, base) && Math.hypot(f.x - mine.x, f.y - mine.y) < f.r + 14) { mine.x = base.x; mine.y = base.y; beep(500, 0.12, 'triangle', 0.07); }
-      if (theirs.carrier === f && atBase(mine, base) && Math.hypot(f.x - base.x, f.y - base.y) < BASE_R) { ctfScore(who); return; }
+      if (theirs.carrier === f && Math.hypot(f.x - base.x, f.y - base.y) < BASE_R) { ctfScore(who); return; }
     }
     for (const fl of [flags.p, flags.b]) if (fl.carrier) { fl.x = fl.carrier.x; fl.y = fl.carrier.y; }
     for (const f of [player, bot]) {
@@ -483,9 +485,9 @@
     if (carve(f.x + Math.cos(ang) * (hs - 2), f.y + Math.sin(ang) * (hs - 2), hs)) beep(140, 0.06, 'triangle', 0.06);
   }
   function botGoal() {
-    if (flags.b.carrier === player) return { x: player.x, y: player.y };
-    if (!atBase(flags.b, BASE_B)) return { x: flags.b.x, y: flags.b.y };
-    if (flags.p.carrier === bot) return BASE_B;
+    if (flags.p.carrier === bot) return BASE_B;                                        // I have their flag: run home and score
+    if (flags.b.carrier === player) return { x: player.x, y: player.y };               // they have my flag: hunt them
+    if (!atBase(flags.b, BASE_B)) return { x: flags.b.x, y: flags.b.y };               // my flag was dropped: bring it home
     return { x: flags.p.x, y: flags.p.y };
   }
   function endCTF(won) {
@@ -727,6 +729,7 @@
   function statusTick() {
     for (const f of fighters) {
       if (f.dead) { f.burn = 0; f.slow = 0; continue; }
+      if (f.invuln > 0) f.invuln--;
       if (f.burn > 0) {
         if (inPuddle(f)) f.burn = 0;
         else {
@@ -823,6 +826,11 @@
     if ((mouse.down || keys[' '] || autoFire) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
     if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
 
+    // Operator autopilot throws up a quick shield wall when bullets are coming at it
+    if (auto && aimbot && !foe.dead && (player.shT = (player.shT || 0) - 1) <= 0) {
+      const threat = bullets.some(bl => bl.team !== player.team && Math.hypot(bl.x - player.x, bl.y - player.y) < 260 && ((player.x - bl.x) * bl.vx + (player.y - bl.y) * bl.vy) > 0);
+      if (threat) { const a = Math.atan2(foe.y - player.y, foe.x - player.x); tryBuild(player, player.x + Math.cos(a) * 64, player.y + Math.sin(a) * 64); player.shT = 25; }
+    }
     if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) updateBot(f);
     for (const f of fighters) if (f !== player && f.blocks < MAX_BLOCKS && ++f.blockT >= 150) { f.blocks++; f.blockT = 0; }
 
@@ -850,7 +858,7 @@
       if (b.dead && b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, false);
       if (b.dead) continue;
       let target = null;
-      for (const f of fighters) if (f.team !== b.team && !f.dead && Math.hypot(b.x - f.x, b.y - f.y) < f.r + b.r - 1) { target = f; break; }
+      for (const f of fighters) if (f.team !== b.team && !f.dead && !(f.invuln > 0) && Math.hypot(b.x - f.x, b.y - f.y) < f.r + b.r - 1) { target = f; break; }
       if (target) {
         b.dead = true; target.hp -= b.dmg; target.flash = 10; shake = 8;
         if (b.fire) ignite(target, b.fire);
@@ -994,9 +1002,9 @@
   }
   // Capture the Flag brain for the autopilot (same rules the bot follows)
   function playerGoal() {
+    if (flags.b.carrier === player) return { x: BASE_P.x, y: BASE_P.y, kind: 'home' };      // I have their flag: run home and score
     if (flags.p.carrier === bot && !bot.dead) return { x: bot.x, y: bot.y, kind: 'bot' };   // they have my flag: hunt them
     if (!atBase(flags.p, BASE_P)) return { x: flags.p.x, y: flags.p.y, kind: 'flag' };      // my flag was dropped: bring it home
-    if (flags.b.carrier === player) return { x: BASE_P.x, y: BASE_P.y, kind: 'home' };      // I have their flag: run home
     return { x: flags.b.x, y: flags.b.y, kind: 'flag' };                                      // go grab their flag
   }
   function strafeMove(p, ux, uy, dist, wantFar) {
@@ -1010,10 +1018,10 @@
     if (dv) return safeDir(p, dv[0], dv[1]);
     if (mode === 'ctf') {
       const g = playerGoal();
-      if (g.kind === 'bot' && !bot.dead && corridorClear(p.x, p.y, bot.x, bot.y, 4) && lineClear(p.x, p.y, bot.x, bot.y)) {
+      if (g.kind !== 'home' && !bot.dead && !(bot.invuln > 0) && Math.hypot(g.x - p.x, g.y - p.y) > 220 && Math.hypot(bot.x - p.x, bot.y - p.y) < 300 && corridorClear(p.x, p.y, bot.x, bot.y, 4) && lineClear(p.x, p.y, bot.x, bot.y)) {
         if (aimbot && inWallNow(p)) return escapeDir(p, bot.x, bot.y);
         const d = Math.hypot(bot.x - p.x, bot.y - p.y) || 1;
-        return strafeMove(p, (bot.x - p.x) / d, (bot.y - p.y) / d, d, 200);
+        return strafeMove(p, (bot.x - p.x) / d, (bot.y - p.y) / d, d, 260);
       }
       return navTo(p, g.x, g.y);
     }
@@ -1043,6 +1051,7 @@
     if (b.burn > 0 && diffName !== 'easy' && b.water > 0) { b.burnAge = (b.burnAge || 0) + 1; if (b.burnAge > ({ medium: 90, hard: 50, insane: 25 }[diffName] || 90)) { placePuddle(b); b.burnAge = 0; } } else b.burnAge = 0;
     const speed = Math.min(3.4, diff().speed + round * 0.04) * (mode === 'ctf' && flags.p.carrier === b ? 0.85 : 1) * (b.slow > 0 ? 0.5 : 1);
 
+    const fight = !!goal && los && dist < 300 && !(fo.invuln > 0) && Math.hypot(goal.x - b.x, goal.y - b.y) > 220 && !(mode === 'ctf' && flags.p.carrier === b); // in Capture the Flag: fight if you see the enemy, but run if you carry a flag
     // dodge incoming bullets
     let dodge = 0;
     for (const bl of bullets) {
@@ -1058,7 +1067,7 @@
     if (dodge && !(b.dodgeT > 0) && Math.random() < diff().dodge) { b.dodgeT = 12; b.dodgeD = dodge; }
     if (b.dodgeT > 0) {
       b.dodgeT--; vx = uy * b.dodgeD; vy = -ux * b.dodgeD; // sidestep (held for a few frames so it doesn't twitch)
-    } else if (goal) {
+    } else if (goal && !fight) {
       b.digAng = null;
       const nv = navTo(b, goal.x, goal.y); vx = nv[0]; vy = nv[1];
       if (b.digAng != null) { b.stuck = 0; if (++b.digT >= 8) { b.digT = 0; dig(b, b.digAng, 2); } }
@@ -1287,7 +1296,7 @@
         drawFlag(flags.p.x, flags.p.y, '#4fd1ff', !!flags.p.carrier);
         drawFlag(flags.b.x, flags.b.y, '#ff6b9a', !!flags.b.carrier);
       }
-      for (const f of fighters) { if (f.dead) continue; if (f === player) { ctx.globalAlpha = player.ghosting ? 0.45 : 1; drawFighter(player, t); ctx.globalAlpha = 1; } else drawFighter(f, t); }
+      for (const f of fighters) { if (f.dead) continue; const flick = f.invuln > 0 && Math.floor(Date.now() / 90) % 2 ? 0.35 : 1; if (f === player) { ctx.globalAlpha = player.ghosting ? 0.45 : flick; drawFighter(player, t); ctx.globalAlpha = 1; } else { ctx.globalAlpha = flick; drawFighter(f, t); ctx.globalAlpha = 1; } }
       if (mode === 'team') for (const f of fighters) { if (f.dead || f === player) continue; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(f.x - 18, f.y - 34, 36, 6); ctx.fillStyle = f.team === 0 ? '#4fd1ff' : '#ff6b9a'; ctx.fillRect(f.x - 17, f.y - 33, 34 * Math.max(0, f.hp) / f.maxHp, 4); }
       ctx.font = '22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (const f of fighters) { if (f.dead) continue; if (f.burn > 0) ctx.fillText('🔥', f.x + Math.sin(Date.now() / 90) * 4, f.y - 28); if (f.slow > 0) ctx.fillText('❄️', f.x, f.y - 30); }
