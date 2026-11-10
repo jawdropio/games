@@ -388,7 +388,7 @@
     player = makeFighter(80, H / 2, '#4fd1ff', false); player.team = 0;
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true); bot.team = 1; bot.isBot = mode !== '2p';
     player.gun = startGun();
-    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; player.shield = sk.id === 'galaxy' ? 1 : 0; player.shT2 = 0; }
+    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; player.shield = sk.id === 'galaxy' ? 1 : 0; player.shT2 = 0; player.rainCd = 0; rainFx = []; }
     fighters = [player, bot];
     player.lane = newLane(); bot.lane = newLane();
     if (mode === 'team') buildTeams();
@@ -496,6 +496,7 @@
     for (const f of [player, bot]) {
       if (!f.dead && f.hp <= 0) {
         f.dead = true; f.respawn = 150; burst(f.x, f.y, f.color, 20);
+        if (player.skin === 'tux' && f.team !== player.team) { coins += 10; toast = { text: '💰 +10 coins!', t: 70 }; }
         for (const fl of [flags.p, flags.b]) if (fl.carrier === f) fl.carrier = null;
       } else if (f.dead && --f.respawn <= 0) ctfRespawn(f, f === player ? 80 : W - 80);
     }
@@ -680,6 +681,7 @@
       if (k >= '1' && k <= '9' && own(gunOrder[+k - 1])) player.gun = gunOrder[+k - 1];
       if (k === 'b' && !e.repeat) tryBuild();
       if ((k === '0' || k === 'q') && !e.repeat) placePuddle(player);
+      if (k === 'f' && !e.repeat) makeItRain();
       if (k === '.' && mode === '2p' && !e.repeat) placePuddle(bot);
       if (k === 'o' && aimbot && !e.repeat) { aimPro = !aimPro; toast = { text: aimPro ? '🤖 Autopilot ON' : '🕹️ Autopilot OFF – you drive!', t: 90 }; }
       if (mode === '2p' && !e.repeat) {
@@ -777,6 +779,16 @@
   // ----- fire, ice, water, explosions -----
   const inPuddle = f => puddles.some(p => Math.hypot(f.x - p.x, f.y - p.y) < p.r);
   function ignite(f, power) { if (f.skin === 'lava') return; if (!inPuddle(f)) f.burn = Math.max(f.burn || 0, 300 * power); }
+  // Tuxedo Boss power: money storm that stuns everyone close to you
+  let rainFx = [];
+  function makeItRain() {
+    if (player.skin !== 'tux' || player.dead || player.rainCd > 0) return false;
+    player.rainCd = 1200; rainFx.push({ x: player.x, y: player.y, t: 36 });
+    for (const o of fighters) if (o.team !== player.team && !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < 420) { o.stun = 120; o.slow = Math.max(o.slow || 0, 240); }
+    for (let i = 0; i < 46; i++) { const a = Math.random() * 6.283, sp = 2 + Math.random() * 5; trails.push({ k: 'money', x: player.x, y: player.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 36 + Math.random() * 20, max: 55, ph: Math.random() * 6.283 }); }
+    [900, 1200, 1500, 1800].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'square', 0.06), i * 60));
+    return true;
+  }
   function placePuddle(f) {
     const free = aimbot && f === player;
     if (f.dead || (!free && f.water < 1)) return false;
@@ -789,6 +801,7 @@
     for (const f of fighters) {
       if (f.dead) { f.burn = 0; f.slow = 0; continue; }
       if (f.invuln > 0) f.invuln--;
+      if (f === player && f.rainCd > 0) f.rainCd--;
       if (f.skin === 'lava') for (const o of fighters) if (o.team !== f.team && !o.dead && Math.hypot(o.x - f.x, o.y - f.y) < f.r + o.r + 8) ignite(o, 1); // lava skin: touching you burns
       if (f.skin === 'galaxy' && !(f.shield > 0) && --f.shT2 <= 0) { f.shield = 1; beep(900, 0.12, 'sine', 0.06); }
       if (f.burn > 0) {
@@ -853,6 +866,7 @@
     foe = nearestFoe(player) || bot;
     for (const f of fighters) { f.vxm = f.x - (f.lx ?? f.x); f.vym = f.y - (f.ly ?? f.y); f.lx = f.x; f.ly = f.y; if (f.skin && !f.dead && Math.hypot(f.vxm, f.vym) > 0.5) spawnTrail(f); }
     for (const tr of trails) { tr.x += tr.vx; tr.y += tr.vy; tr.life--; }
+    for (const r of rainFx) r.t--; rainFx = rainFx.filter(r => r.t > 0);
     trails = trails.filter(tr => tr.life > 0);
     const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !foe.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
@@ -889,6 +903,7 @@
     if ((mouse.down || keys[' '] || autoFire) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
     if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
 
+    if (aimbot && player.skin === 'tux' && foe && !foe.dead && Math.hypot(foe.x - player.x, foe.y - player.y) < 380) makeItRain(); // operator uses Make It Rain too
     // Operator autopilot throws up a quick shield wall when bullets are coming at it
     if (auto && aimbot && !foe.dead && (player.shT = (player.shT || 0) - 1) <= 0) {
       const threat = bullets.some(bl => bl.team !== player.team && Math.hypot(bl.x - player.x, bl.y - player.y) < 340 && ((player.x - bl.x) * bl.vx + (player.y - bl.y) * bl.vy) > 0);
@@ -898,7 +913,7 @@
         player.shT = 20;
       }
     }
-    if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) updateBot(f);
+    if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) { if (f.stun > 0) { f.stun--; continue; } updateBot(f); }
     for (const f of fighters) if (f !== player && f.blocks < MAX_BLOCKS && ++f.blockT >= 150) { f.blocks++; f.blockT = 0; }
 
     // bullets
@@ -932,7 +947,7 @@
         if (target.skin === 'galaxy' && target.shield > 0) { // star shield soaks up the hit
           target.shield = 0; target.shT2 = 1200; burst(b.x, b.y, '#c9a6ff', 16); beep(500, 0.15, 'sine', 0.08);
         } else {
-          target.hp -= b.dmg; target.flash = 10; shake = 8;
+          target.hp -= b.dmg * (target.skin === 'tux' ? 0.7 : 1); target.flash = 10; shake = 8;
           if (b.fire) ignite(target, b.fire);
           if (b.slow) target.slow = Math.max(target.slow || 0, 90 * b.slow);
           if (b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, true);
@@ -956,7 +971,7 @@
 
     if (mode === 'ctf') ctfTick();
     else {
-      for (const f of fighters) if (!f.dead && f.hp <= 0) { f.dead = true; burst(f.x, f.y, f.color, 22); sfx.hit(); }
+      for (const f of fighters) if (!f.dead && f.hp <= 0) { f.dead = true; burst(f.x, f.y, f.color, 22); sfx.hit(); if (player.skin === 'tux' && f.team !== player.team) { coins += 10; toast = { text: '💰 +10 coins!', t: 70 }; } }
       if (fighters.every(f => f.team !== 1 || f.dead)) endRound(true);
       else if (fighters.every(f => f.team !== 0 || f.dead)) endRound(false);
     }
@@ -1110,6 +1125,7 @@
   }
 
   function updateP2() {
+    if (bot.stun > 0) { bot.stun--; return; }
     let mx = 0, my = 0;
     if (keys['arrowleft']) mx--; if (keys['arrowright']) mx++;
     if (keys['arrowup']) my--; if (keys['arrowdown']) my++;
@@ -1265,7 +1281,7 @@
         const p = (Math.sin(t / 240) + 1) / 2, gr = g.createRadialGradient(0, 0, 1, 0, 0, r * 0.7); gr.addColorStop(0, 'rgba(255,40,70,' + (0.3 + 0.4 * p) + ')'); gr.addColorStop(1, 'rgba(255,40,70,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r);
         g.strokeStyle = 'rgba(255,40,60,' + (0.4 + 0.5 * p) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, r - 2, 0, 6.283); g.stroke();
       } },
-    { id: 'tux', name: 'Tuxedo Boss', icon: '🎩', base: '#14141a', cost: 0, secret: true, anim: true, img: 'tux', eye: '#ffffff', info: 'A cartoon dude in a tux and top hat. Reward skin!', power: '💰 Leaves a trail of money and gold bars',
+    { id: 'tux', name: 'Tuxedo Boss', icon: '🎩', base: '#14141a', cost: 0, secret: true, anim: true, img: 'tux', eye: '#ffffff', info: 'A cartoon dude in a tux and top hat. Reward skin!', power: '🛡️ Bulletproof tux (take 30% less damage) • 💰 +10 coins for every enemy KO • 💸 Press F: "Make It Rain" stuns nearby enemies for 2 seconds (20 second cooldown) • leaves a trail of money',
       paint(g, t, r) {
         g.fillStyle = '#14141a'; g.fillRect(-r, -r, 2 * r, 2 * r);
         g.fillStyle = '#f6f6f6'; g.beginPath(); g.moveTo(-r * 0.4, -r); g.lineTo(r * 0.4, -r); g.lineTo(r * 0.22, r * 0.75); g.lineTo(-r * 0.22, r * 0.75); g.closePath(); g.fill();
@@ -1497,6 +1513,7 @@
         ctx.strokeRect(gx + 1, gy + 1, GRID - 2, GRID - 2); ctx.setLineDash([]);
       }
       drawTrails();
+      for (const r of rainFx) { ctx.strokeStyle = 'rgba(255,215,60,' + (r.t / 36) + ')'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(r.x, r.y, 420 * (1 - r.t / 36), 0, 6.283); ctx.stroke(); }
       for (const pd of puddles) {
         const fade = Math.min(1, pd.t / 120), rip = 1 + Math.sin(Date.now() / 250 + pd.x) * 0.04;
         ctx.globalAlpha = 0.5 * fade; ctx.fillStyle = '#4aa8ff'; ctx.beginPath(); ctx.ellipse(pd.x, pd.y + 6, pd.r * rip, pd.r * 0.7 * rip, 0, 0, 6.283); ctx.fill();
@@ -1521,7 +1538,7 @@
       if (mode === 'team' && !player.dead) { ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#4fd1ff'; ctx.fillText('▼', player.x, player.y - 36); }
       if (mode === 'team') for (const f of fighters) { if (f.dead || f === player) continue; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(f.x - 18, f.y - 34, 36, 6); ctx.fillStyle = f.team === 0 ? '#4fd1ff' : '#ff6b9a'; ctx.fillRect(f.x - 17, f.y - 33, 34 * Math.max(0, f.hp) / f.maxHp, 4); }
       ctx.font = '22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      for (const f of fighters) { if (f.dead) continue; if (f.burn > 0) ctx.fillText('🔥', f.x + Math.sin(Date.now() / 90) * 4, f.y - 28); if (f.slow > 0) ctx.fillText('❄️', f.x, f.y - 30); }
+      for (const f of fighters) { if (f.dead) continue; if (f.burn > 0) ctx.fillText('🔥', f.x + Math.sin(Date.now() / 90) * 4, f.y - 28); if (f.slow > 0) ctx.fillText('❄️', f.x, f.y - 30); if (f.stun > 0) ctx.fillText('💫', f.x, f.y - 48); }
       for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.color; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }
       ctx.globalAlpha = 1;
       // HUD
@@ -1576,6 +1593,7 @@
         ctx.fillText('0 💧 Water', x + 36, y + 9);
         ctx.font = '700 9px system-ui, sans-serif'; ctx.fillText(aimbot ? '∞' : '×' + player.water, x + 36, y + 19);
       }
+      if (player.skin === 'tux') { const x = 16 + GUNS.length * 76 + 80, y = H - 34, cd = player.rainCd > 0; ctx.globalAlpha = 1; ctx.fillStyle = cd ? 'rgba(255,255,255,.12)' : 'rgba(255,200,40,.9)'; ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill(); ctx.fillStyle = cd ? '#cfc8f5' : '#3a2600'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('F 💸 Rain', x + 36, y + 9); ctx.font = '700 9px system-ui, sans-serif'; ctx.fillText(cd ? Math.ceil(player.rainCd / 60) + 's' : 'READY', x + 36, y + 19); }
       if (player.burn > 0 && !player.dead) { ctx.font = '900 24px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = '#ff8a2b'; ctx.fillText("🔥 YOU'RE BURNING! Press 0 or Q for water 💧", W / 2, 120); ctx.textBaseline = 'middle'; }
       if (ghostOwned || aimbot) {
         const gw = 120, gx = W - 16 - gw, gy = H - 50, fr = aimbot ? 1 : Math.max(0, player.ghostE) / GHOST_MAX;
