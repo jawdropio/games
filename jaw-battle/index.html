@@ -562,7 +562,8 @@
   function menuLinks(p) {
     const dr = document.createElement('div'); dr.className = 'row';
     const db = document.createElement('button');
-    if (dailyReady()) { db.textContent = '🎁 Daily reward (+' + dailyReward(daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1) + ' coins, needs a code!)'; db.className = 'on'; db.onclick = showDaily; }
+    const spOpen = specialToday() && !specialDone.includes(dayStr(Date.now()));
+    if (dailyReady() || spOpen) { db.textContent = spOpen ? '🎁 Daily reward (special code today!)' : '🎁 Daily reward (+' + dailyReward(daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1) + ' coins, needs a code!)'; db.className = 'on'; db.onclick = showDaily; }
     else { db.textContent = '🎁 Daily coins claimed ✅ (come back tomorrow!)'; db.disabled = true; }
     dr.appendChild(db); p.appendChild(dr);
     const row = document.createElement('div'); row.className = 'row';
