@@ -185,8 +185,8 @@
   // today's secret code: the boss (you!) tells friends, and the Operator screen shows it
   // special one-day codes: a big reward (coins + a skin)
   const SPECIAL_DAYS = {
-    '2026-11-8': { code: 'BOSSTHEBEST', shown: 'BOSS THE BEST', coins: 1000, skin: 'tux' },
-    '2026-11-9': { code: 'BOSSTHEBEST', shown: 'BOSS THE BEST', coins: 1000, skin: 'tux' },
+    '2026-11-8': { code: 'JWTHEBEST', shown: 'JW THE BEST', coins: 1000, skin: 'tux' },
+    '2026-11-9': { code: 'JWTHEBEST', shown: 'JW THE BEST', coins: 1000, skin: 'tux' },
   };
   const specialToday = () => SPECIAL_DAYS[dayStr(Date.now())] || null;
   const normCode = v => String(v).toUpperCase().replace(/[^A-Z0-9]/g, '');
