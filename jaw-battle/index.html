@@ -183,7 +183,31 @@
   const dailyReady = () => daily.last !== dayStr(Date.now());
   const dailyReward = streak => 50 + 10 * (Math.min(streak, 7) - 1);
   // today's secret code: the boss (you!) tells friends, and the Operator screen shows it
+  // special one-day codes: a big reward (coins + a skin)
+  const SPECIAL_DAYS = {
+    '2026-11-8': { code: 'JWTHEBEST', shown: 'JW THE BEST', coins: 1000, skin: 'tux' },
+    '2026-11-9': { code: 'JWTHEBEST', shown: 'JW THE BEST', coins: 1000, skin: 'tux' },
+  };
+  const specialToday = () => SPECIAL_DAYS[dayStr(Date.now())] || null;
+  const normCode = v => String(v).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let specialDone = [];
+  try { const o = JSON.parse(localStorage.getItem('jawBattleSpecialDone') || '[]'); if (Array.isArray(o)) specialDone = o; } catch (e) {}
+  function claimSpecial(sp) {
+    const key = dayStr(Date.now());
+    if (specialDone.includes(key)) return false;
+    specialDone.push(key); try { localStorage.setItem('jawBattleSpecialDone', JSON.stringify(specialDone)); } catch (e) {}
+    coins += sp.coins;
+    let extra = '';
+    if (sp.skin && !skinsOwned.includes(sp.skin)) skinsOwned.push(sp.skin);
+    if (sp.skin) { skinId = sp.skin; extra = ' and the ' + skinById(sp.skin).name + ' skin 🎩'; }
+    if (dailyReady()) { const streak = daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1; daily = { last: key, streak }; try { localStorage.setItem('jawBattleDaily', JSON.stringify(daily)); } catch (e) {} }
+    saveStuff();
+    [660, 880, 1100, 1320].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'square', 0.07), i * 90));
+    showMenu('🎉 SPECIAL CODE! You got ' + sp.coins + ' coins' + extra + '!');
+    return true;
+  }
   function dailyCode() {
+    const sp = specialToday(); if (sp) return sp.shown;
     const d = new Date(), key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
     let h = Math.imul(key, 2654435761) >>> 0; h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995) >>> 0; h ^= h >>> 15;
     return 'JAW' + String(1000 + ((h >>> 0) % 9000));
@@ -191,12 +215,13 @@
   function showDaily() {
     showOverlay(true, '🎁 Daily Reward', 'Ask the game boss for today\'s secret code!' + (aimbot ? '<br>🕶️ <small>Operator sees today\'s code: <b>' + dailyCode() + '</b></small>' : ''), 'Back', () => showMenu(), false, p => {
       const row = document.createElement('div'); row.className = 'row';
-      const inp = document.createElement('input'); inp.placeholder = 'Daily code'; inp.maxLength = 12;
+      const inp = document.createElement('input'); inp.placeholder = 'Daily code'; inp.maxLength = 24;
       const go = document.createElement('button'); go.textContent = '🎁 Claim!';
       const msg = document.createElement('div'); msg.style.cssText = 'min-height:22px;font-weight:700';
       const submit = () => {
-        const v = inp.value.trim().toUpperCase().replace('-', '');
-        if (v === dailyCode()) claimDaily();
+        const v = normCode(inp.value), sp = specialToday();
+        if (sp && v === normCode(sp.code)) { if (!claimSpecial(sp)) { msg.textContent = '✅ You already claimed today\'s special reward!'; inp.value = ''; } }
+        else if (!sp && v === normCode(dailyCode())) claimDaily();
         else { msg.textContent = '🤔 That is not today\'s code. Ask the boss!'; inp.value = ''; beep(200, 0.2, 'sawtooth', 0.06); }
       };
       inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submit(); });
@@ -537,7 +562,8 @@
   function menuLinks(p) {
     const dr = document.createElement('div'); dr.className = 'row';
     const db = document.createElement('button');
-    if (dailyReady()) { db.textContent = '🎁 Daily reward (+' + dailyReward(daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1) + ' coins, needs a code!)'; db.className = 'on'; db.onclick = showDaily; }
+    const spOpen = specialToday() && !specialDone.includes(dayStr(Date.now()));
+    if (dailyReady() || spOpen) { db.textContent = spOpen ? '🎁 Daily reward (special code today!)' : '🎁 Daily reward (+' + dailyReward(daily.last === dayStr(Date.now() - 864e5) ? daily.streak + 1 : 1) + ' coins, needs a code!)'; db.className = 'on'; db.onclick = showDaily; }
     else { db.textContent = '🎁 Daily coins claimed ✅ (come back tomorrow!)'; db.disabled = true; }
     dr.appendChild(db); p.appendChild(dr);
     const row = document.createElement('div'); row.className = 'row';
@@ -549,13 +575,15 @@
   // ---------- gun shop ----------
   let shopTab = 'guns', arrSel = null, previews = [], previewOn = false;
   function paintPreview(c, k, t) {
-    const g = c.getContext('2d'); g.clearRect(0, 0, 76, 76); g.save(); g.translate(38, 38); const r = 26;
+    const g = c.getContext('2d'); g.clearRect(0, 0, 76, 76); g.save(); g.translate(38, k.top ? 48 : 38); const r = k.top ? 21 : 26;
     g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(0, r - 2, r, 7, 0, 0, 6.283); g.fill();
     if (k.aura) k.aura(g, t, r * 0.72);
     g.fillStyle = k.base; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r, 0.35, 6.283 - 0.35); g.closePath(); g.fill();
     if (k.paint) { g.save(); g.clip(); k.paint(g, t, r); g.restore(); }
     g.fillStyle = '#fff'; for (const sg of [-1, 1]) { const a = sg * 0.35; g.beginPath(); g.moveTo(Math.cos(a) * (r - 12), Math.sin(a) * (r - 12)); g.lineTo(Math.cos(a) * r, Math.sin(a) * r); g.lineTo(Math.cos(a + sg * 0.35) * (r - 3), Math.sin(a + sg * 0.35) * (r - 3)); g.closePath(); g.fill(); }
-    g.fillStyle = k.eye || '#120b2e'; g.beginPath(); g.arc(-4, -10, 4, 0, 6.283); g.fill(); g.restore();
+    g.fillStyle = k.eye || '#120b2e'; g.beginPath(); g.arc(-4, -10, 4, 0, 6.283); g.fill();
+    if (k.top) k.top(g, t, r);
+    g.restore();
   }
   function startPreviews() {
     if (previewOn) return; previewOn = true;
@@ -599,6 +627,7 @@
         previews = [];
         for (const k of SKINS) {
           const has = ownSkin(k.id), on = skinId === k.id;
+          if (k.secret && !has) continue;
           const card = mkCard('', k.name, (k.anim ? '✨ Animated' : 'Classic color') + (k.info ? '<br>' + k.info : '') + (k.power ? '<br><b style="color:#ffd24d">⭐ ' + k.power + '</b>' : ''), on ? '✅ Equipped' : has ? '👕 Equip' : '💎 Buy 🪙' + k.cost, on || (!has && coins < k.cost),
             () => { if (!has) { if (coins < k.cost) return; coins -= k.cost; skinsOwned.push(k.id); beep(880, 0.15, 'square', 0.07); } skinId = k.id; saveStuff(); showShop(); }, has ? '' : 'locked');
           const cv2 = document.createElement('canvas'); cv2.width = cv2.height = 76; cv2.style.cssText = 'width:76px;height:76px'; card.querySelector('.ic').appendChild(cv2);
@@ -1234,6 +1263,22 @@
         const p = (Math.sin(t / 240) + 1) / 2, gr = g.createRadialGradient(0, 0, 1, 0, 0, r * 0.7); gr.addColorStop(0, 'rgba(255,40,70,' + (0.3 + 0.4 * p) + ')'); gr.addColorStop(1, 'rgba(255,40,70,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r);
         g.strokeStyle = 'rgba(255,40,60,' + (0.4 + 0.5 * p) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, r - 2, 0, 6.283); g.stroke();
       } },
+    { id: 'tux', name: 'Tuxedo Boss', icon: '🎩', base: '#14141a', cost: 0, secret: true, anim: false, eye: '#ffffff', info: 'A dude in a tuxedo and a top hat. Reward skin!',
+      paint(g, t, r) {
+        g.fillStyle = '#14141a'; g.fillRect(-r, -r, 2 * r, 2 * r);
+        g.fillStyle = '#f6f6f6'; g.beginPath(); g.moveTo(-r * 0.4, -r); g.lineTo(r * 0.4, -r); g.lineTo(r * 0.22, r * 0.75); g.lineTo(-r * 0.22, r * 0.75); g.closePath(); g.fill();
+        g.strokeStyle = '#000'; g.lineWidth = 2; g.beginPath(); g.moveTo(-r * 0.4, -r); g.lineTo(-r * 0.06, r * 0.32); g.moveTo(r * 0.4, -r); g.lineTo(r * 0.06, r * 0.32); g.stroke();
+        g.fillStyle = '#14141a'; for (const y of [-0.02, 0.32]) { g.beginPath(); g.arc(0, r * y, 1.8, 0, 6.283); g.fill(); }
+        g.fillStyle = '#d4162e'; g.beginPath(); g.moveTo(0, -r * 0.55); g.lineTo(-r * 0.36, -r * 0.78); g.lineTo(-r * 0.36, -r * 0.32); g.closePath(); g.fill(); g.beginPath(); g.moveTo(0, -r * 0.55); g.lineTo(r * 0.36, -r * 0.78); g.lineTo(r * 0.36, -r * 0.32); g.closePath(); g.fill(); g.fillStyle = '#9d0f20'; g.fillRect(-2.5, -r * 0.62, 5, r * 0.14);
+      },
+      top(g, t, r) { // top hat that stays upright
+        const y = -r * 0.5;
+        g.fillStyle = '#0c0c11'; g.beginPath(); g.ellipse(0, y, r * 1.0, r * 0.3, 0, 0, 6.283); g.fill();
+        g.fillRect(-r * 0.58, y - r * 1.05, r * 1.16, r * 1.05);
+        g.fillStyle = '#1b1b24'; g.beginPath(); g.ellipse(0, y - r * 1.05, r * 0.58, r * 0.2, 0, 0, 6.283); g.fill();
+        g.fillStyle = '#c4142c'; g.fillRect(-r * 0.58, y - r * 0.36, r * 1.16, r * 0.22);
+        g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(-r * 0.44, y - r * 0.98, r * 0.12, r * 0.6);
+      } },
     { id: 'thunder', name: 'Thunder', icon: '⚡', base: '#1a1f5a', cost: 2000, anim: true, eye: '#fff36b', glowEye: true, info: 'A crackling storm with lightning arcs', power: '⚡ 1 in 5 of your hits zaps enemies and slows them',
       aura(g, t, r) {
         const fl = (Math.sin(t / 70) + 1) / 2, gr = g.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 1.8); gr.addColorStop(0, 'rgba(255,240,90,' + (0.25 + 0.2 * fl) + ')'); gr.addColorStop(1, 'rgba(120,160,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 1.8, 0, 6.283); g.fill();
@@ -1305,6 +1350,7 @@
     ctx.fillStyle = sk && sk.eye ? sk.eye : '#120b2e'; ctx.beginPath(); ctx.arc(-3, -7, sk && sk.glowEye ? 3.6 : 3, 0, 6.283); ctx.fill();
     ctx.shadowBlur = 0;
     ctx.restore();
+    if (sk && sk.top) { ctx.save(); ctx.translate(f.x, f.y); sk.top(ctx, t || 0, f.r); ctx.restore(); }
   }
 
   // ---------- pretty maps ----------
