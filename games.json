@@ -18,5 +18,13 @@
     "title": "JAW BATTLE",
     "emoji": "🎮",
     "description": "Shoot it out with a sneaky bot! Duels, 2v2 to 4v4 team battles, Capture the Flag, 500 autumn maps, 9 guns with fire and ice perks, skins with real powers, a freezing secret gun, teleports, bots that dig underground, a practice range, and phone controls!"
+  },
+  {
+    "slug": "news",
+    "title": "NEWS",
+    "emoji": "🎮",
+    "description": "Brand new and under construction!",
+    "comingSoon": true,
+    "earlyBird": "aee801f1dbb48bc5b53492abe09bb9e0c6bf5a5dbdc787002df3231d6374ddb4"
   }
 ]
