@@ -427,7 +427,7 @@
       const a = { x: Math.round(MAP_W * ax), y: Math.round(MAP_H * ay), pid }, b = { x: Math.round(MAP_W * bx), y: Math.round(MAP_H * by), pid };
       a.to = b; b.to = a; clear(a.x, a.y, 64, 64); clear(b.x, b.y, 64, 64); portals.push(a, b);
     }
-    for (const [hx, hy] of [[0.40, 0.14], [0.60, 0.14], [0.40, 0.86], [0.60, 0.86]]) {
+    for (const [hx, hy] of []) {
       const cx = Math.round(MAP_W * hx), cy = Math.round(MAP_H * hy); clear(cx, cy, 70, 70); hides.push({ x: cx - 38, y: cy - 38, w: 76, h: 76 });
     }
     if (md !== 'ctf') for (const team of [0, 1]) for (const fy of [0.30, 0.70]) { const cx = Math.round(MAP_W * (team ? 0.80 : 0.20)), cy = Math.round(MAP_H * fy); clear(cx, cy, 52, 52); cpads.push({ x: cx, y: cy, team }); }
@@ -571,29 +571,29 @@
       if (p.team === 0 && !(p.ob && !p.ob.dead)) { ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('＋ Build a cannon', p.x, p.y - 44); ctx.fillStyle = '#ffd23a'; ctx.fillText(aimbot ? 'FREE' : '🪙100 (back if you win!)', p.x, p.y + 46); }
     }
   }
-  function drawJaguar(x, y, dir, tm, sc) { // a spotted jaguar that runs
+  function drawJaguar(x, y, dir, tm, sc) { // a black jaguar that runs
     const run = tm / 85, bob = Math.abs(Math.sin(run)) * 2.5;
     ctx.save(); ctx.translate(x, y - bob); ctx.scale(dir * sc, sc); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     // tail
-    ctx.strokeStyle = '#d98a26'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-32, -4); ctx.quadraticCurveTo(-52, -10 + Math.sin(run * 0.8) * 7, -58, -26 + Math.sin(run) * 6); ctx.stroke();
-    ctx.strokeStyle = '#2a1608'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-54, -22 + Math.sin(run) * 5); ctx.lineTo(-58, -26 + Math.sin(run) * 6); ctx.stroke();
+    ctx.strokeStyle = '#17171d'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-32, -4); ctx.quadraticCurveTo(-52, -10 + Math.sin(run * 0.8) * 7, -58, -26 + Math.sin(run) * 6); ctx.stroke();
+    ctx.strokeStyle = '#050508'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-54, -22 + Math.sin(run) * 5); ctx.lineTo(-58, -26 + Math.sin(run) * 6); ctx.stroke();
     // far legs (darker), then body, then near legs
-    const leg = (lx, ph, col) => { const sw = Math.sin(run + ph) * 9, lift = Math.max(0, Math.cos(run + ph)) * 4; ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(lx, 8); ctx.lineTo(lx + sw * 0.5, 15 - lift); ctx.lineTo(lx + sw, 22 - lift); ctx.stroke(); ctx.fillStyle = '#3a2410'; ctx.beginPath(); ctx.ellipse(lx + sw + 2, 23 - lift, 5, 3, 0, 0, 6.283); ctx.fill(); };
-    leg(-22, 0.4, '#b9701a'); leg(24, 3.5, '#b9701a');
-    const bg = ctx.createLinearGradient(0, -18, 0, 18); bg.addColorStop(0, '#f0b04a'); bg.addColorStop(0.6, '#e09a30'); bg.addColorStop(1, '#f6d894');
+    const leg = (lx, ph, col) => { const sw = Math.sin(run + ph) * 9, lift = Math.max(0, Math.cos(run + ph)) * 4; ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(lx, 8); ctx.lineTo(lx + sw * 0.5, 15 - lift); ctx.lineTo(lx + sw, 22 - lift); ctx.stroke(); ctx.fillStyle = '#050508'; ctx.beginPath(); ctx.ellipse(lx + sw + 2, 23 - lift, 5, 3, 0, 0, 6.283); ctx.fill(); };
+    leg(-22, 0.4, '#101015'); leg(24, 3.5, '#101015');
+    const bg = ctx.createLinearGradient(0, -18, 0, 18); bg.addColorStop(0, '#34343f'); bg.addColorStop(0.55, '#1b1b22'); bg.addColorStop(1, '#2a2a33');
     ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(0, 0, 38, 17, 0, 0, 6.283); ctx.fill();
-    ctx.strokeStyle = 'rgba(70,35,5,.9)'; ctx.lineWidth = 2.2;
-    for (const [rx, ry] of [[-26, -6], [-14, -9], [-2, -7], [10, -9], [22, -5], [-20, 5], [-8, 3], [5, 4], [17, 4], [-30, 2]]) { ctx.beginPath(); ctx.arc(rx, ry, 4.2, 0.3, 6.0); ctx.stroke(); ctx.fillStyle = 'rgba(60,30,5,.85)'; ctx.beginPath(); ctx.arc(rx + 0.5, ry, 1.4, 0, 6.283); ctx.fill(); }
-    leg(-14, 3.5, '#e09a30'); leg(30, 0.4, '#e09a30');
+    ctx.strokeStyle = 'rgba(90,90,120,.85)'; ctx.lineWidth = 2.2;
+    for (const [rx, ry] of [[-26, -6], [-14, -9], [-2, -7], [10, -9], [22, -5], [-20, 5], [-8, 3], [5, 4], [17, 4], [-30, 2]]) { ctx.beginPath(); ctx.arc(rx, ry, 4.2, 0.3, 6.0); ctx.stroke(); ctx.fillStyle = 'rgba(95,95,125,.75)'; ctx.beginPath(); ctx.arc(rx + 0.5, ry, 1.4, 0, 6.283); ctx.fill(); }
+    leg(-14, 3.5, '#25252d'); leg(30, 0.4, '#25252d');
     // head
-    ctx.fillStyle = '#e8a236'; ctx.beginPath(); ctx.arc(40, -6, 13, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#1f1f27'; ctx.beginPath(); ctx.arc(40, -6, 13, 0, 6.283); ctx.fill();
     ctx.beginPath(); ctx.moveTo(30, -15); ctx.lineTo(31, -27); ctx.lineTo(39, -19); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(44, -18); ctx.lineTo(49, -27); ctx.lineTo(51, -14); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#6a3a1c'; ctx.beginPath(); ctx.moveTo(32, -17); ctx.lineTo(32.5, -24); ctx.lineTo(37, -19); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#f6dfa8'; ctx.beginPath(); ctx.ellipse(48, -2, 8, 6, 0, 0, 6.283); ctx.fill();
-    ctx.fillStyle = '#3a1a14'; ctx.beginPath(); ctx.moveTo(52, -6); ctx.lineTo(57, -5); ctx.lineTo(54, -2); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#3a1a14'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(54, -2); ctx.lineTo(54, 1); ctx.moveTo(54, 1); ctx.quadraticCurveTo(50, 4, 46, 2); ctx.stroke();
-    ctx.fillStyle = '#d6e24a'; ctx.beginPath(); ctx.ellipse(42, -9, 3.6, 3, 0.2, 0, 6.283); ctx.fill(); ctx.fillStyle = '#120804'; ctx.fillRect(41.3, -11.6, 1.5, 5);
-    ctx.fillStyle = 'rgba(70,35,5,.85)'; for (const [dx, dy] of [[34, -4], [38, 1], [44, -14], [36, -10]]) { ctx.beginPath(); ctx.arc(dx, dy, 1.1, 0, 6.283); ctx.fill(); }
+    ctx.fillStyle = '#5a3344'; ctx.beginPath(); ctx.moveTo(32, -17); ctx.lineTo(32.5, -24); ctx.lineTo(37, -19); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#34343f'; ctx.beginPath(); ctx.ellipse(48, -2, 8, 6, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#6a3a48'; ctx.beginPath(); ctx.moveTo(52, -6); ctx.lineTo(57, -5); ctx.lineTo(54, -2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#050508'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(54, -2); ctx.lineTo(54, 1); ctx.moveTo(54, 1); ctx.quadraticCurveTo(50, 4, 46, 2); ctx.stroke();
+    ctx.shadowColor = '#e8f04a'; ctx.shadowBlur = 8; ctx.fillStyle = '#e8f04a'; ctx.beginPath(); ctx.ellipse(42, -9, 3.8, 3.1, 0.2, 0, 6.283); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#050508'; ctx.fillRect(41.3, -11.6, 1.5, 5);
+    ctx.fillStyle = 'rgba(95,95,125,.7)'; for (const [dx, dy] of [[34, -4], [38, 1], [44, -14], [36, -10]]) { ctx.beginPath(); ctx.arc(dx, dy, 1.1, 0, 6.283); ctx.fill(); }
     ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 0.9; for (const dy of [-1, 1.5]) { ctx.beginPath(); ctx.moveTo(52, dy); ctx.lineTo(64, dy - 3 + dy * 2); ctx.stroke(); }
     ctx.restore();
   }
@@ -696,7 +696,7 @@
       '<b>Switch gun:</b> 1-9 or mouse wheel &nbsp; <b>Build wall:</b> B or right-click<br>' +
       '<b>Water:</b> 0 or Q drops a puddle that puts out fire 💧 &nbsp; <b>Pause:</b> P or Esc<br>' +
       '<b>Ghost Boots</b> (Armory): hold G to float through walls<br>' +
-      '🌀 <b>Portals</b> teleport you across the map. 📦 <b>Boxes</b> hide you from bots (shooting gives you away). Click a dashed circle (or press <b>U</b> near it) to build a <b>cannon</b> for 🪙100: you get the coins back if you WIN!<br>' +
+      '🌀 <b>Portals</b> teleport you across the map. 🕳️ <b>Enemies dig underground</b> to escape. Click a dashed circle (or press <b>U</b> near it) to build a <b>cannon</b> for 🪙100: you get the coins back if you WIN!<br>' +
       '🚩 <b>Capture the Flag:</b> grab the other flag and run it to your base. First to 3 wins! Hold <b>E</b> to dig tunnels with your shovel.<br>' +
       '🤝 <b>2v2, 3v3, 4v4:</b> you and bots on your team fight the other team of bots. Last team standing wins!<br>' +
       '👥 <b>Local 2 Players:</b> P1 = WASD + mouse. P2 = arrow keys, Enter shoots, Shift builds, / switches gun, . drops water.<br>' +
