@@ -26,8 +26,8 @@ let W, H;
 function resize() { W = c.width = innerWidth; H = c.height = innerHeight; }
 addEventListener('resize', resize); resize();
 
-const BASE_W = 130, MAX_LIVES = 7;
-const basket = { x: W / 2, w: BASE_W, h: 18, speed: 9 };
+const BASE_W = 80, MAX_LIVES = 5;
+const basket = { x: W / 2, w: BASE_W, h: 18, speed: 8 };
 let stars, score, lives, over, spawnTimer, paused = false, best = 0, toast = null, keys = {};
 let fx = {}; // active power-ups: name -> frames left
 try { best = +localStorage.getItem('catchStarBest') || 0; } catch (e) {}
@@ -42,7 +42,7 @@ const POWERS = {
 };
 const POWER_KEYS = Object.keys(POWERS);
 
-function reset() { stars = []; score = 0; lives = 5; over = false; spawnTimer = 30; fx = {}; basket.w = BASE_W; toast = null; }
+function reset() { stars = []; score = 0; lives = 3; over = false; spawnTimer = 30; fx = {}; basket.w = BASE_W; toast = null; }
 reset();
 
 // little sounds (made with the Web Audio API)
@@ -98,9 +98,9 @@ function update() {
   if (toast && toast.t > 0) toast.t--;
 
   if (--spawnTimer <= 0) {
-    const special = Math.random() < 0.18; // about 1 star in 6 is a power-up
-    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 1.6 + Math.random() * 1.3 + Math.min(score * 0.03, 1.8), r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
-    spawnTimer = Math.max(34, 80 - score * 0.7); // slower falling, and fewer stars at once
+    const special = Math.random() < 0.08; // power-ups are rare now
+    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 4 + Math.random() * 3 + Math.min(score * 0.12, 6), r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
+    spawnTimer = Math.max(14, 40 - score * 0.6); // stars come faster and faster
   }
   const by = H - 50, slow = fx.slow > 0 ? 0.45 : 1;
   for (const s of stars) {
