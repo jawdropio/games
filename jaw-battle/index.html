@@ -35,6 +35,16 @@
   #panel button:disabled { opacity:.5; cursor:default; }
   #panel input { font:inherit; font-weight:800; font-size:18px; width:130px; text-align:center; text-transform:uppercase; padding:8px; border-radius:10px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; }
   .code { font-size:30px; font-weight:900; letter-spacing:3px; color:#ffb020; }
+  #touchUI { position:fixed; inset:0; display:none; pointer-events:none; z-index:5; }
+  #touchUI * { pointer-events:auto; touch-action:none; user-select:none; -webkit-user-select:none; }
+  #joy { position:absolute; left:18px; bottom:18px; width:150px; height:150px; border-radius:50%; background:rgba(255,255,255,.12); border:3px solid rgba(255,255,255,.35); }
+  #joyKnob { position:absolute; left:50px; top:50px; width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,.55); }
+  #btnFire { position:absolute; right:18px; bottom:18px; width:104px; height:104px; border-radius:50%; background:rgba(255,70,70,.85); border:3px solid rgba(255,255,255,.6); font-size:44px; padding:0; }
+  #gunRow { position:absolute; right:18px; bottom:134px; display:flex; align-items:center; gap:6px; background:rgba(0,0,0,.35); border-radius:14px; padding:4px 8px; }
+  #gunRow button { width:44px; height:44px; padding:0; font-size:20px; border-radius:50%; }
+  #gunIcon { font-size:30px; min-width:40px; text-align:center; }
+  #actGrid { position:absolute; right:134px; bottom:18px; display:grid; grid-template-columns:repeat(3, 58px); gap:8px; }
+  .act { width:58px; height:58px; padding:0; font-size:22px; border-radius:50%; background:rgba(108,76,255,.8); border:2px solid rgba(255,255,255,.5); }
   #aceBtn { position:fixed; left:0; top:50%; z-index:20; display:none; font-size:11px; padding:5px 8px; border-radius:0 8px 8px 0; background:#2c2268; opacity:.65; }
   #acePanel { position:fixed; left:0; top:calc(50% + 32px); z-index:20; display:none; background:#1d1445; padding:8px; border-radius:0 10px 10px 0; font-size:12px; }
   #acePanel input { font:inherit; width:110px; padding:5px; border-radius:6px; border:2px solid #4b3a9e; background:#120b2e; color:#fff; text-transform:uppercase; }
@@ -65,6 +75,15 @@
 
 <button id="aceBtn">🕶️ Operator</button>
 <div id="acePanel"><input id="aceIn" maxlength="12" placeholder="Operator code"> <button id="aceGo">OK</button><div id="aceMsg"></div></div>
+<div id="touchUI">
+  <div id="joy"><div id="joyKnob"></div></div>
+  <div id="gunRow"><button id="gunPrev">◀</button><span id="gunIcon">🔫</span><button id="gunNext">▶</button></div>
+  <div id="actGrid">
+    <button id="btnPower" class="act">💸</button><button id="btnWater" class="act">💧</button><button id="btnBuild" class="act">🧱</button>
+    <button id="btnGhost" class="act">👻</button><button id="btnDig" class="act">⛏️</button>
+  </div>
+  <button id="btnFire">🔥</button>
+</div>
 <script>
 (() => {
   let W = 960, H = 600;
@@ -160,6 +179,23 @@
     { id: 'seek2', name: '🛰️ Heat seeker', desc: 'curves hard toward the enemy' },
     { id: 'fireboom', name: '☄️ Meteor', desc: 'fire AND explosions' },
   ];
+  // what each level unlocks (levels 2-5, each one adds something new on top of the last)
+  const UPG = [
+    [{ n: '⚡ Quick draw', d: 'shoots 15% faster', fx: { cdMul: 0.85 } }, { n: '🎯 Critical hits', d: '12% of shots deal double damage', fx: { crit: 0.12 } }, { n: '🏹 Armor piercing', d: 'shoots through crates and blocks', fx: { pierce: 1 } }, { n: '🔥 Golden hot lead', d: 'sets enemies on fire, 25% crits', fx: { fire: 1, crit: 0.25 } }],
+    [{ n: '➕ Extra pellet', d: '+1 pellet per shot', fx: { nAdd: 1 } }, { n: '🔥 Flame pellets', d: 'sets enemies on fire', fx: { fire: 1 } }, { n: '🎯 Choke barrel', d: 'tighter spread, longer range', fx: { spreadMul: 0.7, lifeMul: 1.5 } }, { n: '💥 Double barrel', d: '+3 pellets, bigger fire', fx: { nAdd: 3, fire: 2 } }],
+    [{ n: '⚡ Overdrive', d: 'shoots 25% faster', fx: { cdMul: 0.75 } }, { n: '❄️ Ice rounds', d: 'slows enemies down', fx: { slow: 1 } }, { n: '🔩 Heavy rounds', d: '+50% damage', fx: { dmgMul: 1.5 } }, { n: '🌪️ Bullet storm', d: 'tight aim, shoots through blocks', fx: { spreadMul: 0.5, pierce: 1 } }],
+    [{ n: '💨 Fast bullets', d: 'faster and longer range', fx: { speedMul: 1.3, lifeMul: 1.3 } }, { n: '🏹 Piercing', d: 'through crates and blocks', fx: { pierce: 1 } }, { n: '💥 Explosive tip', d: 'blows up where it lands', fx: { boom: 70 } }, { n: '🎯 Headshots', d: '30% of shots deal double', fx: { crit: 0.3 } }],
+    [{ n: '➕ 4th bullet', d: 'fires 4 bullets', fx: { nAdd: 1 } }, { n: '🧲 Seeking', d: 'bullets curve to enemies', fx: { home: 0.05 } }, { n: '➕ 5th bullet', d: '5 bullets, shoots faster', fx: { nAdd: 1, cdMul: 0.9 } }, { n: '🌟 Star burst', d: '7 bullets, strong seeking', fx: { nAdd: 2, home: 0.09 } }],
+    [{ n: '🎱 Extra bounces', d: 'bounces 2 more times', fx: { bounceAdd: 2 } }, { n: '💨 Fast bounce', d: '30% faster bullets', fx: { speedMul: 1.3 } }, { n: '🎱 Mega bounce', d: '3 more bounces', fx: { bounceAdd: 3 } }, { n: '💥 Bounce blast', d: 'explodes when it hits', fx: { boom: 65 } }],
+    [{ n: '⚡ Quick load', d: 'reloads 20% faster', fx: { cdMul: 0.8 } }, { n: '💥 Explosive', d: 'blows up where it lands', fx: { boom: 80 } }, { n: '🔥 Napalm', d: 'blast sets enemies on fire', fx: { fire: 1, boom: 95 } }, { n: '☄️ Mega blast', d: 'huge explosion + big fire', fx: { boom: 140, fire: 2 } }],
+    [{ n: '⚡ Overclock', d: 'shoots 20% faster', fx: { cdMul: 0.8 } }, { n: '🧲 Seeking', d: 'bullets curve to enemies', fx: { home: 0.06 } }, { n: '❄️ Freeze zap', d: 'slows enemies down', fx: { slow: 1 } }, { n: '🛰️ Heat seeker', d: 'through blocks + strong seeking', fx: { pierce: 1, home: 0.12 } }],
+    [{ n: '⚡ Overdrive', d: 'shoots 15% faster', fx: { cdMul: 0.85 } }, { n: '🔥 Fire shots', d: 'sets enemies on fire', fx: { fire: 1 } }, { n: '💥 Explosive', d: 'blows up where it lands', fx: { boom: 75 } }, { n: '☄️ Meteor storm', d: '+1 bullet, strong seeking', fx: { nAdd: 1, home: 0.14 } }],
+  ];
+  function gunFx(gi, lvl) {
+    const fx = {};
+    for (let l = 2; l <= lvl; l++) { const u = UPG[gi][l - 2]; if (!u) continue; for (const k in u.fx) { const v = u.fx[k]; if (['cdMul', 'spreadMul', 'speedMul', 'lifeMul', 'dmgMul'].includes(k)) fx[k] = (fx[k] ?? 1) * v; else if (['nAdd', 'bounceAdd'].includes(k)) fx[k] = (fx[k] || 0) + v; else fx[k] = Math.max(fx[k] || 0, v); } }
+    return fx;
+  }
   const botPerk = gi => (diffName === 'insane' && gi === 8) ? 'fire' : ((diffName === 'hard' || diffName === 'insane') && gi === 1) ? 'fire' : (diffName === 'insane' && gi === 2) ? 'ice' : null;
   const upCost = lv => [30, 60, 100, 150][lv - 1];
   let aimbot = false, aimPro = false, aimShots = 0;
@@ -388,7 +424,7 @@
     player = makeFighter(80, H / 2, '#4fd1ff', false); player.team = 0;
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true); bot.team = 1; bot.isBot = mode !== '2p';
     player.gun = startGun();
-    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; player.shield = sk.id === 'galaxy' ? 1 : 0; player.shT2 = 0; player.rainCd = 0; rainFx = []; }
+    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; player.shield = sk.id === 'galaxy' ? 1 : 0; player.shT2 = 0; player.rainCd = 0; rainFx = []; player.usedRevive = false; }
     fighters = [player, bot];
     player.lane = newLane(); bot.lane = newLane();
     if (mode === 'team') buildTeams();
@@ -474,7 +510,7 @@
   function initFlags() { flags = { p: { x: BASE_P.x, y: BASE_P.y, carrier: null }, b: { x: BASE_B.x, y: BASE_B.y, carrier: null } }; }
   function newCTF() { mode = 'ctf'; caps1 = caps2 = 0; banner = null; round = 1; startRound(); }
   const newLane = () => H / 2 + (Math.random() - 0.5) * 520; // each life takes a different route so the bots don't always meet head-on
-  function ctfRespawn(f, x) { if (f === player && f.skin === 'galaxy') { f.shield = 1; } f.lane = newLane(); f.invuln = 90; if (f === player) f.gun = startGun(); f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
+  function ctfRespawn(f, x) { if (f === player) f.usedRevive = false; if (f === player && f.skin === 'galaxy') { f.shield = 1; } f.lane = newLane(); f.invuln = 90; if (f === player) f.gun = startGun(); f.dead = false; f.hp = f.maxHp; f.x = x; f.y = H / 2; f.cd = 0; f.respawn = 0; }
   function ctfScore(who) {
     who === 'p' ? caps1++ : caps2++;
     banner = { text: who === 'p' ? '🚩 You scored!' : '🚩 Bot scored!', t: 110 };
@@ -494,9 +530,10 @@
     }
     for (const fl of [flags.p, flags.b]) if (fl.carrier) { fl.x = fl.carrier.x; fl.y = fl.carrier.y; }
     for (const f of [player, bot]) {
+      if (f === player && !f.dead && f.hp <= 0 && f.skin === 'tux' && !f.usedRevive) { reviveTux(); continue; }
       if (!f.dead && f.hp <= 0) {
         f.dead = true; f.respawn = 150; burst(f.x, f.y, f.color, 20);
-        if (player.skin === 'tux' && f.team !== player.team) { coins += 10; toast = { text: '💰 +10 coins!', t: 70 }; }
+        if (player.skin === 'tux' && f.team !== player.team) { coins += 10; player.hp = Math.min(player.maxHp, player.hp + 5); toast = { text: '💰 +10 coins!', t: 70 }; }
         for (const fl of [flags.p, flags.b]) if (fl.carrier === f) fl.carrier = null;
       } else if (f.dead && --f.respawn <= 0) ctfRespawn(f, f === player ? 80 : W - 80);
     }
@@ -542,9 +579,18 @@
   const aceBtn = document.getElementById('aceBtn'), acePanel = document.getElementById('acePanel'), aceIn = document.getElementById('aceIn'), aceMsg = document.getElementById('aceMsg');
   function setMenuFlag(v) { onMenu = v; aceBtn.style.display = v ? 'block' : 'none'; if (!v) acePanel.style.display = 'none'; }
   aceBtn.onclick = () => { acePanel.style.display = acePanel.style.display === 'block' ? 'none' : 'block'; aceMsg.textContent = ''; aceIn.value = ''; aceIn.focus(); };
+  let resetAsk = 0;
+  function doReset() { // wipes coins + guns (and their levels), keeps skins, then gives 10000 coins
+    coins = 10000; owned = owned.map((_, i) => i === 0); gunLv = gunLv.map(() => 1); saveStuff();
+    showMenu('♻️ Reset! You have 10000 coins and only the Pistol. Your skins are kept.' + (aimbot ? ' (Operator is on, so coins show ∞. Turn Operator off to see them.)' : ''));
+  }
   function submitAce() {
     const c = aceIn.value.trim();
     if (/^JAW-?1234$/i.test(c)) applyCode(true);
+    else if (normCode(c) === 'JWRESET') {
+      if (Date.now() - resetAsk < 20000) { resetAsk = 0; doReset(); }
+      else { resetAsk = Date.now(); aceMsg.textContent = '⚠️ This deletes ALL your coins and guns (skins stay) and gives you 10000 coins. Type the code again to confirm.'; }
+    }
     else aceMsg.textContent = 'Operator only.';
     aceIn.value = '';
   }
@@ -611,7 +657,7 @@
       if (shopTab === 'guns') {
         for (let i = 0; i < GUNS.length; i++) {
           const g = GUNS[i], lv = gunLevel(i), has = own(i);
-          const perk = (lv >= 3 ? '✅ ' : '🔒 Lv3: ') + PERKS[i].name + '<br>' + PERKS[i].desc;
+          const perk = UPG[i].map((u, k) => (lv >= k + 2 ? '✅' : '🔒') + ' Lv' + (k + 2) + ' ' + u.n + ' – ' + u.d).join('<br>');
           let txt, dis, fn;
           if (has && lv >= 5) { txt = '👑 MAX'; dis = true; }
           else if (has) { const c = upCost(lv); txt = '🚀 Lv ' + (lv + 1) + ' 🪙' + c; dis = coins < c; fn = () => { if (coins >= c) { coins -= c; gunLv[i]++; saveStuff(); upSound(); showShop(); } }; }
@@ -671,7 +717,7 @@
   // ---------- input ----------
   const keys = {};
   const mouse = { x: W * 0.75, y: H / 2, down: false };
-  const touch = { moveId: null, ox: 0, oy: 0, dx: 0, dy: 0, aimId: null };
+  const touch = { moveId: null, ox: 0, oy: 0, dx: 0, dy: 0, aimId: null, fire: false, lastAim: 0 };
   addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'p' || k === 'escape') { state === 'paused' ? resume() : pause(); return; }
@@ -680,6 +726,8 @@
     if (state === 'play') {
       if (k >= '1' && k <= '9' && own(gunOrder[+k - 1])) player.gun = gunOrder[+k - 1];
       if (k === 'b' && !e.repeat) tryBuild();
+      if (k === 'z' && !e.repeat) cycleGun(-1);
+      if (k === 'x' && !e.repeat) cycleGun(1);
       if ((k === '0' || k === 'q') && !e.repeat) placePuddle(player);
       if (k === 'f' && !e.repeat) makeItRain();
       if (k === '.' && mode === '2p' && !e.repeat) placePuddle(bot);
@@ -701,29 +749,73 @@
     const r = cv.getBoundingClientRect();
     return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height];
   }
+  function cycleGun(d) { let sl = gunOrder.indexOf(player.gun); for (let i = 0; i < GUNS.length; i++) { sl = (sl + d + GUNS.length) % GUNS.length; if (own(gunOrder[sl])) { player.gun = gunOrder[sl]; beep(500, 0.04, 'square', 0.04); break; } } }
+  // tap/click the hot bar at the bottom to pick a gun (or drop water / use your skin power)
+  function hotbarTap(x) {
+    const i = Math.floor((x - 16) / 76), off = (x - 16) - i * 76;
+    if (i >= 0 && i < GUNS.length && off < 72) { const g = gunOrder[i]; if (own(g)) { player.gun = g; beep(500, 0.04, 'square', 0.04); } return true; }
+    if (i === GUNS.length && off < 72) { placePuddle(player); return true; }
+    const xr = x - (16 + GUNS.length * 76 + 80); if (player.skin === 'tux' && xr >= 0 && xr < 72) { makeItRain(); return true; }
+    return false;
+  }
   cv.addEventListener('pointerdown', e => {
     sfxUnlock();
     const [x, y] = toGame(e);
     if (e.pointerType !== 'touch' && e.button === 2) { mouse.x = x; mouse.y = y; if (state === 'play') tryBuild(); return; }
-    if (e.pointerType === 'touch') {
-      cv.setPointerCapture(e.pointerId);
-      if (x < W / 2 && touch.moveId === null) { touch.moveId = e.pointerId; touch.ox = e.clientX; touch.oy = e.clientY; touch.dx = touch.dy = 0; }
-      else if (touch.aimId === null) { touch.aimId = e.pointerId; mouse.x = x; mouse.y = y; mouse.down = true; }
-    } else { mouse.x = x; mouse.y = y; mouse.down = true; }
+    if (state === 'play' && y > H - 40 && hotbarTap(x)) return;
+    if (e.pointerType === 'touch') { try { cv.setPointerCapture(e.pointerId); } catch (_) {} touch.aimId = e.pointerId; mouse.x = x; mouse.y = y; touch.lastAim = Date.now(); } // phones: drag to aim
+    else { mouse.x = x; mouse.y = y; mouse.down = true; }
   });
   cv.addEventListener('pointermove', e => {
     const [x, y] = toGame(e);
-    if (e.pointerType === 'touch') {
-      if (e.pointerId === touch.moveId) {
-        const dx = e.clientX - touch.ox, dy = e.clientY - touch.oy, m = Math.hypot(dx, dy) || 1, k = Math.min(1, m / 40);
-        touch.dx = dx / m * k; touch.dy = dy / m * k;
-      } else if (e.pointerId === touch.aimId) { mouse.x = x; mouse.y = y; }
-    } else { mouse.x = x; mouse.y = y; }
+    if (e.pointerType === 'touch') { if (e.pointerId === touch.aimId) { mouse.x = x; mouse.y = y; touch.lastAim = Date.now(); } }
+    else { mouse.x = x; mouse.y = y; }
   });
   function endPointer(e) {
-    if (e.pointerId === touch.moveId) { touch.moveId = null; touch.dx = touch.dy = 0; }
-    else if (e.pointerId === touch.aimId) { touch.aimId = null; mouse.down = false; }
+    if (e.pointerId === touch.aimId) touch.aimId = null;
     else if (e.pointerType !== 'touch') mouse.down = false;
+  }
+  // ----- on-screen controls for phones and tablets -----
+  let isTouch = false;
+  try { isTouch = (typeof matchMedia === 'function' && matchMedia('(pointer:coarse)').matches) || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) || (typeof location !== 'undefined' && /[?&]touch=1/.test(location.search)); } catch (e) {}
+  const $ = id => document.getElementById(id);
+  const touchUI = $('touchUI'), joy = $('joy'), joyKnob = $('joyKnob');
+  let joyId = null;
+  const holdBtn = (el, down, up) => {
+    el.addEventListener('pointerdown', e => { e.preventDefault(); sfxUnlock(); try { el.setPointerCapture(e.pointerId); } catch (_) {} down(); });
+    const end = () => { if (up) up(); };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  };
+  const joyMove = e => {
+    const r = joy.getBoundingClientRect(), R = r.width / 2, dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R), m = Math.hypot(dx, dy) || 1, k = Math.min(1, m / (R * 0.8));
+    touch.dx = dx / m * k; touch.dy = dy / m * k; joyKnob.style.transform = 'translate(' + (dx / m * k * R * 0.6) + 'px,' + (dy / m * k * R * 0.6) + 'px)';
+  };
+  joy.addEventListener('pointerdown', e => { e.preventDefault(); sfxUnlock(); joyId = e.pointerId; try { joy.setPointerCapture(e.pointerId); } catch (_) {} joyMove(e); });
+  joy.addEventListener('pointermove', e => { if (e.pointerId === joyId) joyMove(e); });
+  const joyEnd = e => { if (e.pointerId === joyId) { joyId = null; touch.dx = touch.dy = 0; joyKnob.style.transform = 'translate(0px,0px)'; } };
+  joy.addEventListener('pointerup', joyEnd); joy.addEventListener('pointercancel', joyEnd);
+  holdBtn($('btnFire'), () => { touch.fire = true; }, () => { touch.fire = false; });
+  holdBtn($('btnGhost'), () => { keys['g'] = true; }, () => { keys['g'] = false; });
+  holdBtn($('btnDig'), () => { keys['e'] = true; }, () => { keys['e'] = false; });
+  holdBtn($('btnPower'), () => { if (state === 'play') makeItRain(); });
+  holdBtn($('btnWater'), () => { if (state === 'play') placePuddle(player); });
+  holdBtn($('btnBuild'), () => { if (state === 'play') tryBuild(player, player.x + Math.cos(player.aim) * 64, player.y + Math.sin(player.aim) * 64); });
+  holdBtn($('gunPrev'), () => { if (state === 'play') cycleGun(-1); });
+  holdBtn($('gunNext'), () => { if (state === 'play') cycleGun(1); });
+  let uiCache = '';
+  function syncTouchUI() {
+    if (!isTouch || !touchUI) return;
+    const show = state === 'play' && !!player;
+    const key = show ? [player.skin === 'tux', ghostOwned || aimbot, mode === 'ctf', player.gun, player.rainCd > 0 ? Math.ceil(player.rainCd / 60) : 0, aimbot ? 99 : player.water].join('|') : 'hide';
+    if (key === uiCache) return; uiCache = key;
+    touchUI.style.display = show ? 'block' : 'none';
+    if (!show) { touch.dx = touch.dy = 0; touch.fire = false; return; }
+    $('btnPower').style.display = player.skin === 'tux' ? 'block' : 'none';
+    $('btnPower').textContent = player.rainCd > 0 ? String(Math.ceil(player.rainCd / 60)) : '💸';
+    $('btnGhost').style.display = (ghostOwned || aimbot) ? 'block' : 'none';
+    $('btnDig').style.display = mode === 'ctf' ? 'block' : 'none';
+    $('btnWater').textContent = '💧' + (aimbot ? '' : player.water);
+    $('gunIcon').textContent = GUNS[player.gun].icon;
   }
   cv.addEventListener('pointerup', endPointer);
   cv.addEventListener('pointercancel', endPointer);
@@ -753,26 +845,29 @@
   }
   function fire(f, owner, gi) {
     const g = GUNS[gi];
-    const lvl = owner === 'p' ? gunLevel(gi) : 1, dmgMul = owner === 'b' && diffName === 'insane' ? 1.2 : 1 + 0.1 * (lvl - 1); // each level: +10% damage, faster shooting
-    const pid = owner === 'p' ? (lvl >= 3 ? PERKS[gi].id : null) : owner === 'b' ? botPerk(gi) : null, pw = owner === 'p' && lvl >= 5 ? 2 : 1;
+    const lvl = owner === 'p' ? gunLevel(gi) : 1;
+    let fx = owner === 'p' ? gunFx(gi, lvl) : {};
+    if (owner === 'b') { const bp = botPerk(gi); if (bp === 'fire') fx = { fire: 1 }; else if (bp === 'ice') fx = { slow: 1 }; }
+    let dmgMul = owner === 'b' && diffName === 'insane' ? 1.2 : 1 + 0.1 * (lvl - 1); // each level: +10% damage and a bit faster, plus something new (see UPG)
+    if (owner === 'p' && player.skin === 'tux') dmgMul *= 1.25;
     const missShot = owner === 'p' && aimbot && ++aimShots % 10 === 0; // aimbot misses every 10th shot
     const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
-    const n = g.n + (gi === 4 && owner === 'p' ? lvl - 1 : 0), spread = g.spread + (n - g.n) * 0.08; // Triple Shot: +1 bullet per level
+    const n = g.n + (fx.nAdd || 0), spread = g.spread * (fx.spreadMul || 1) + (n - g.n) * (gi === 4 ? 0.08 : 0.03);
+    const speed = g.speed * (fx.speedMul || 1), life = Math.round(g.life * (fx.lifeMul || 1));
     for (let i = 0; i < n; i++) {
       const a = f.aim + missOff + (n > 1 ? (i / (n - 1) - 0.5) * spread : (Math.random() - 0.5) * spread);
-      const crit = pid === 'crit' && Math.random() < 0.12 * pw;
-      const bl = { x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * g.speed, vy: Math.sin(a) * g.speed, owner, team: f.team, life: g.life, dmg: g.dmg * dmgMul * (crit ? 2 : 1), base: g.dmg, gi, color: g.color, r: (g.r || 5) + (crit ? 1 : 0), bounce: (g.bounce || 0) + (pid === 'bounce' ? 2 * pw : 0), obs: g.obs || 1, miss: missShot };
-      if (pid === 'fire' || pid === 'fireboom') bl.fire = pw;
-      if (pid === 'ice') bl.slow = pw;
-      if (pid === 'pierce') bl.pierce = true;
-      if (pid === 'boom' || pid === 'fireboom') bl.boom = 55 + 25 * pw;
+      const crit = fx.crit && Math.random() < fx.crit;
+      const bl = { x: f.x + Math.cos(a) * (f.r + 6), y: f.y + Math.sin(a) * (f.r + 6), vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, owner, team: f.team, life, dmg: g.dmg * dmgMul * (fx.dmgMul || 1) * (crit ? 2 : 1), base: g.dmg, gi, color: g.color, r: (g.r || 5) + (crit ? 1 : 0), bounce: (g.bounce || 0) + (fx.bounceAdd || 0), obs: g.obs || 1, miss: missShot };
+      if (fx.fire) bl.fire = fx.fire;
+      if (fx.slow) bl.slow = fx.slow;
+      if (fx.pierce) bl.pierce = true;
+      if (fx.boom) bl.boom = fx.boom;
+      if (fx.home) bl.home = fx.home;
       if (owner === 'b' && diffName === 'insane') bl.home = 0.2; // insane bots have good aim help (but less than Operator)
-      if (pid === 'seek') bl.home = 0.04 * pw;
-      if (pid === 'seek2') bl.home = 0.08 * pw;
       bl.hue = crit ? '#ffd700' : bl.fire ? '#ff8a2b' : bl.slow ? '#7fd8ff' : bl.boom ? '#ffb347' : bl.pierce ? '#ffffff' : bl.home ? '#ff5de0' : null;
       bullets.push(bl);
     }
-    const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : owner === 'p' ? 1 - 0.05 * (lvl - 1) : 1;
+    const cdMul = owner === 'b' ? botCdMul() * (gi === 2 ? 2.5 : 1) : owner === 'p' ? (1 - 0.05 * (lvl - 1)) * (fx.cdMul || 1) : 1;
     f.cd = f.maxCd = Math.round(g.cd * cdMul);
     beep(g.freq, gi === 3 ? 0.25 : 0.1, owner === 'p' ? 'square' : 'sawtooth', 0.05, -g.freq * 0.5);
   }
@@ -781,10 +876,14 @@
   function ignite(f, power) { if (f.skin === 'lava') return; if (!inPuddle(f)) f.burn = Math.max(f.burn || 0, 300 * power); }
   // Tuxedo Boss power: money storm that stuns everyone close to you
   let rainFx = [];
+  function reviveTux() { // golden parachute: one free comeback per round
+    player.usedRevive = true; player.hp = 12; player.invuln = 120; burst(player.x, player.y, '#ffd23a', 28); toast = { text: '💼 Golden parachute! You came back!', t: 110 };
+    [600, 900, 1300].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'square', 0.07), i * 80));
+  }
   function makeItRain() {
     if (player.skin !== 'tux' || player.dead || player.rainCd > 0) return false;
-    player.rainCd = 1200; rainFx.push({ x: player.x, y: player.y, t: 36 });
-    for (const o of fighters) if (o.team !== player.team && !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < 420) { o.stun = 120; o.slow = Math.max(o.slow || 0, 240); }
+    player.rainCd = 720; rainFx.push({ x: player.x, y: player.y, t: 36 });
+    for (const o of fighters) if (o.team !== player.team && !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < 420) { o.stun = 180; o.slow = Math.max(o.slow || 0, 300); }
     for (let i = 0; i < 46; i++) { const a = Math.random() * 6.283, sp = 2 + Math.random() * 5; trails.push({ k: 'money', x: player.x, y: player.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 36 + Math.random() * 20, max: 55, ph: Math.random() * 6.283 }); }
     [900, 1200, 1500, 1800].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'square', 0.06), i * 60));
     return true;
@@ -868,7 +967,7 @@
     for (const tr of trails) { tr.x += tr.vx; tr.y += tr.vy; tr.life--; }
     for (const r of rainFx) r.t--; rainFx = rainFx.filter(r => r.t > 0);
     trails = trails.filter(tr => tr.life > 0);
-    const auto = aimbot && (mouse.down || keys[' '] || aimPro) && !player.dead && (mode === 'ctf' || !foe.dead);
+    const auto = aimbot && (mouse.down || keys[' '] || touch.fire || aimPro) && !player.dead && (mode === 'ctf' || !foe.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
     const psp = (mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2) * (player.slow > 0 ? 0.5 : 1) * (player.skin === 'rainbow' ? 1.1 : 1);
     const ox0 = player.x, oy0 = player.y;
@@ -888,6 +987,7 @@
       else player.stuck = 0;
     }
     player.aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+    if (isTouch && Date.now() - touch.lastAim > 2500 && foe && !foe.dead) player.aim = Math.atan2(foe.y - player.y, foe.x - player.x); // phones: auto-aim at the nearest enemy unless you drag to aim
     const bvx = foe.vxm, bvy = foe.vym;
     let autoFire = false;
     if (aimbot && !foe.dead) {
@@ -900,7 +1000,7 @@
       autoFire = lineClear(player.x, player.y, foe.x, foe.y);
     }
     if (player.cd > 0) player.cd--;
-    if ((mouse.down || keys[' '] || autoFire) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
+    if ((mouse.down || keys[' '] || touch.fire || autoFire) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
     if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
 
     if (aimbot && player.skin === 'tux' && foe && !foe.dead && Math.hypot(foe.x - player.x, foe.y - player.y) < 380) makeItRain(); // operator uses Make It Rain too
@@ -947,7 +1047,7 @@
         if (target.skin === 'galaxy' && target.shield > 0) { // star shield soaks up the hit
           target.shield = 0; target.shT2 = 1200; burst(b.x, b.y, '#c9a6ff', 16); beep(500, 0.15, 'sine', 0.08);
         } else {
-          target.hp -= b.dmg * (target.skin === 'tux' ? 0.7 : 1); target.flash = 10; shake = 8;
+          target.hp -= b.dmg * (target.skin === 'tux' ? 0.6 : 1); target.flash = 10; shake = 8;
           if (b.fire) ignite(target, b.fire);
           if (b.slow) target.slow = Math.max(target.slow || 0, 90 * b.slow);
           if (b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, true);
@@ -971,7 +1071,7 @@
 
     if (mode === 'ctf') ctfTick();
     else {
-      for (const f of fighters) if (!f.dead && f.hp <= 0) { f.dead = true; burst(f.x, f.y, f.color, 22); sfx.hit(); if (player.skin === 'tux' && f.team !== player.team) { coins += 10; toast = { text: '💰 +10 coins!', t: 70 }; } }
+      for (const f of fighters) if (!f.dead && f.hp <= 0) { if (f === player && player.skin === 'tux' && !player.usedRevive) { reviveTux(); continue; } f.dead = true; burst(f.x, f.y, f.color, 22); sfx.hit(); if (player.skin === 'tux' && f.team !== player.team) { coins += 10; player.hp = Math.min(player.maxHp, player.hp + 5); toast = { text: '💰 +10 coins!', t: 70 }; } }
       if (fighters.every(f => f.team !== 1 || f.dead)) endRound(true);
       else if (fighters.every(f => f.team !== 0 || f.dead)) endRound(false);
     }
@@ -1281,7 +1381,7 @@
         const p = (Math.sin(t / 240) + 1) / 2, gr = g.createRadialGradient(0, 0, 1, 0, 0, r * 0.7); gr.addColorStop(0, 'rgba(255,40,70,' + (0.3 + 0.4 * p) + ')'); gr.addColorStop(1, 'rgba(255,40,70,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r);
         g.strokeStyle = 'rgba(255,40,60,' + (0.4 + 0.5 * p) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, r - 2, 0, 6.283); g.stroke();
       } },
-    { id: 'tux', name: 'Tuxedo Boss', icon: '🎩', base: '#14141a', cost: 0, secret: true, anim: true, img: 'tux', eye: '#ffffff', info: 'A cartoon dude in a tux and top hat. Reward skin!', power: '🛡️ Bulletproof tux (take 30% less damage) • 💰 +10 coins for every enemy KO • 💸 Press F: "Make It Rain" stuns nearby enemies for 2 seconds (20 second cooldown) • leaves a trail of money',
+    { id: 'tux', name: 'Tuxedo Boss', icon: '🎩', base: '#14141a', cost: 0, secret: true, anim: true, img: 'tux', eye: '#ffffff', info: 'A cartoon dude in a tux and top hat. Reward skin!', power: '🛡️ Takes 40% less damage • 💪 deals 25% more • 💰 +10 coins and +5 health for every KO • 💼 comes back to life once per round • 💸 Press F: Make It Rain stuns nearby enemies for 3 seconds (12 second cooldown) • leaves a trail of money',
       paint(g, t, r) {
         g.fillStyle = '#14141a'; g.fillRect(-r, -r, 2 * r, 2 * r);
         g.fillStyle = '#f6f6f6'; g.beginPath(); g.moveTo(-r * 0.4, -r); g.lineTo(r * 0.4, -r); g.lineTo(r * 0.22, r * 0.75); g.lineTo(-r * 0.22, r * 0.75); g.closePath(); g.fill();
@@ -1317,7 +1417,7 @@
   ];
   // pictures for skins (files in the assets folder)
   const SPRITES = {};
-  if (typeof Image !== 'undefined') { const im = new Image(); im.src = 'assets/tux-dude.png'; SPRITES.tux = im; }
+  if (typeof Image !== 'undefined') { const im = new Image(); im.src = 'assets/tux-dude-clean.png'; SPRITES.tux = im; }
   const spriteReady = n => { const im = SPRITES[n]; return im && im.complete && im.naturalWidth > 0 ? im : null; };
   const skinById = id => SKINS.find(k => k.id === id) || SKINS[0];
   const ownSkin = id => aimbot || skinsOwned.includes(id);
@@ -1615,7 +1715,7 @@
     if (!last) last = t;
     acc += Math.min(100, t - last); last = t;
     while (acc >= STEP) { if (state === 'play') update(); acc -= STEP; }
-    draw(t);
+    draw(t); syncTouchUI();
   }
   showMenu();
   requestAnimationFrame(frame);
