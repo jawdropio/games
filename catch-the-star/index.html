@@ -79,7 +79,7 @@ function drawStar(x, y, r, color) {
   ctx.closePath(); ctx.fillStyle = color; ctx.fill();
 }
 
-function giveScore(n) { score += n * 1234 * (fx.double > 0 ? 2 : 1); if (score > best) { best = score; try { localStorage.setItem('catchStarBest', best); } catch (e) {} } }
+function giveScore(n) { score += n * 100000000 * (fx.double > 0 ? 2 : 1); if (score > best) { best = score; try { localStorage.setItem('catchStarBest', best); } catch (e) {} } }
 
 function catchPower(type) {
   const p = POWERS[type];
