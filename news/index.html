@@ -45,7 +45,7 @@
 <div class="paper">
   <div class="masthead">
     <h1>The Daily Jaw</h1>
-    <div class="dateline"><span id="today"></span><span>Price: one (1) imaginary cookie 🍪</span><span>“All the news that's fit to make up”</span></div>
+    <div class="dateline"><span id="today"></span><span>Free for all gamers 🎮</span><span>“All the news from the Jaw Arcade”</span></div>
   </div>
 
   <div class="ticker"><span id="tickerText"></span></div>
@@ -62,7 +62,7 @@
         <div id="soon"></div>
       </div>
       <div class="box">
-        <h3>🌤 Weather</h3>
+        <h3>🌤 Forecast</h3>
         <div id="weather"></div>
       </div>
     </aside>
@@ -71,7 +71,7 @@
   <div class="letters">
     <h2>✉️ Letters from Readers</h2>
     <form id="form" autocomplete="off">
-      <input type="text" id="text" maxlength="120" placeholder="Did a goat steal your lunch? Tell us!">
+      <input type="text" id="text" maxlength="120" placeholder="Write a letter about the games!">
       <button class="send" type="submit">Send ✉️</button>
     </form>
     <div id="msg"></div>
@@ -99,30 +99,28 @@ const CODE = dailyCode();
 
 // Letters everyone sees (ask your buddy to add more!)
 const LETTERS = [
-  "dear daily jaw, my pet rock learned to sit. it was already sitting. big win.",
-  "i saw a squirrel wearing tiny sunglasses. i think he is the boss of the park.",
-  "my sandwich said hi to me today. i said hi back. then i ate him. sorry.",
-  "breaking: the moon is just a giant cheese wheel and nobody told us."
+  "the bots that dig underground scared me so bad. i love them.",
+  "i froze three enemies at once and now i feel like a wizard.",
+  "500 autumn maps and i still got lost. best game ever.",
+  "jaw breaker level 50 is my enemy. i will win someday."
 ];
 
 const COMING_SOON = [
-  { emoji:"🎮", text:"A brand new game is being cooked up in the Jaw kitchen!" },
-  { emoji:"🕵️", text:"Rumor: it may or may not have ninja pickles." }
+  { emoji:"🗺️", text:"More Jaw Battle maps are on the way!" },
+  { emoji:"🔫", text:"New guns are being tested in the practice range." }
 ];
 
-const WEATHER = "Cloudy with a 90% chance of meatballs. Bring a fork. 🍝";
+const WEATHER = "Crunchy autumn leaves with a chance of ice bullets. ❄️";
 
 const STORIES = [
-  { pic:"🐐", head:"GOAT STEALS LUNCH, EATS TRAY TOO", by:"Reporter Bleat McFluff",
-    body:"Witnesses say the goat walked right into the cafeteria like it owned the place. “It took the pizza, the napkin, and then looked at us like WE were weird,” said one very shocked lunch spoon." },
-  { pic:"🦆", head:"DUCK ELECTED MAYOR OF PUDDLE TOWN", by:"By Quackers Jones",
-    body:"After a landslide win (13 votes, 12 of them from other ducks), the new mayor promised more puddles, free bread Fridays, and a ban on Mondays." },
-  { pic:"🛸", head:"ALIENS LAND, ONLY WANT TO PLAY ARCADE GAMES", by:"By Zorp Gleep",
-    body:"A tiny spaceship parked on a trampoline today. The aliens said Earth's best invention is 'the thing where you hit the ball and the bricks go boom.' They scored 4,000 points and left a 5-star review." },
-  { pic:"🧦", head:"MYSTERY SOLVED: WHERE SOCKS GO", by:"By Professor Fluffernutter",
-    body:"Scientists have discovered a secret sock island where missing socks go on vacation. Left socks reportedly love it. Right socks are 'still thinking about it.'" },
-  { pic:"🍕", head:"PIZZA SLICE REFUSES TO BE EATEN, RUNS FOR THE HILLS", by:"By Chewie Cheddar",
-    body:"“I have dreams,” said the slice, dodging a fork at 40 miles per hour. Last seen heading toward the mountains with a backpack full of extra cheese." }
+  { pic:"🎮", head:"JAW BATTLE IS THE HOTTEST GAME IN THE ARCADE", by:"By the Daily Jaw team",
+    body:"Duels, team battles, Capture the Flag and 500 autumn maps. Players say the bots that dig underground are the sneakiest around." },
+  { pic:"🔥", head:"FIRE VS ICE: WHICH GUN PERK WINS?", by:"By the Daily Jaw team",
+    body:"With 9 guns and fire and ice perks, everybody has a favorite. Burn them or freeze them? The arguments never end." },
+  { pic:"🍬", head:"JAW BREAKER: CAN ANYONE BEAT ALL 100 LEVELS?", by:"By the Daily Jaw team",
+    body:"A boss shows up every 10 levels, and beating one gives you 5 bonus hearts. Hunt for the rainbow brick!" },
+  { pic:"⭐", head:"CATCH THE STAR IS SUPER DUPER HARD", by:"By the Daily Jaw team",
+    body:"Only 3 hearts, a tiny basket, and stars that fall faster and faster. Rare power-ups might save you." }
 ];
 // ========================================================
 
