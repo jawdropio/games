@@ -40,7 +40,7 @@ const POWERS = {
   magnet: { color: '#ff9a3d', icon: '🧲', text: '🧲 Magnet! Stars come to you', secs: 8 },
   double: { color: '#ff5de0', icon: '✨', text: '✨ Double points!', secs: 10 },
 };
-const POWER_KEYS = Object.keys(POWERS);
+const POWER_KEYS = Object.keys(POWERS).filter(k => k !== 'slow'); // no slow-mo star
 
 function reset() { stars = []; score = 0; lives = 3; over = false; spawnTimer = 30; fx = {}; basket.w = W; toast = null; }
 reset();
@@ -99,7 +99,7 @@ function update() {
 
   if (--spawnTimer <= 0) {
     const special = Math.random() < 0.08; // power-ups are rare now
-    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 14 + Math.random() * 6, r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
+    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 24 + Math.random() * 8, r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
     spawnTimer = Math.max(14, 40 - score * 0.6); // stars come faster and faster
   }
   const by = H - 50, slow = fx.slow > 0 ? 0.45 : 1;
