@@ -28,7 +28,7 @@ addEventListener('resize', resize); resize();
 
 const BASE_W = 400, MAX_LIVES = 5;
 const basket = { x: W / 2, w: BASE_W, h: 18, speed: 8 };
-let stars, score, lives, over, spawnTimer, paused = false, best = 0, toast = null, keys = {};
+let ticks = 0, stars, score, lives, over, spawnTimer, paused = false, best = 0, toast = null, keys = {};
 let fx = {}; // active power-ups: name -> frames left
 try { best = +localStorage.getItem('catchStarBest') || 0; } catch (e) {}
 
@@ -42,7 +42,7 @@ const POWERS = {
 };
 const POWER_KEYS = Object.keys(POWERS).filter(k => k !== 'slow'); // no slow-mo star
 
-function reset() { stars = []; score = 0; lives = 3; over = false; spawnTimer = 30; fx = {}; basket.w = W; toast = null; }
+function reset() { ticks = 0; stars = []; score = 0; lives = 3; over = false; spawnTimer = 30; fx = {}; basket.w = W; toast = null; }
 reset();
 
 // little sounds (made with the Web Audio API)
@@ -90,6 +90,7 @@ function catchPower(type) {
 
 function update() {
   if (over || paused) return;
+  ticks++;
   if (keys.ArrowLeft || keys.a) basket.x -= basket.speed;
   if (keys.ArrowRight || keys.d) basket.x += basket.speed;
   for (const k in fx) if (fx[k] > 0) fx[k]--;
@@ -99,14 +100,14 @@ function update() {
 
   if (--spawnTimer <= 0) {
     const special = Math.random() < 0.08; // power-ups are rare now
-    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 24 + Math.random() * 8, r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
+    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: (24 + Math.random() * 8) * Math.min(1 + ticks / 3600, 3), r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
     spawnTimer = Math.max(14, 40 - score * 0.6); // stars come faster and faster
   }
   const by = H - 50, slow = fx.slow > 0 ? 0.45 : 1;
   for (const s of stars) {
     if (fx.magnet > 0 && !s.done) { const dx = basket.x - s.x, dy = by - s.y, d = Math.hypot(dx, dy); if (d < 330 && d > 1) { s.x += dx / d * 3.2; } }
-    s.y += s.vy * slow; s.spin += 0.05;
-    if (!s.done && s.y + s.r > by && s.y < by + basket.h && Math.abs(s.x - basket.x) < basket.w / 2 + s.r / 2) {
+    s.py = s.y; s.y += s.vy * slow; s.spin += 0.05;
+    if (!s.done && s.y + s.r > by && s.py < by + basket.h && Math.abs(s.x - basket.x) < basket.w / 2 + s.r / 2) {
       s.done = true;
       if (s.type) catchPower(s.type); else { giveScore(1); beep(880, 0.05, 'triangle'); }
     } else if (!s.done && s.y - s.r > H) {
