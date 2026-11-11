@@ -571,52 +571,29 @@
       if (p.team === 0 && !(p.ob && !p.ob.dead)) { ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('＋ Build a cannon', p.x, p.y - 44); ctx.fillStyle = '#ffd23a'; ctx.fillText(aimbot ? 'FREE' : '🪙100 (back if you win!)', p.x, p.y + 46); }
     }
   }
-  function drawJaguar(x, y, dir, tm, sc, pose, p) { // a black jaguar: running, crouching, leaping or landing
+  // the Jagwire pet: the jaguar emoji, darkened, that runs / crouches / leaps / lands
+  let jagSpr = null;
+  function jagSprite() {
+    if (jagSpr) return jagSpr;
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    g.font = '104px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🐆', 64, 70);
+    g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(6,6,12,0.66)'; g.fillRect(0, 0, 128, 128); // darken only the jaguar's own pixels
+    jagSpr = c; return c;
+  }
+  function drawJaguar(x, y, dir, tm, sc, pose, p) {
     pose = pose || 'run'; p = p || 0;
-    const run = tm / 85;
-    ctx.save(); ctx.translate(x, y); ctx.scale(dir * sc, sc); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    let bodyY = 0, squash = 1, pitch = 0;
-    if (pose === 'run') bodyY = -Math.abs(Math.sin(run)) * 2.5;
-    else if (pose === 'crouch') { bodyY = 7; squash = 0.86; pitch = -0.05; }
-    else if (pose === 'leap') { pitch = -0.55 + p * 1.1; squash = 1.08; }
-    else if (pose === 'land') { bodyY = 6; squash = 0.84; pitch = 0.1; }
-    ctx.translate(0, bodyY); ctx.rotate(pitch); ctx.scale(1, squash);
-    // tail
-    ctx.strokeStyle = '#17171d'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-32, -4);
-    if (pose === 'leap') ctx.quadraticCurveTo(-48, -2, -64, 2 + Math.sin(run * 2) * 3);
-    else if (pose === 'crouch') ctx.quadraticCurveTo(-46, -12, -50, -34 + Math.sin(run * 0.5) * 3);
-    else if (pose === 'land') ctx.quadraticCurveTo(-46, 4, -56, 14);
-    else ctx.quadraticCurveTo(-52, -10 + Math.sin(run * 0.8) * 7, -58, -26 + Math.sin(run) * 6);
-    ctx.stroke();
-    const leg = (lx, ph, col, front) => {
-      ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.beginPath();
-      let ex, ey;
-      if (pose === 'leap') { if (front) { ctx.moveTo(lx, 6); ctx.lineTo(lx + 14, 2); ex = lx + 28; ey = 6; } else { ctx.moveTo(lx, 8); ctx.lineTo(lx - 14, 12); ex = lx - 28; ey = 10; } ctx.lineTo(ex, ey); }
-      else if (pose === 'crouch' || pose === 'land') { ctx.moveTo(lx, 8); ctx.lineTo(lx + (front ? 6 : -6), 15); ex = lx + (front ? 10 : -3); ey = 20; ctx.lineTo(ex, ey); }
-      else { const sw = Math.sin(run + ph) * 9, lift = Math.max(0, Math.cos(run + ph)) * 4; ctx.moveTo(lx, 8); ctx.lineTo(lx + sw * 0.5, 15 - lift); ex = lx + sw + 2; ey = 23 - lift; ctx.lineTo(lx + sw, 22 - lift); }
-      ctx.stroke(); ctx.fillStyle = '#050508'; ctx.beginPath(); ctx.ellipse(ex, ey, 5, 3, 0, 0, 6.283); ctx.fill();
-      if (pose === 'leap' && front) { ctx.strokeStyle = '#e8e8f0'; ctx.lineWidth = 1.2; for (const dy of [-2, 0, 2]) { ctx.beginPath(); ctx.moveTo(ex + 3, ey + dy); ctx.lineTo(ex + 9, ey + dy + 1); ctx.stroke(); } } // claws out
+    const spr = jagSprite(), run = tm / 85;
+    let sx = 1, sy = 1, ty = 0, pitch = 0;
+    if (pose === 'run') { ty = -Math.abs(Math.sin(run)) * 4; sx = 1 + Math.sin(run) * 0.04; sy = 1 - Math.sin(run) * 0.04; }
+    else if (pose === 'crouch') { sx = 1.1; sy = 0.8; ty = 9; pitch = 0.03; }
+    else if (pose === 'leap') { sx = 1.14; sy = 0.94; pitch = -0.5 + p * 1.0; }
+    else if (pose === 'land') { sx = 1.12; sy = 0.82; ty = 8; }
+    const draw = (alpha, dx) => {
+      ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x + dx * dir, y + ty); ctx.rotate(pitch * dir); ctx.scale(-dir * sc * sx, sc * sy); // the emoji faces left, so flip it to face the way we run
+      ctx.drawImage(spr, -38, -38, 76, 76); ctx.restore();
     };
-    leg(-22, 0.4, '#101015', false); leg(24, 3.5, '#101015', true);
-    const bg = ctx.createLinearGradient(0, -18, 0, 18); bg.addColorStop(0, '#34343f'); bg.addColorStop(0.55, '#1b1b22'); bg.addColorStop(1, '#2a2a33');
-    ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(0, 0, 38, 17, 0, 0, 6.283); ctx.fill();
-    ctx.strokeStyle = 'rgba(90,90,120,.85)'; ctx.lineWidth = 2.2;
-    for (const [rx, ry] of [[-26, -6], [-14, -9], [-2, -7], [10, -9], [22, -5], [-20, 5], [-8, 3], [5, 4], [17, 4], [-30, 2]]) { ctx.beginPath(); ctx.arc(rx, ry, 4.2, 0.3, 6.0); ctx.stroke(); ctx.fillStyle = 'rgba(95,95,125,.75)'; ctx.beginPath(); ctx.arc(rx + 0.5, ry, 1.4, 0, 6.283); ctx.fill(); }
-    leg(-14, 3.5, '#25252d', false); leg(30, 0.4, '#25252d', true);
-    // head
-    const hy = pose === 'crouch' ? -2 : pose === 'leap' ? -9 : -6;
-    ctx.fillStyle = '#1f1f27'; ctx.beginPath(); ctx.arc(40, hy, 13, 0, 6.283); ctx.fill();
-    const earBack = pose === 'leap' ? 4 : 0;
-    ctx.beginPath(); ctx.moveTo(30 - earBack, hy - 9); ctx.lineTo(31 - earBack, hy - 21); ctx.lineTo(39 - earBack, hy - 13); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(44 - earBack, hy - 12); ctx.lineTo(49 - earBack, hy - 21); ctx.lineTo(51 - earBack, hy - 8); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#5a3344'; ctx.beginPath(); ctx.moveTo(32 - earBack, hy - 11); ctx.lineTo(32.5 - earBack, hy - 18); ctx.lineTo(37 - earBack, hy - 13); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#34343f'; ctx.beginPath(); ctx.ellipse(48, hy + 4, 8, 6, 0, 0, 6.283); ctx.fill();
-    if (pose === 'leap') { ctx.fillStyle = '#7a2a3a'; ctx.beginPath(); ctx.moveTo(50, hy + 2); ctx.lineTo(62, hy + 3); ctx.lineTo(52, hy + 13); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(56, hy + 2.5); ctx.lineTo(58, hy + 2.5); ctx.lineTo(57, hy + 7); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(53, hy + 10); ctx.lineTo(55, hy + 10.5); ctx.lineTo(54, hy + 6); ctx.closePath(); ctx.fill(); }
-    ctx.fillStyle = '#6a3a48'; ctx.beginPath(); ctx.moveTo(52, hy); ctx.lineTo(57, hy + 1); ctx.lineTo(54, hy + 4); ctx.closePath(); ctx.fill();
-    if (pose !== 'leap') { ctx.strokeStyle = '#050508'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(54, hy + 4); ctx.lineTo(54, hy + 7); ctx.moveTo(54, hy + 7); ctx.quadraticCurveTo(50, hy + 10, 46, hy + 8); ctx.stroke(); }
-    ctx.shadowColor = '#e8f04a'; ctx.shadowBlur = 8; ctx.fillStyle = '#e8f04a'; ctx.beginPath(); ctx.ellipse(42, hy - 3, pose === 'leap' ? 4.4 : 3.8, pose === 'leap' ? 3.4 : 3.1, 0.2, 0, 6.283); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#050508'; ctx.fillRect(41.3, hy - 5.6, 1.5, 5);
-    ctx.fillStyle = 'rgba(95,95,125,.7)'; for (const [dx, dy] of [[34, 2], [38, 7], [44, -8], [36, -4]]) { ctx.beginPath(); ctx.arc(dx, hy + dy, 1.1, 0, 6.283); ctx.fill(); }
-    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 0.9; for (const dy of [5, 7.5]) { ctx.beginPath(); ctx.moveTo(52, hy + dy); ctx.lineTo(64, hy + dy - 3 + (dy - 5) * 2); ctx.stroke(); }
-    ctx.restore();
+    if (pose === 'leap') draw(0.25, -16);
+    draw(1, 0);
   }
   function drawCats() {
     for (const c of cats) {
