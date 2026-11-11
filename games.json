@@ -3,7 +3,9 @@
     "slug": "catch-the-star",
     "title": "Catch the Star",
     "emoji": "⭐",
-    "description": "SUPER DUPER HARD star catching! Only 3 hearts, a tiny basket, and stars that fall faster and faster. Rare power-ups might save you."
+    "description": "SUPER DUPER HARD star catching! Only 3 hearts, a tiny basket, and stars that fall faster and faster. Rare power-ups might save you.",
+    "comingSoon": true,
+    "earlyBird": "931fb5d2179f319fc3ec02a87776d4f164130b8f6fd2231cf924b01aedeb6275"
   },
   {
     "slug": "jaw-breaker",
