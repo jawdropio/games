@@ -100,6 +100,24 @@
   .cup.ready { border-color:#fff; cursor:pointer; box-shadow:0 0 10px #fffb; }
   .cup.sel { border-color:#ffe14d; box-shadow:0 0 12px #ffe14d; transform:translateY(-3px); }
   #bake { background:#ff5a1f; }
+  #walkers { position:absolute; left:0; right:0; bottom:1%; height:40px; z-index:2; pointer-events:none; }
+  .walker { position:absolute; bottom:0; font-size:clamp(22px,4.4vmin,34px); animation:walkL 40s linear infinite; }
+  .walker.right { animation-name:walkR; transform:scaleX(-1); }
+  .walker i { display:block; font-style:normal; animation:bob .5s ease-in-out infinite; }
+  @keyframes walkL { from { left:108%; } to { left:-8%; } }
+  @keyframes walkR { from { left:-8%; } to { left:108%; } }
+  @keyframes bob { 50% { transform:translateY(-4px); } }
+  .bgt { position:absolute; top:41%; width:clamp(42px,7vw,66px); text-align:center; }
+  .bgt .pp { display:block; font-size:clamp(22px,4.4vmin,34px); line-height:1; animation:eat 3.4s ease-in-out infinite; }
+  .bgt .tb2 { height:clamp(14px,2.8vmin,22px); margin-top:-3px; background:linear-gradient(#e8b676,#b97b3c); border-radius:50%; border-bottom:3px solid #7a4a22; display:grid; place-items:center; font-size:clamp(10px,2vmin,15px); }
+  .bgt .leg { width:6px; height:clamp(12px,3vmin,22px); margin:0 auto; background:#5a3317; }
+  @keyframes eat { 0%,80%,100% { transform:translateY(0); } 88% { transform:translateY(3px); } }
+  .say { position:absolute; top:-18px; left:50%; transform:translateX(-50%); background:#fff; color:#222; border-radius:10px; padding:0 6px; font-size:13px; font-weight:800; white-space:nowrap; opacity:0; animation:say 2.2s forwards; }
+  @keyframes say { 10%,80% { opacity:1; } 100% { opacity:0; } }
+  .chalk { position:absolute; left:36%; top:17%; width:clamp(48px,8vw,78px); padding:5px 3px; text-align:center; font-weight:800; font-size:clamp(9px,1.7vmin,13px); color:#f4f4e8; background:#2f4a3a; border:4px solid #8a5a2c; box-shadow:0 3px 6px #0005; line-height:1.25; }
+  .pend { position:absolute; top:0; width:2px; height:clamp(14px,4vmin,30px); background:#222; }
+  .pend::after { content:''; position:absolute; top:100%; left:-13px; width:28px; height:14px; background:#ffcf6a; border-radius:14px 14px 4px 4px; box-shadow:0 8px 22px 6px #ffcf6a66; }
+  #room.still * { animation-play-state:paused !important; }
   #warmers { display:flex; justify-content:center; gap:clamp(6px,1.6vw,18px); flex-wrap:wrap; }
   .warmer { width:clamp(84px,15vw,140px); background:#0007; border:4px solid #7a5a1a; border-radius:14px; padding:4px 6px; text-align:center; cursor:pointer; box-shadow:0 4px 0 #0006; }
   .warmer .lamp { font-size:16px; line-height:1; background:linear-gradient(#ffb347,#c46a10); border-radius:10px 10px 0 0; padding:2px 0; box-shadow:0 6px 14px #ff9a2b88; }
@@ -173,7 +191,7 @@
     <circle cx="29" cy="60" r="1.6" fill="#b7281f"/><circle cx="32.5" cy="58.5" r="1.3" fill="#b7281f"/>
     <rect y="63" width="60" height="7" fill="#000" opacity=".55"/>
     <text x="30" y="68.2" text-anchor="middle" font-size="5.6" font-weight="bold" fill="#ffe9b0" font-family="sans-serif">MONA PIZZA</text>
-  </svg></div></div><div id="seats"></div></section>
+  </svg></div></div><div id="seats"></div><div id="walkers"></div></section>
 <section id="mid"><div id="hint"></div><div id="trays"></div><div id="warmers"></div></section>
 <section id="bottom"></section>
 <div id="toast"></div>
@@ -244,6 +262,7 @@ const ANIMALS = [
 const UPS = [
   { k:'trays',    e:'🍕', n:'More ovens',    d:'More ovens and prep boards',     costs:[60,120,200,320], show:l => (2+l)+' ovens' },
   { k:'warmers',  e:'🔆', n:'Pizza warmer',  d:'Keeps a baked pizza warm and never burns it', costs:[70,140,220,320], show:l => l + (l === 1 ? ' warmer' : ' warmers') },
+  { k:'auto',     e:'🤖', n:'Auto-topper',   d:'A robot adds the toppings for the next customer! Level 2 bakes it too.', costs:[500,1200], show:l => l === 0 ? 'off' : l === 1 ? 'adds toppings' : 'toppings + baking' },
   { k:'oven',     e:'🔥', n:'Hotter oven',   d:'Pizzas bake faster',             costs:[50,100,180,300], show:l => ((420-60*l)/60)+'s bake' },
   { k:'seats',    e:'🪑', n:'More stools',   d:'Room for more animals',          costs:[100,250],        show:l => (3+l)+' stools' },
   { k:'patience', e:'🛋️', n:'Comfy stools',  d:'Animals wait longer',            costs:[40,80,140,220],  show:l => '+'+(10*l)+'s patience' },
@@ -260,7 +279,7 @@ const DECOS = [
 
 // ---------- save ----------
 const fresh = () => ({ coins:0, day:1, best:0, tops:['cheese','pep','mush'], drinks:['coke'], deco:[],
-  up:{trays:0,oven:0,seats:0,patience:0,cups:0,tips:0,mitts:0,warmers:0} });
+  up:{trays:0,oven:0,seats:0,patience:0,cups:0,tips:0,mitts:0,warmers:0,auto:0} });
 let save = (() => {
   try {
     const s = JSON.parse(localStorage.getItem('pizzapals-save') || 'null');
@@ -393,7 +412,7 @@ function renderDecor() {
 
 // ---------- game state ----------
 let phase = 'menu', paused = false, G = null, shopMode = 'free';
-const seatsEl = $('#seats'), traysEl = $('#trays'), bottomEl = $('#bottom');
+const seatsEl = $('#seats'), traysEl = $('#trays'), bottomEl = $('#bottom'), roomEl = $('#room');
 const newTray = () => ({ st:'empty', tops:[], p:0, w:0 });
 const newCup = () => ({ st:'empty', p:0, type:'coke' });
 const newWarm = () => ({ st:'empty', tops:[] });
@@ -453,7 +472,7 @@ function buildBottom() {
   });
   let cups = '<div id="cups">';
   G.cups.forEach((_, i) => { cups += '<div class="cup" data-c="' + i + '"><i></i></div>'; });
-  bottomEl.insertAdjacentHTML('beforeend', cups + '</div><button class="act" id="bake">🔥 Bake!</button><button class="act" id="trash" style="background:#555">🗑 Toss</button>');
+  bottomEl.insertAdjacentHTML('beforeend', cups + '</div>' + (save.up.auto ? '<button class="act" id="auto" style="background:#2a6fdb">🤖 Auto</button>' : '') + '<button class="act" id="bake">🔥 Bake!</button><button class="act" id="trash" style="background:#555">🗑 Toss</button>');
 }
 
 // ---------- orders ----------
@@ -496,6 +515,27 @@ function addTopping(id) {
   if (t.tops.includes(id)) { toast('Already on there! Toppings can not come off 😉'); return; }
   if (t.tops.length >= 4) { toast('That is plenty of toppings! (max 4)'); return; }
   t.tops.push(id); sfx('add');
+}
+function autoTop() {
+  const lvl = save.up.auto; if (!lvl) return;
+  const made = [...G.trays, ...G.warm].filter(x => x.st !== 'empty' && x.tops.length).map(x => x.tops);
+  const waiting = G.seats.filter(s => s && !s.leave && !s.gotPizza).sort((a, b) => a.pat / a.max - b.pat / b.max);
+  let target = null;
+  for (const c of waiting) {
+    const k = made.findIndex(m => sameOrder(m, c.order));
+    if (k >= 0) made.splice(k, 1); else if (!target) target = c;
+  }
+  if (!target) { toast('🤖 Nobody new needs a pizza right now!'); return; }
+  let t = selTray();
+  if (!(t && t.st === 'raw' && !t.tops.length)) {
+    const e = G.trays.findIndex(x => x.st === 'empty');
+    if (e < 0) { toast('All ovens are busy! Serve or toss one 🍕'); return; }
+    G.sel = e; t = G.trays[e]; t.st = 'raw';
+  }
+  G.cup = -1; G.selW = -1;
+  t.tops = target.order.slice(); sfx('add');
+  if (lvl >= 2) { t.st = 'baking'; t.p = 0; sfx('bake'); toast('🤖 Made and baking!'); }
+  else toast('🤖 Toppings done! Tap Bake!');
 }
 function bake() {
   const t = selTray();
@@ -750,8 +790,28 @@ function frame(now) {
   if (phase === 'play' && !paused) {
     while (acc >= STEP && phase === 'play') { update(); acc -= STEP; }
   } else acc = 0;
+  roomEl.classList.toggle('still', paused);
   render();
   requestAnimationFrame(frame);
+}
+function buildBackdrop() {
+  const d = $('#decor');
+  const people = ['👧','👦','👵','👴','🧑‍🦱','👩‍🦰','🧔','👩','🧒'], food = ['🍕','🥤','🍕','🍝','🍰'];
+  [17, 27, 70, 80].forEach(x => {
+    d.insertAdjacentHTML('beforeend', '<div class="bgt" style="left:' + x + '%"><span class="pp" style="animation-delay:-' + (Math.random() * 3).toFixed(1) + 's">' + people[rnd(people.length)] + '</span><div class="tb2">' + food[rnd(food.length)] + '</div><div class="leg"></div></div>');
+  });
+  d.insertAdjacentHTML('beforeend', '<div class="chalk">MENU<br>🍕 🥤 🍰</div><div class="pend" style="left:28%"></div><div class="pend" style="left:72%"></div>');
+  const w = $('#walkers');
+  ['🐕','🐈','🐇','🦆','🐢','🐿️'].forEach((e, i) => {
+    w.insertAdjacentHTML('beforeend', '<span class="walker' + (i % 2 ? ' right' : '') + '" style="animation-duration:' + (30 + rnd(30)) + 's;animation-delay:-' + rnd(40) + 's"><i>' + e + '</i></span>');
+  });
+  const says = ['😋','💬','😄','🍕','👍','🎶','Yum!','Hi!'];
+  setInterval(() => {
+    if (paused) return;
+    const ts = d.querySelectorAll('.bgt'), t = ts[rnd(ts.length)]; if (!t) return;
+    const b = document.createElement('span'); b.className = 'say'; b.textContent = says[rnd(says.length)];
+    b.addEventListener('animationend', () => b.remove()); t.appendChild(b);
+  }, 2600);
 }
 
 // ---------- input ----------
@@ -766,6 +826,7 @@ bottomEl.addEventListener('click', e => {
   if (b.dataset.t) addTopping(b.dataset.t);
   else if (b.dataset.d) pour(b.dataset.d);
   else if (b.id === 'bake') bake();
+  else if (b.id === 'auto') autoTop();
   else if (b.id === 'trash') trash();
 });
 const shopOpen = () => $('#shop').classList.contains('show');
@@ -793,6 +854,7 @@ window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k >= '1' && k <= '9') { const id = save.tops[+k - 1]; if (id) addTopping(id); return; }
   if (k === 'b') bake();
+  else if (k === 'a' && save.up.auto) autoTop();
   else if (k === 't' || k === 'delete' || k === 'backspace') trash();
   else { const d = DRINKS.find(x => x.key === k && save.drinks.includes(x.id)); if (d) pour(d.id); }
 });
@@ -815,6 +877,7 @@ $('#newBtn').onclick = () => {
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('pointerdown', () => { try { if (!muted) { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } } catch (e) {} }, { once:true });
 $('#nextBtn').onclick = () => { if (shopMode === 'day') newDay(); else closeShop(); };
+buildBackdrop();
 document.querySelectorAll('.winw').forEach(w => {
   for (let i = 0; i < 6; i++) {
     const l = document.createElement('span'); l.className = 'lf'; l.textContent = ['🍂','🍁','🍃'][rnd(3)];
