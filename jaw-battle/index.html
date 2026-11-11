@@ -571,38 +571,59 @@
       if (p.team === 0 && !(p.ob && !p.ob.dead)) { ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('＋ Build a cannon', p.x, p.y - 44); ctx.fillStyle = '#ffd23a'; ctx.fillText(aimbot ? 'FREE' : '🪙100 (back if you win!)', p.x, p.y + 46); }
     }
   }
-  function drawJaguar(x, y, dir, tm, sc) { // a black jaguar that runs
-    const run = tm / 85, bob = Math.abs(Math.sin(run)) * 2.5;
-    ctx.save(); ctx.translate(x, y - bob); ctx.scale(dir * sc, sc); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  function drawJaguar(x, y, dir, tm, sc, pose, p) { // a black jaguar: running, crouching, leaping or landing
+    pose = pose || 'run'; p = p || 0;
+    const run = tm / 85;
+    ctx.save(); ctx.translate(x, y); ctx.scale(dir * sc, sc); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let bodyY = 0, squash = 1, pitch = 0;
+    if (pose === 'run') bodyY = -Math.abs(Math.sin(run)) * 2.5;
+    else if (pose === 'crouch') { bodyY = 7; squash = 0.86; pitch = -0.05; }
+    else if (pose === 'leap') { pitch = -0.55 + p * 1.1; squash = 1.08; }
+    else if (pose === 'land') { bodyY = 6; squash = 0.84; pitch = 0.1; }
+    ctx.translate(0, bodyY); ctx.rotate(pitch); ctx.scale(1, squash);
     // tail
-    ctx.strokeStyle = '#17171d'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-32, -4); ctx.quadraticCurveTo(-52, -10 + Math.sin(run * 0.8) * 7, -58, -26 + Math.sin(run) * 6); ctx.stroke();
-    ctx.strokeStyle = '#050508'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-54, -22 + Math.sin(run) * 5); ctx.lineTo(-58, -26 + Math.sin(run) * 6); ctx.stroke();
-    // far legs (darker), then body, then near legs
-    const leg = (lx, ph, col) => { const sw = Math.sin(run + ph) * 9, lift = Math.max(0, Math.cos(run + ph)) * 4; ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(lx, 8); ctx.lineTo(lx + sw * 0.5, 15 - lift); ctx.lineTo(lx + sw, 22 - lift); ctx.stroke(); ctx.fillStyle = '#050508'; ctx.beginPath(); ctx.ellipse(lx + sw + 2, 23 - lift, 5, 3, 0, 0, 6.283); ctx.fill(); };
-    leg(-22, 0.4, '#101015'); leg(24, 3.5, '#101015');
+    ctx.strokeStyle = '#17171d'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-32, -4);
+    if (pose === 'leap') ctx.quadraticCurveTo(-48, -2, -64, 2 + Math.sin(run * 2) * 3);
+    else if (pose === 'crouch') ctx.quadraticCurveTo(-46, -12, -50, -34 + Math.sin(run * 0.5) * 3);
+    else if (pose === 'land') ctx.quadraticCurveTo(-46, 4, -56, 14);
+    else ctx.quadraticCurveTo(-52, -10 + Math.sin(run * 0.8) * 7, -58, -26 + Math.sin(run) * 6);
+    ctx.stroke();
+    const leg = (lx, ph, col, front) => {
+      ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.beginPath();
+      let ex, ey;
+      if (pose === 'leap') { if (front) { ctx.moveTo(lx, 6); ctx.lineTo(lx + 14, 2); ex = lx + 28; ey = 6; } else { ctx.moveTo(lx, 8); ctx.lineTo(lx - 14, 12); ex = lx - 28; ey = 10; } ctx.lineTo(ex, ey); }
+      else if (pose === 'crouch' || pose === 'land') { ctx.moveTo(lx, 8); ctx.lineTo(lx + (front ? 6 : -6), 15); ex = lx + (front ? 10 : -3); ey = 20; ctx.lineTo(ex, ey); }
+      else { const sw = Math.sin(run + ph) * 9, lift = Math.max(0, Math.cos(run + ph)) * 4; ctx.moveTo(lx, 8); ctx.lineTo(lx + sw * 0.5, 15 - lift); ex = lx + sw + 2; ey = 23 - lift; ctx.lineTo(lx + sw, 22 - lift); }
+      ctx.stroke(); ctx.fillStyle = '#050508'; ctx.beginPath(); ctx.ellipse(ex, ey, 5, 3, 0, 0, 6.283); ctx.fill();
+      if (pose === 'leap' && front) { ctx.strokeStyle = '#e8e8f0'; ctx.lineWidth = 1.2; for (const dy of [-2, 0, 2]) { ctx.beginPath(); ctx.moveTo(ex + 3, ey + dy); ctx.lineTo(ex + 9, ey + dy + 1); ctx.stroke(); } } // claws out
+    };
+    leg(-22, 0.4, '#101015', false); leg(24, 3.5, '#101015', true);
     const bg = ctx.createLinearGradient(0, -18, 0, 18); bg.addColorStop(0, '#34343f'); bg.addColorStop(0.55, '#1b1b22'); bg.addColorStop(1, '#2a2a33');
     ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(0, 0, 38, 17, 0, 0, 6.283); ctx.fill();
     ctx.strokeStyle = 'rgba(90,90,120,.85)'; ctx.lineWidth = 2.2;
     for (const [rx, ry] of [[-26, -6], [-14, -9], [-2, -7], [10, -9], [22, -5], [-20, 5], [-8, 3], [5, 4], [17, 4], [-30, 2]]) { ctx.beginPath(); ctx.arc(rx, ry, 4.2, 0.3, 6.0); ctx.stroke(); ctx.fillStyle = 'rgba(95,95,125,.75)'; ctx.beginPath(); ctx.arc(rx + 0.5, ry, 1.4, 0, 6.283); ctx.fill(); }
-    leg(-14, 3.5, '#25252d'); leg(30, 0.4, '#25252d');
+    leg(-14, 3.5, '#25252d', false); leg(30, 0.4, '#25252d', true);
     // head
-    ctx.fillStyle = '#1f1f27'; ctx.beginPath(); ctx.arc(40, -6, 13, 0, 6.283); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(30, -15); ctx.lineTo(31, -27); ctx.lineTo(39, -19); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(44, -18); ctx.lineTo(49, -27); ctx.lineTo(51, -14); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#5a3344'; ctx.beginPath(); ctx.moveTo(32, -17); ctx.lineTo(32.5, -24); ctx.lineTo(37, -19); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#34343f'; ctx.beginPath(); ctx.ellipse(48, -2, 8, 6, 0, 0, 6.283); ctx.fill();
-    ctx.fillStyle = '#6a3a48'; ctx.beginPath(); ctx.moveTo(52, -6); ctx.lineTo(57, -5); ctx.lineTo(54, -2); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#050508'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(54, -2); ctx.lineTo(54, 1); ctx.moveTo(54, 1); ctx.quadraticCurveTo(50, 4, 46, 2); ctx.stroke();
-    ctx.shadowColor = '#e8f04a'; ctx.shadowBlur = 8; ctx.fillStyle = '#e8f04a'; ctx.beginPath(); ctx.ellipse(42, -9, 3.8, 3.1, 0.2, 0, 6.283); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#050508'; ctx.fillRect(41.3, -11.6, 1.5, 5);
-    ctx.fillStyle = 'rgba(95,95,125,.7)'; for (const [dx, dy] of [[34, -4], [38, 1], [44, -14], [36, -10]]) { ctx.beginPath(); ctx.arc(dx, dy, 1.1, 0, 6.283); ctx.fill(); }
-    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 0.9; for (const dy of [-1, 1.5]) { ctx.beginPath(); ctx.moveTo(52, dy); ctx.lineTo(64, dy - 3 + dy * 2); ctx.stroke(); }
+    const hy = pose === 'crouch' ? -2 : pose === 'leap' ? -9 : -6;
+    ctx.fillStyle = '#1f1f27'; ctx.beginPath(); ctx.arc(40, hy, 13, 0, 6.283); ctx.fill();
+    const earBack = pose === 'leap' ? 4 : 0;
+    ctx.beginPath(); ctx.moveTo(30 - earBack, hy - 9); ctx.lineTo(31 - earBack, hy - 21); ctx.lineTo(39 - earBack, hy - 13); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(44 - earBack, hy - 12); ctx.lineTo(49 - earBack, hy - 21); ctx.lineTo(51 - earBack, hy - 8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5a3344'; ctx.beginPath(); ctx.moveTo(32 - earBack, hy - 11); ctx.lineTo(32.5 - earBack, hy - 18); ctx.lineTo(37 - earBack, hy - 13); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#34343f'; ctx.beginPath(); ctx.ellipse(48, hy + 4, 8, 6, 0, 0, 6.283); ctx.fill();
+    if (pose === 'leap') { ctx.fillStyle = '#7a2a3a'; ctx.beginPath(); ctx.moveTo(50, hy + 2); ctx.lineTo(62, hy + 3); ctx.lineTo(52, hy + 13); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(56, hy + 2.5); ctx.lineTo(58, hy + 2.5); ctx.lineTo(57, hy + 7); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(53, hy + 10); ctx.lineTo(55, hy + 10.5); ctx.lineTo(54, hy + 6); ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle = '#6a3a48'; ctx.beginPath(); ctx.moveTo(52, hy); ctx.lineTo(57, hy + 1); ctx.lineTo(54, hy + 4); ctx.closePath(); ctx.fill();
+    if (pose !== 'leap') { ctx.strokeStyle = '#050508'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(54, hy + 4); ctx.lineTo(54, hy + 7); ctx.moveTo(54, hy + 7); ctx.quadraticCurveTo(50, hy + 10, 46, hy + 8); ctx.stroke(); }
+    ctx.shadowColor = '#e8f04a'; ctx.shadowBlur = 8; ctx.fillStyle = '#e8f04a'; ctx.beginPath(); ctx.ellipse(42, hy - 3, pose === 'leap' ? 4.4 : 3.8, pose === 'leap' ? 3.4 : 3.1, 0.2, 0, 6.283); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#050508'; ctx.fillRect(41.3, hy - 5.6, 1.5, 5);
+    ctx.fillStyle = 'rgba(95,95,125,.7)'; for (const [dx, dy] of [[34, 2], [38, 7], [44, -8], [36, -4]]) { ctx.beginPath(); ctx.arc(dx, hy + dy, 1.1, 0, 6.283); ctx.fill(); }
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 0.9; for (const dy of [5, 7.5]) { ctx.beginPath(); ctx.moveTo(52, hy + dy); ctx.lineTo(64, hy + dy - 3 + (dy - 5) * 2); ctx.stroke(); }
     ctx.restore();
   }
   function drawCats() {
     for (const c of cats) {
-      const bob = Math.sin(Date.now() / 90) * 3;
-      ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(c.x, c.y + 24, 22, 7, 0, 0, 6.283); ctx.fill();
-      drawJaguar(c.x, c.y + bob, c.dir, Date.now(), 1.5);
-      ctx.strokeStyle = 'rgba(255,200,60,' + (0.3 + 0.2 * Math.sin(Date.now() / 120)) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(c.x, c.y, 290, 0, 6.283); ctx.setLineDash([10, 10]); ctx.stroke(); ctx.setLineDash([]);
+      const z = c.z || 0, k = 1 - Math.min(0.55, z / 130);
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.32 * k) + ')'; ctx.beginPath(); ctx.ellipse(c.x, c.y + 32, 34 * k, 9 * k, 0, 0, 6.283); ctx.fill(); // shadow stays on the ground
+      drawJaguar(c.x, c.y - z, c.dir, Date.now(), 1.5, c.st, c.p);
+      ctx.strokeStyle = 'rgba(255,200,60,' + (0.22 + 0.15 * Math.sin(Date.now() / 120)) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(c.x, c.y, 290, 0, 6.283); ctx.setLineDash([10, 10]); ctx.stroke(); ctx.setLineDash([]);
     }
   }
   function drawHides() { // hay-stack hiding spots (drawn over fighters so they look like they are inside)
@@ -1181,9 +1202,23 @@
   }
   function catTick() {
     for (const c of cats) {
-      c.t--; let tg = null, bd = 1e9; for (const f of fighters) { if (f.team === player.team || f.dead) continue; const d = Math.hypot(f.x - c.x, f.y - c.y); if (d < bd) { bd = d; tg = f; } }
-      if (tg) { const dx = tg.x - c.x, dy = tg.y - c.y, d = Math.hypot(dx, dy) || 1; if (d > 24) { c.x += dx / d * 3.7; c.y += dy / d * 3.7; } c.dir = dx >= 0 ? 1 : -1; }
-      for (const f of fighters) if (f.team !== player.team && !f.dead && Math.hypot(f.x - c.x, f.y - c.y) < 290) f.scared = 240; // scared: runs and hides
+      c.t--; if (!c.st) { c.st = 'run'; c.stT = 0; c.z = 0; c.p = 0; c.cool = 0; }
+      let tg = null, bd = 1e9; for (const f of fighters) { if (f.team === player.team || f.dead) continue; const d = Math.hypot(f.x - c.x, f.y - c.y); if (d < bd) { bd = d; tg = f; } }
+      if (c.st === 'run') {
+        if (c.cool > 0) c.cool--;
+        if (tg) {
+          const dx = tg.x - c.x, dy = tg.y - c.y, d = Math.hypot(dx, dy) || 1; c.dir = dx >= 0 ? 1 : -1;
+          if (d > 24) { c.x += dx / d * 4.2; c.y += dy / d * 4.2; if ((c.runT = (c.runT || 0) + 1) % 4 === 0) parts.push({ x: c.x - c.dir * 20, y: c.y + 30, vx: -c.dir * 0.6, vy: -0.4, life: 18, color: '#c9b48a' }); }
+          if (d < 250 && d > 70 && !(c.cool > 0)) { c.st = 'crouch'; c.stT = 14; }
+        }
+      } else if (c.st === 'crouch') { // low and ready to pounce
+        if (tg) c.dir = tg.x >= c.x ? 1 : -1;
+        if (--c.stT <= 0) { if (!tg) c.st = 'run'; else { c.st = 'leap'; c.stT = 0; c.T = 28; c.sx = c.x; c.sy = c.y; c.tx = tg.x + (tg.vxm || 0) * 14; c.ty = tg.y + (tg.vym || 0) * 14; beep(260, 0.12, 'sawtooth', 0.06, 300); } }
+      } else if (c.st === 'leap') { // flies through the air in an arc
+        c.stT++; const p = Math.min(1, c.stT / c.T); c.p = p; c.x = c.sx + (c.tx - c.sx) * p; c.y = c.sy + (c.ty - c.sy) * p; c.z = Math.sin(p * Math.PI) * 78;
+        if (p >= 1) { c.st = 'land'; c.stT = 22; c.z = 0; burst(c.x, c.y + 28, '#b89a6a', 18); shake = Math.max(shake, 6); beep(90, 0.14, 'sawtooth', 0.07, -40); }
+      } else { c.z = 0; if (--c.stT <= 0) { c.st = 'run'; c.cool = 40; } } // landed
+      for (const f of fighters) if (f.team !== player.team && !f.dead && Math.hypot(f.x - c.x, f.y - c.y) < 290) f.scared = 240; // scared: dig down and hide
     }
     cats = cats.filter(c => c.t > 0);
   }
@@ -1200,9 +1235,9 @@
     }
     return null;
   }
-  function startBurrow(b, fo, near) {
+  function startBurrow(b, fo, near, hold) {
     const spot = pickBurrowSpot(b, fo, near); if (!spot) return false;
-    b.burrow = { ph: 'down', t: 0, T: 0, sx: b.x, sy: b.y, tx: spot[0], ty: spot[1] }; b.digging = true; b.burrowCd = 900;
+    b.burrow = { ph: 'down', t: 0, T: 0, sx: b.x, sy: b.y, tx: spot[0], ty: spot[1], hold: !!hold }; b.digging = true; b.burrowCd = 900;
     burst(b.x, b.y, '#7a5230', 16); beep(120, 0.15, 'triangle', 0.07);
     return true;
   }
@@ -1211,7 +1246,8 @@
     if (br.ph === 'down') { if (br.t % 4 === 0) burst(b.x, b.y, '#7a5230', 3); if (br.t >= 36) { br.ph = 'under'; br.t = 0; br.T = Math.max(50, Math.hypot(br.tx - br.sx, br.ty - br.sy) / 7); } }
     else if (br.ph === 'under') {
       const p = Math.min(1, br.t / br.T); b.x = br.sx + (br.tx - br.sx) * p; b.y = br.sy + (br.ty - br.sy) * p; if (br.t % 5 === 0) burst(b.x, b.y, '#8a5e34', 2);
-      if (br.t >= br.T) { br.ph = 'up'; br.t = 0; b.x = br.tx; b.y = br.ty; if (blocked(b.x, b.y, b.r)) carve(b.x, b.y, 30); burst(b.x, b.y, '#9a7040', 24); beep(170, 0.12, 'triangle', 0.07); }
+      if (br.t >= br.T && br.hold && cats.length > 0) { br.t = br.T; if (br.t % 7 === 0) burst(b.x, b.y, '#8a5e34', 1); return; } // scared: stay underground while the Jagwire is around
+      if (br.t >= br.T) { br.ph = 'up'; br.t = 0; b.scared = 0; b.x = br.tx; b.y = br.ty; if (blocked(b.x, b.y, b.r)) carve(b.x, b.y, 30); burst(b.x, b.y, '#9a7040', 24); beep(170, 0.12, 'triangle', 0.07); }
     } else if (br.t >= 30) { b.burrow = null; b.digging = false; }
   }
   function drawBurrow(f, t) {
@@ -1230,7 +1266,7 @@
   }
   function botScared(b) {
     b.scared--;
-    if (!b.burrow && diffName !== 'easy' && (b.scT = (b.scT || 0) + 1) > 80) { b.scT = 0; if (startBurrow(b, nearestFoe(b) || player, false)) return; } // chased by the Jagwire: dig away (no cooldown)
+    if (!b.burrow && (b.scT = (b.scT || 0) + 1) > 10) { b.scT = 0; if (startBurrow(b, nearestFoe(b) || player, false, true)) return; } // chased by the Jagwire: dig down and stay down (no cooldown, any difficulty)
     let hz = null, bd = 1e9; for (const h of hides) { const d = Math.hypot(h.x + h.w / 2 - b.x, h.y + h.h / 2 - b.y); if (d < bd) { bd = d; hz = h; } }
     let v;
     if (hz) {
