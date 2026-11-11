@@ -2,18 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Pizza Pals</title>
 <style>
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { margin:0; height:100%; background:#2b1608; color:#fff7ea; font-family:system-ui, "Segoe UI", sans-serif; overflow:hidden; user-select:none; touch-action:manipulation; }
-  body { display:flex; flex-direction:column; height:100vh; height:100dvh; }
+  html, body { margin:0; height:100%; background:#2b1608; color:#fff7ea; font-family:system-ui, "Segoe UI", sans-serif; overflow:hidden; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; overscroll-behavior:none; touch-action:manipulation; }
+  body { display:flex; flex-direction:column; height:100vh; height:100dvh; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   button { font:inherit; cursor:pointer; border:0; border-radius:14px; color:inherit; }
   header { display:flex; align-items:center; gap:8px; padding:6px 12px; background:linear-gradient(#2a2a2e,#141416); flex-wrap:wrap; border-bottom:2px solid #444; }
-  header a { color:#ffcf8a; text-decoration:none; font-weight:800; }
+  header a { color:#ffcf8a; text-decoration:none; font-weight:800; padding:10px 6px; font-size:17px; }
   header .sp { flex:1; }
-  .chip { background:#000a; padding:4px 12px; border-radius:20px; font-weight:800; white-space:nowrap; border:1px solid #fff2; }
-  .hbtn { background:#ff8a2b; color:#2b1608; font-weight:800; padding:6px 12px; }
+  .chip { background:#000a; padding:6px 14px; font-size:16px; border-radius:20px; font-weight:800; white-space:nowrap; border:1px solid #fff2; }
+  .hbtn { background:#ff8a2b; color:#2b1608; font-weight:800; padding:10px 16px; min-height:44px; font-size:16px; }
   #banner { position:absolute; top:52px; left:50%; transform:translate(-50%,-20px); background:#ff3d3d; padding:8px 20px; border-radius:20px; font-weight:900; opacity:0; transition:.3s; z-index:5; pointer-events:none; white-space:nowrap; box-shadow:0 4px 14px #0008; }
   #banner.show { opacity:1; transform:translate(-50%,0); }
 
@@ -85,20 +86,26 @@
   .pbar i.burn { background:#ff3d3d; }
 
   /* ---- counter / buttons ---- */
-  #bottom { display:flex; justify-content:center; align-items:center; gap:6px; flex-wrap:wrap; padding:8px; background:linear-gradient(#c9ced4,#7f858d); border-top:4px solid #e8ecef; }
-  .tb { background:linear-gradient(#4a2a14,#2e1808); padding:4px 8px; min-width:60px; border:3px solid #6a3c1a; box-shadow:0 3px 0 #0006; }
-  .tb svg { width:clamp(22px,4.4vmin,34px); height:clamp(22px,4.4vmin,34px); display:block; margin:0 auto; }
-  .tb small { display:block; font-size:10px; font-weight:800; margin-top:1px; }
+  #bottom { display:flex; justify-content:center; align-items:center; gap:6px; flex-wrap:wrap; padding:8px; max-height:38vh; overflow-y:auto; background:linear-gradient(#c9ced4,#7f858d); border-top:4px solid #e8ecef; }
+  .tb { background:linear-gradient(#4a2a14,#2e1808); padding:6px 10px; min-width:76px; min-height:68px; border:3px solid #6a3c1a; box-shadow:0 3px 0 #0006; }
+  .tb svg { width:clamp(32px,5.8vmin,46px); height:clamp(32px,5.8vmin,46px); display:block; margin:0 auto; }
+  .tb small { display:block; font-size:12px; font-weight:800; margin-top:1px; }
   .tb:active { transform:scale(.94); }
   .tb.on { border-color:#ffe14d; }
   .tb.drink { background:linear-gradient(#2a3a4a,#16202c); border-color:#4a6a8a; }
-  .act { padding:9px 14px; font-weight:900; font-size:clamp(13px,2.4vmin,18px); box-shadow:0 3px 0 #0006; }
+  .act { padding:14px 22px; min-height:60px; font-weight:900; font-size:clamp(16px,2.8vmin,22px); box-shadow:0 3px 0 #0006; }
   #cups { display:flex; gap:5px; align-items:flex-end; margin:0 4px; }
-  .cup { position:relative; width:28px; height:42px; border:3px solid #fff8; border-top-width:2px; border-radius:3px 3px 9px 9px; overflow:hidden; background:#ffffff20; }
+  .cup { position:relative; width:40px; height:58px; border:3px solid #fff8; border-top-width:2px; border-radius:3px 3px 9px 9px; overflow:hidden; background:#ffffff20; }
   .cup i { position:absolute; bottom:0; left:0; width:100%; height:0; }
   .cup.ready { border-color:#fff; cursor:pointer; box-shadow:0 0 10px #fffb; }
   .cup.sel { border-color:#ffe14d; box-shadow:0 0 12px #ffe14d; transform:translateY(-3px); }
   #bake { background:#ff5a1f; }
+  #bake.go { animation:bounce .8s infinite; box-shadow:0 0 16px #ffd24d, 0 3px 0 #0006; }
+  @keyframes bounce { 50% { transform:scale(1.08); } }
+  #hint { align-self:center; text-align:center; font-weight:900; font-size:clamp(15px,2.8vmin,22px); background:#000b; border-radius:20px; padding:8px 18px; border:2px solid #ffd24d88; }
+  .tray.nudge { animation:nudge 1s infinite; }
+  @keyframes nudge { 50% { border-color:#ffe14d; box-shadow:0 0 16px #ffe14d; } }
+  .seat.want .bubble { animation:bounce .8s infinite; outline:3px solid #ffd24d; }
   #toast { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:#000d; padding:8px 16px; border-radius:16px; font-weight:700; opacity:0; transition:.25s; pointer-events:none; z-index:6; text-align:center; max-width:90vw; }
   #toast.show { opacity:1; }
 
@@ -146,7 +153,7 @@
     <path d="M19 47 Q25 41 30 46 Q35 41 41 47 Q35 52 30 48 Q25 52 19 47Z" fill="#4a2a12"/>
     <path d="M24 53 Q30 58 36 53" fill="none" stroke="#7a2a12" stroke-width="1.5"/>
     <text x="30" y="67" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#5a2a10" font-family="sans-serif">SIR PEPPERONI</text></svg></div></div><div id="seats"></div></section>
-<section id="mid"><div id="trays"></div></section>
+<section id="mid"><div id="hint"></div><div id="trays"></div></section>
 <section id="bottom"></section>
 <div id="toast"></div>
 <div id="fx"></div>
@@ -154,7 +161,7 @@
 <div class="ov show" id="menu">
   <h1>🍕 Pizza Pals 🍂</h1>
   <p style="margin:0;color:#ffb066;font-weight:800">Fall Edition 🍁</p>
-  <p style="max-width:440px">Hungry animals want pizza! Tap dough, add the toppings they ask for (no taking them off!), bake it in the oven, pour drinks, and serve before they get grumpy. Big orders wait longer.</p>
+  <p style="max-width:440px">Hungry animals want pizza! Tap dough, add the toppings they ask for, bake it, pour drinks, and serve. No rush: the animals are very patient. 😊</p>
   <button class="big" id="playBtn">▶ Play</button>
   <button class="alt" id="menuShopBtn">🛒 Shop</button>
   <button class="alt" id="newBtn">New game</button>
@@ -183,6 +190,7 @@ const STEP = 1000 / 60;      // fixed 60 updates per second
 const DAY_T = 5400;          // 90 seconds
 const $ = s => document.querySelector(s);
 const rnd = n => Math.floor(Math.random() * n);
+const KH = !(window.matchMedia && matchMedia('(hover: none)').matches);   // show keyboard hints only with a keyboard
 
 // ---------- data ----------
 const TOPS = [
@@ -215,10 +223,9 @@ const UPS = [
   { k:'trays',    e:'🍕', n:'More ovens',    d:'More ovens and prep boards',     costs:[60,120,200,320], show:l => (2+l)+' ovens' },
   { k:'oven',     e:'🔥', n:'Hotter oven',   d:'Pizzas bake faster',             costs:[50,100,180,300], show:l => ((420-60*l)/60)+'s bake' },
   { k:'seats',    e:'🪑', n:'More stools',   d:'Room for more animals',          costs:[100,250],        show:l => (3+l)+' stools' },
-  { k:'patience', e:'🛋️', n:'Comfy stools',  d:'Animals wait longer',            costs:[40,80,140,220],  show:l => '+'+(5*l)+'s patience' },
+  { k:'patience', e:'🛋️', n:'Comfy stools',  d:'Animals wait longer',            costs:[40,80,140,220],  show:l => '+'+(10*l)+'s patience' },
   { k:'cups',     e:'🥤', n:'More cups',     d:'Pour more drinks at once',       costs:[40,80,140],      show:l => (3+l)+' cups' },
   { k:'tips',     e:'🫙', n:'Tip jar',       d:'Bigger tips from happy animals', costs:[60,120,200],     show:l => '+'+(30*l)+'% tips' },
-  { k:'mitts',    e:'🧤', n:'Oven mitts',    d:'Pizza takes longer to burn',     costs:[40,90,150],      show:l => '+'+(3*l)+'s before burning' },
 ];
 const DECOS = [
   { id:'lights', e:'🍁', n:'Leaf garland',  cost:50,  html:'<div class="dec lights">' + '🍂🍁🍃🍁'.repeat(16) + '</div>' },
@@ -248,7 +255,7 @@ const seatCount = () => 3 + save.up.seats;
 const cupCount  = () => 3 + save.up.cups;
 const bakeTime  = () => 420 - 60 * save.up.oven;
 const readyWin  = () => 480 + 180 * save.up.mitts;
-const patBase   = () => Math.max(1200, 1800 - Math.min(save.day * 30, 600)) + 300 * save.up.patience;
+const patBase   = () => 3600 + 600 * save.up.patience;   // about a minute of waiting, very relaxed
 const tipMult   = () => 1 + 0.3 * save.up.tips + 0.05 * save.deco.length;
 
 // ---------- drawing ----------
@@ -316,7 +323,7 @@ function sfx(n) {
     if (n === 'bake') { tone(220, .25, 'square', .08); tone(330, .25, 'square', .08, .12); }
     if (n === 'ding') { tone(1175, .2, 'sine', .18); tone(1568, .35, 'sine', .18, .12); }
     if (n === 'coin') { tone(988, .1, 'square', .1); tone(1319, .25, 'square', .1, .09); }
-    if (n === 'bad')  tone(180, .3, 'sawtooth', .12, 0, 90);
+    if (n === 'bad')  tone(260, .25, 'sine', .08, 0, 200);
     if (n === 'burn') tone(120, .5, 'sawtooth', .12, 0, 60);
     if (n === 'rush') { tone(600, .25, 'square', .08, 0, 900); tone(900, .25, 'square', .08, .28, 600); }
     if (n === 'fan')  [523, 659, 784, 1047].forEach((f, i) => tone(f, .25, 'triangle', .15, i * .11));
@@ -347,7 +354,7 @@ function floatText(el, text) {
 let toastT = 0;
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800);
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200);
 }
 let bannerT = 0;
 function banner(msg) {
@@ -367,8 +374,8 @@ const newTray = () => ({ st:'empty', tops:[], p:0, w:0 });
 const newCup = () => ({ st:'empty', p:0, type:'coke' });
 
 function newDay() {
-  G = { timeLeft:DAY_T, seats:Array(seatCount()).fill(null), trays:[], cups:[], sel:-1, cup:-1, spawn:30,
-        combo:0, earned:0, served:0, lost:0, rush:false, closingShown:false };
+  G = { target:Math.min(5 + 2 * save.day, 20), spawned:0, seats:Array(seatCount()).fill(null), trays:[], cups:[], sel:-1, cup:-1, spawn:30,
+        combo:0, earned:0, served:0, lost:0 };
   for (let i = 0; i < trayCount(); i++) G.trays.push(newTray());
   for (let i = 0; i < cupCount(); i++) G.cups.push(newCup());
   buildSeats(); buildTrays(); buildBottom();
@@ -401,22 +408,22 @@ function buildBottom() {
   bottomEl.innerHTML = '';
   save.tops.forEach((id, i) => {
     const b = document.createElement('button');
-    b.className = 'tb'; b.dataset.t = id; b.innerHTML = iconSVG(id) + '<small>' + (i < 9 ? (i + 1) + ' ' : '') + TOP[id].n + '</small>';
+    b.className = 'tb'; b.dataset.t = id; b.innerHTML = iconSVG(id) + '<small>' + (KH && i < 9 ? (i + 1) + ' ' : '') + TOP[id].n + '</small>';
     bottomEl.appendChild(b);
   });
   save.drinks.forEach(id => {
     const d = DRINK[id], b = document.createElement('button');
-    b.className = 'tb drink'; b.dataset.d = id; b.innerHTML = cupSVG(d.c) + '<small>' + d.key.toUpperCase() + ' ' + d.n + '</small>';
+    b.className = 'tb drink'; b.dataset.d = id; b.innerHTML = cupSVG(d.c) + '<small>' + (KH ? d.key.toUpperCase() + ' ' : '') + d.n + '</small>';
     bottomEl.appendChild(b);
   });
   let cups = '<div id="cups">';
   G.cups.forEach((_, i) => { cups += '<div class="cup" data-c="' + i + '"><i></i></div>'; });
-  bottomEl.insertAdjacentHTML('beforeend', cups + '</div><button class="act" id="bake">🔥 Bake (B)</button><button class="act" id="trash" style="background:#555">🗑 Toss (T)</button>');
+  bottomEl.insertAdjacentHTML('beforeend', cups + '</div><button class="act" id="bake">🔥 Bake!</button><button class="act" id="trash" style="background:#555">🗑 Toss</button>');
 }
 
 // ---------- orders ----------
 function makeOrder(a) {
-  const un = save.tops, maxN = Math.min(save.day < 2 ? 1 : save.day < 4 ? 2 : 3, un.length);
+  const un = save.tops, maxN = Math.min(save.day < 3 ? 1 : save.day < 6 ? 2 : 3, un.length);
   const n = 1 + rnd(maxN), pool = un.slice(), out = [];
   if (un.includes(a.fav) && Math.random() < .6) { out.push(a.fav); pool.splice(pool.indexOf(a.fav), 1); }
   while (out.length < n && pool.length) out.push(pool.splice(rnd(pool.length), 1)[0]);
@@ -424,7 +431,7 @@ function makeOrder(a) {
 }
 function spawnCustomer(i) {
   const a = ANIMALS[rnd(ANIMALS.length)], golden = save.day >= 2 && Math.random() < .08;
-  const order = makeOrder(a), drink = Math.random() < .5 ? save.drinks[rnd(save.drinks.length)] : null;
+  const order = makeOrder(a), drink = Math.random() < (save.day < 2 ? .3 : .5) ? save.drinks[rnd(save.drinks.length)] : null;
   // bigger order = more patience
   const pat = Math.round(patBase() * (1 + .3 * (order.length - 1) + (drink ? .15 : 0)) * (golden ? .7 : 1));
   G.seats[i] = { e:a.e, order, drink, gotPizza:false, gotDrink:false, pat, max:pat, golden, leave:0, mood:'' };
@@ -495,8 +502,9 @@ function clickSeat(i) {
     toast(t && t.st === 'raw' ? 'Bake it first! 🔥' : 'Tap a baked pizza or a drink first!'); return;
   }
   if (s.gotPizza) { toast('They already have their pizza! 🍕'); return; }
-  const tray = t; G.sel = -1; tray.st = 'empty'; const made = tray.tops; tray.tops = [];
+  const made = t.tops;
   if (sameOrder(made, s.order)) {
+    t.st = 'empty'; t.tops = []; G.sel = -1;
     const base = 8 + s.order.reduce((a, id) => a + TOP[id].v, 0);
     const tip = Math.round(base * .5 * (s.pat / s.max) * tipMult());
     G.combo++;
@@ -507,39 +515,34 @@ function clickSeat(i) {
     s.gotPizza = true; finishCheck(s); sfx('coin');
     floatText(el, '+' + gain + ' 🪙' + (tip > 3 ? ' 💖' : ''));
   } else {
-    s.pat = Math.max(1, s.pat - Math.round(s.max * .25)); G.combo = 0; sfx('bad');
+    sfx('bad');
     el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
-    toast('Wrong toppings! 😬 Check the bubble.');
+    toast('Hmm, not quite! 🙂 They want: ' + s.order.map(id => TOP[id].n).join(' + ') + '. Tap 🗑 Toss to try again.');
   }
 }
 
 // ---------- update (fixed step) ----------
 function update() {
-  if (G.timeLeft > 0) G.timeLeft--;
-  const el = DAY_T - G.timeLeft, rush = el >= 2700 && el < 3600 && G.timeLeft > 0;
-  if (rush !== G.rush) { G.rush = rush; if (rush) { banner('🚨 RUSH HOUR! Hungry animals!'); sfx('rush'); } else banner('Phew, rush hour is over!'); }
-  if (G.timeLeft === 0 && !G.closingShown) { G.closingShown = true; banner('🔔 Last orders! Finish serving!'); }
-
-  if (G.timeLeft > 0 && --G.spawn <= 0) {
+  if (G.spawned < G.target && --G.spawn <= 0) {
     const free = [];
     G.seats.forEach((s, i) => { if (!s) free.push(i); });
-    if (free.length) spawnCustomer(free[rnd(free.length)]);
-    G.spawn = Math.max(90, 200 + rnd(160) - Math.min(save.day * 8, 100)) * (G.rush ? .5 : 1);
+    if (free.length) {
+      spawnCustomer(free[rnd(free.length)]); G.spawned++;
+      if (G.spawned === G.target) banner('🔔 Here comes the last customer!');
+      G.spawn = Math.max(240, 360 + rnd(240) - Math.min(save.day * 10, 120));
+    } else G.spawn = 60;
   }
   G.seats.forEach((s, i) => {
     if (!s) return;
     if (s.leave) { if (--s.leave <= 0) G.seats[i] = null; return; }
-    if (--s.pat <= 0) {
-      s.leave = 50; s.mood = 'angry'; G.combo = 0; G.lost++; sfx('bad');
-      floatText(seatsEl.children[i], '😡 left!');
+    if (--s.pat <= 0) {          // they just wander off sleepy, no penalty
+      s.leave = 50; s.mood = 'sleepy'; G.lost++; sfx('bad');
+      floatText(seatsEl.children[i], '😴 See you later!');
     }
   });
   G.cups.forEach(c => { if (c.st === 'fill' && ++c.p >= 60) { c.st = 'ready'; sfx('add'); } });
-  G.trays.forEach(t => {
-    if (t.st === 'baking' && ++t.p >= bakeTime()) { t.st = 'ready'; t.w = readyWin(); sfx('ding'); }
-    else if (t.st === 'ready' && --t.w <= 0) { t.st = 'burnt'; sfx('burn'); toast('Oh no, a pizza burnt! 🔥'); }
-  });
-  if (G.timeLeft === 0 && G.seats.every(s => !s)) endDay();
+  G.trays.forEach(t => { if (t.st === 'baking' && ++t.p >= bakeTime()) { t.st = 'ready'; sfx('ding'); } });   // pizzas never burn
+  if (G.spawned >= G.target && G.seats.every(s => !s)) endDay();
 }
 
 // ---------- shop ----------
@@ -548,7 +551,7 @@ function endDay() {
   save.best = Math.max(save.best, G.earned); save.day++; persist();
   sfx('fan'); confetti(40);
   openShop('day', 'Day ' + (save.day - 1) + ' done! 🎉',
-    '🍕 Served ' + G.served + ' · 😡 Lost ' + G.lost + ' · 🪙 Earned ' + G.earned + ' · 🏆 Best day ' + save.best);
+    '🍕 Served ' + G.served + ' · 🪙 Earned ' + G.earned + ' · 🏆 Best day ' + save.best);
 }
 function openShop(mode, title, text) {
   shopMode = mode;
@@ -598,9 +601,9 @@ function renderHud() {
   setText($('#hCoins'), '🪙 ' + save.coins);
   if (!G) return;
   setText($('#hDay'), 'Day ' + save.day);
-  setText($('#hClock'), G.timeLeft > 0 ? '⏰ ' + Math.ceil(G.timeLeft / 60) : '🔔 Closing!');
+  setText($('#hClock'), '👥 ' + Math.min(G.served + G.lost, G.target) + ' / ' + G.target);
   const m = 1 + Math.min(Math.max(G.combo - 1, 0), 9) * .1;
-  setText($('#hCombo'), '🔥 Combo ' + G.combo + ' (x' + m.toFixed(1) + ')');
+  setText($('#hCombo'), '🔥 Combo ' + G.combo);
 }
 const LABEL = { empty:'Tap for dough', raw:'Add toppings', baking:'Baking...', ready:'READY! Serve it', burnt:'Burnt! Tap to toss' };
 function bubbleHTML(s) {
@@ -619,7 +622,7 @@ function render() {
       el._sig = sig;
       if (!s) { el.className = 'seat empty'; el.innerHTML = '<div class="bubble"></div><div class="animal">🐶</div><div class="counter"><div class="bar"><i></i></div></div><div class="stool"></div>'; }
       else {
-        const face = s.leave ? (s.mood === 'happy' ? s.e : '😡') : (s.pat < s.max * .33 ? s.e + '💢' : s.e);
+        const face = s.leave ? (s.mood === 'happy' ? s.e : '😴') : (s.pat < s.max * .25 ? s.e + '🥺' : s.e);
         el.className = 'seat' + (s.golden ? ' gold' : '') + (s.leave ? ' leaving' : '');
         el.innerHTML = '<div class="bubble">' + bubbleHTML(s) + '</div><div class="animal">' + face + '</div>' + (s.golden ? '<div class="crown">👑</div>' : '') +
           '<div class="counter"><div class="bar"><i></i></div></div><div class="stool"></div>';
@@ -630,6 +633,8 @@ function render() {
       if (bar) { bar.style.width = (f * 100) + '%'; bar.style.background = f > .5 ? '#5bd65b' : f > .25 ? '#ffd24d' : '#ff4d4d'; }
     }
   });
+  const selT = selTray(), selReady = !!selT && selT.st === 'ready', cupReady = G.cup >= 0 && G.cups[G.cup].st === 'ready';
+  G.seats.forEach((s, i) => { const e = seatsEl.children[i]; if (e) e.classList.toggle('want', !!s && !s.leave && ((selReady && !s.gotPizza) || (cupReady && !!s.drink && !s.gotDrink))); });
   G.trays.forEach((t, i) => {
     const el = traysEl.children[i], sig = t.st + '|' + t.tops.join();
     if (el._sig !== sig) {
@@ -641,10 +646,11 @@ function render() {
       setText(el.querySelector('.tl'), LABEL[t.st]);
     }
     el.classList.toggle('sel', i === G.sel);
+    el.classList.toggle('nudge', t.st === 'ready' && i !== G.sel);
     const bar = el.querySelector('.pbar i');
     let w = 0, burn = false;
     if (t.st === 'baking') w = t.p / bakeTime();
-    else if (t.st === 'ready') { w = t.w / readyWin(); burn = true; }
+    else if (t.st === 'ready') { w = 1; }
     bar.style.width = (w * 100) + '%'; bar.className = burn ? 'burn' : '';
   });
   G.cups.forEach((c, i) => {
@@ -656,6 +662,25 @@ function render() {
   });
   const st = selTray();
   bottomEl.querySelectorAll('.tb[data-t]').forEach(b => b.classList.toggle('on', !!st && st.st === 'raw' && st.tops.includes(b.dataset.t)));
+  const bk = $('#bake'); if (bk) bk.classList.toggle('go', !!st && st.st === 'raw' && st.tops.length > 0);
+  setText($('#hint'), hintText());
+}
+function hintText() {
+  const waiting = G.seats.filter(s => s && !s.leave && (!s.gotPizza || (s.drink && !s.gotDrink)));
+  const t = selTray();
+  if (G.cup >= 0 && G.cups[G.cup].st === 'ready') return '👆 Tap the animal who wants this drink!';
+  if (t && t.st === 'ready') return '👆 Tap an animal to give them the pizza!';
+  if (t && t.st === 'raw') {
+    if (t.tops.length) return '🔥 Tap the big Bake button!';
+    const w = waiting.find(x => !x.gotPizza);
+    return w ? '🧀 Add what is in the bubble: ' + w.order.map(id => TOP[id].n).join(' + ') : '🧀 Add some toppings!';
+  }
+  if (t && t.st === 'baking') return '⏳ Yum, it is baking...';
+  if (G.trays.some(x => x.st === 'ready')) return '✨ A pizza is ready! Tap it!';
+  if (G.cups.some(c => c.st === 'ready') && waiting.some(x => x.drink && !x.gotDrink)) return '🥤 Tap a full cup, then an animal!';
+  if (waiting.some(x => !x.gotPizza)) return '👆 Tap a board to make dough!';
+  if (waiting.some(x => x.drink && !x.gotDrink)) return '🥤 Tap a drink button to pour it!';
+  return '😊 Waiting for hungry animals...';
 }
 
 // ---------- loop ----------
@@ -718,6 +743,8 @@ $('#newBtn').onclick = () => {
   if (!sure) { sure = 1; $('#newBtn').textContent = 'Really erase everything? Tap again'; setTimeout(() => { sure = 0; $('#newBtn').textContent = 'New game'; }, 3000); return; }
   save = fresh(); persist(); sure = 0; $('#newBtn').textContent = 'New game'; menuInfo(); renderHud(); renderDecor();
 };
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('pointerdown', () => { try { if (!muted) { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } } catch (e) {} }, { once:true });
 $('#nextBtn').onclick = () => { if (shopMode === 'day') newDay(); else closeShop(); };
 document.querySelectorAll('.winw').forEach(w => {
   for (let i = 0; i < 6; i++) {
