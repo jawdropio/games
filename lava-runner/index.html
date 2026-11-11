@@ -2,16 +2,510 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lava Runner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Pizza Pals</title>
 <style>
-  html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; display:grid; place-items:center; text-align:center; }
-  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
-  h1 { font-size:48px; margin:0 0 12px; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:#2b1608; color:#fff7ea; font-family:system-ui, "Segoe UI", sans-serif; overflow:hidden; user-select:none; touch-action:manipulation; }
+  body { display:flex; flex-direction:column; height:100vh; height:100dvh; background:radial-gradient(circle at 50% 0%, #5a2f12, #2b1608 70%); }
+  button { font:inherit; cursor:pointer; border:0; border-radius:14px; color:inherit; }
+  header { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#1a0d04; flex-wrap:wrap; }
+  header a { color:#ffcf8a; text-decoration:none; font-weight:800; }
+  header .sp { flex:1; }
+  .chip { background:#3d2210; padding:5px 12px; border-radius:20px; font-weight:800; white-space:nowrap; }
+  .hbtn { background:#ff8a2b; color:#2b1608; font-weight:800; padding:6px 12px; }
+  #banner { position:absolute; top:52px; left:50%; transform:translate(-50%,-20px); background:#ff3d3d; padding:8px 20px; border-radius:20px; font-weight:900; opacity:0; transition:.3s; z-index:5; pointer-events:none; white-space:nowrap; }
+  #banner.show { opacity:1; transform:translate(-50%,0); }
+  #seats { flex:1.1; min-height:0; display:flex; justify-content:center; align-items:flex-end; gap:clamp(6px,2vw,24px); padding:6px 10px 0; background:linear-gradient(#7a4a24 0 70%, #a8693a 70%); border-bottom:6px solid #5a3317; }
+  .seat { position:relative; width:clamp(78px,18vw,170px); height:100%; max-height:230px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; cursor:pointer; padding-bottom:6px; }
+  .seat .bubble { background:#fff; color:#222; border-radius:16px; padding:3px 8px; font-size:clamp(16px,3.6vmin,30px); margin-bottom:2px; min-height:1.4em; box-shadow:0 3px 0 #0003; white-space:nowrap; }
+  .seat .animal { font-size:clamp(42px,10vmin,88px); line-height:1; transition:transform .2s; }
+  .seat.gold .animal { filter:drop-shadow(0 0 10px gold); }
+  .seat .crown { position:absolute; top:calc(100% - clamp(80px,17vmin,140px)); font-size:24px; }
+  .seat .bar { width:80%; height:10px; background:#0006; border-radius:6px; overflow:hidden; margin-top:4px; }
+  .seat .bar i { display:block; height:100%; width:100%; background:#5bd65b; }
+  .seat.leaving .animal { transform:translateY(-8px) scale(1.15); }
+  .seat.shake { animation:shake .3s; }
+  @keyframes shake { 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  .seat.empty { cursor:default; opacity:.0; }
+  #mid { flex:1.1; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:8px; padding:8px; }
+  #trays { display:flex; justify-content:center; gap:clamp(6px,1.6vw,18px); flex-wrap:wrap; }
+  .tray { width:clamp(84px,15vw,140px); background:#c9c9d1; border-radius:16px; padding:6px; text-align:center; cursor:pointer; border:4px solid #8d8d99; box-shadow:0 4px 0 #0005; }
+  .tray.sel { border-color:#ffe14d; box-shadow:0 0 16px #ffe14d, 0 4px 0 #0005; transform:translateY(-3px); }
+  .tray .pizza { position:relative; width:clamp(56px,10vw,100px); aspect-ratio:1; margin:0 auto; border-radius:50%; background:#f4d9a0; border:5px solid #e0b060; }
+  .tray .pizza.raw { background:#e8503a; border-color:#f4d9a0; }
+  .tray .pizza.baking { background:#e8503a; border-color:#e8b050; animation:pulse 1s infinite; }
+  .tray .pizza.ready { background:#f08a30; border-color:#b8741c; box-shadow:0 0 14px #ffd24d; }
+  .tray .pizza.burnt { background:#2a2a2a; border-color:#111; }
+  .tray .pizza.empty { background:transparent; border:4px dashed #777; display:grid; place-items:center; font-size:30px; color:#666; }
+  @keyframes pulse { 50% { transform:scale(1.04); } }
+  .pizza span { position:absolute; transform:translate(-50%,-50%); font-size:clamp(12px,2.6vw,22px); }
+  .tray .tl { color:#222; font-size:clamp(10px,1.8vw,13px); font-weight:800; margin-top:4px; min-height:1.2em; }
+  .tray .pbar { height:8px; background:#0003; border-radius:5px; overflow:hidden; margin-top:3px; }
+  .tray .pbar i { display:block; height:100%; width:0; background:#ff9a2b; }
+  .tray .pbar i.burn { background:#ff3d3d; }
+  #bottom { display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:wrap; padding:8px; background:#1a0d04; }
+  .tb { background:#3d2210; padding:6px 10px; min-width:64px; font-size:clamp(20px,4vmin,34px); line-height:1.1; border:3px solid #6a3c1a; }
+  .tb small { display:block; font-size:11px; font-weight:700; }
+  .tb:active { transform:scale(.94); }
+  .tb.on { border-color:#ffe14d; }
+  .act { padding:10px 16px; font-weight:900; font-size:clamp(14px,2.6vmin,20px); }
+  #bake { background:#ff5a1f; } #trash { background:#555; }
+  #toast { position:absolute; bottom:90px; left:50%; transform:translateX(-50%); background:#000c; padding:8px 16px; border-radius:16px; font-weight:700; opacity:0; transition:.25s; pointer-events:none; z-index:6; text-align:center; }
+  #toast.show { opacity:1; }
+  .ov { position:fixed; inset:0; background:#120802e8; display:none; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:10; text-align:center; padding:16px; overflow:auto; }
+  .ov.show { display:flex; }
+  .ov h1 { margin:0; font-size:clamp(34px,8vmin,64px); }
+  .big { background:#ff8a2b; color:#2b1608; font-weight:900; font-size:22px; padding:12px 30px; }
+  .alt { background:#3d2210; padding:8px 18px; font-weight:700; }
+  #shopList { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; width:min(900px,100%); }
+  .item { background:#3d2210; border-radius:14px; padding:10px; text-align:left; display:flex; flex-direction:column; gap:4px; }
+  .item b { font-size:17px; } .item small { color:#e8c9a0; }
+  .item button { background:#ffd24d; color:#2b1608; font-weight:900; padding:7px; margin-top:4px; }
+  .item button:disabled { background:#666; color:#aaa; cursor:not-allowed; }
+  #fx { position:fixed; inset:0; pointer-events:none; z-index:20; overflow:hidden; }
+  .fall { position:absolute; top:-40px; font-size:28px; animation:fall 1.8s ease-in forwards; }
+  @keyframes fall { to { transform:translate(var(--dx),110vh) rotate(540deg); } }
+  .float { position:absolute; font-weight:900; font-size:22px; color:#ffe14d; text-shadow:0 2px 0 #000a; transform:translateX(-50%); animation:up 1.1s ease-out forwards; white-space:nowrap; }
+  @keyframes up { to { transform:translate(-50%,-70px); opacity:0; } }
 </style>
 </head>
 <body>
-<a href="../">← Arcade</a>
-<div><h1>🔥 Lava Runner</h1><p>🚧 Under construction. Tell your buddy what to build!</p></div>
+<header>
+  <a href="../">← Arcade</a>
+  <span class="chip" id="hDay">Day 1</span>
+  <span class="chip" id="hClock">⏰ 90</span>
+  <span class="chip" id="hCombo">🔥 x1</span>
+  <span class="sp"></span>
+  <span class="chip" id="hCoins">🪙 0</span>
+  <button class="hbtn" id="mute" title="Sound">🔊</button>
+  <button class="hbtn" id="pauseBtn">⏸ Pause</button>
+</header>
+<div id="banner"></div>
+<section id="seats"></section>
+<section id="mid"><div id="trays"></div></section>
+<section id="bottom"></section>
+<div id="toast"></div>
+<div id="fx"></div>
+
+<div class="ov show" id="menu">
+  <h1>🍕 Pizza Pals</h1>
+  <p style="max-width:420px">Hungry animals want pizza! Tap dough, add the toppings they ask for, bake it, and serve it before they get grumpy.</p>
+  <button class="big" id="playBtn">▶ Play</button>
+  <button class="alt" id="newBtn">New game</button>
+  <p id="menuInfo" style="opacity:.8"></p>
+</div>
+
+<div class="ov" id="pause">
+  <h1>⏸ Paused</h1>
+  <button class="big" id="resumeBtn">▶ Resume</button>
+  <a class="alt" style="color:#fff7ea;text-decoration:none;border-radius:14px" href="../">← Arcade</a>
+  <p style="opacity:.7">Keys: 1-8 toppings · B bake · T trash · P/Esc pause</p>
+</div>
+
+<div class="ov" id="shop">
+  <h1 id="sumTitle">Day done! 🎉</h1>
+  <p id="sumText"></p>
+  <h2 style="margin:0">🛒 Shop</h2>
+  <div id="shopList"></div>
+  <button class="big" id="nextBtn">Start next day ▶</button>
+</div>
+
+<script>
+(() => {
+'use strict';
+const STEP = 1000 / 60;      // fixed 60 updates per second
+const DAY_T = 5400;          // 90 seconds
+const $ = s => document.querySelector(s);
+const rnd = n => Math.floor(Math.random() * n);
+
+// ---------- data ----------
+const TOPS = [
+  { id:'cheese', e:'🧀', n:'Cheese',     v:3, cost:0 },
+  { id:'pep',    e:'🔴', n:'Pepperoni',  v:4, cost:0 },
+  { id:'mush',   e:'🍄', n:'Mushroom',   v:4, cost:0 },
+  { id:'olive',  e:'⚫', n:'Olives',     v:5, cost:40 },
+  { id:'carrot', e:'🥕', n:'Carrot',     v:5, cost:60 },
+  { id:'pine',   e:'🍍', n:'Pineapple',  v:6, cost:90 },
+  { id:'fish',   e:'🐟', n:'Fish',       v:7, cost:120 },
+  { id:'straw',  e:'🍓', n:'Strawberry', v:8, cost:160 },
+];
+const TOP = Object.fromEntries(TOPS.map(t => [t.id, t]));
+const ANIMALS = [
+  { e:'🐶', fav:'pep' }, { e:'🐱', fav:'fish' }, { e:'🐰', fav:'carrot' }, { e:'🐸', fav:'mush' },
+  { e:'🐵', fav:'pine' }, { e:'🐼', fav:'olive' }, { e:'🦊', fav:'straw' }, { e:'🐷', fav:'cheese' },
+  { e:'🐻', fav:'cheese' }, { e:'🐨', fav:'mush' }, { e:'🦁', fav:'pep' }, { e:'🐮', fav:'cheese' },
+];
+const UPS = [
+  { k:'trays',    e:'🍕', n:'More trays',    d:'Make more pizzas at once',      costs:[60,120,200,320], show:l => (2+l)+' trays' },
+  { k:'oven',     e:'🔥', n:'Hotter oven',   d:'Pizzas bake faster',            costs:[50,100,180,300], show:l => ((420-60*l)/60)+'s bake' },
+  { k:'seats',    e:'🪑', n:'More seats',    d:'Room for more animals',         costs:[100,250],        show:l => (3+l)+' seats' },
+  { k:'patience', e:'🛋️', n:'Comfy chairs',  d:'Animals wait longer',           costs:[40,80,140,220],  show:l => '+'+(5*l)+'s patience' },
+  { k:'tips',     e:'🫙', n:'Tip jar',       d:'Bigger tips from happy animals',costs:[60,120,200],     show:l => '+'+(30*l)+'% tips' },
+  { k:'mitts',    e:'🧤', n:'Oven mitts',    d:'Pizza takes longer to burn',    costs:[40,90,150],      show:l => '+'+(3*l)+'s before burning' },
+];
+
+// ---------- save ----------
+const fresh = () => ({ coins:0, day:1, best:0, tops:['cheese','pep','mush'], up:{trays:0,oven:0,seats:0,patience:0,tips:0,mitts:0} });
+let save = (() => {
+  try { const s = JSON.parse(localStorage.getItem('pizzapals-save') || 'null'); if (s && s.up && s.tops) return Object.assign(fresh(), s, { up:Object.assign(fresh().up, s.up) }); } catch (e) {}
+  return fresh();
+})();
+const persist = () => { try { localStorage.setItem('pizzapals-save', JSON.stringify(save)); } catch (e) {} };
+let muted = false;
+try { muted = localStorage.getItem('pizzapals-mute') === '1'; } catch (e) {}
+
+// ---------- derived ----------
+const trayCount = () => 2 + save.up.trays;
+const seatCount = () => 3 + save.up.seats;
+const bakeTime  = () => 420 - 60 * save.up.oven;
+const readyWin  = () => 480 + 180 * save.up.mitts;
+const patBase   = () => Math.max(1200, 1800 - Math.min(save.day * 30, 600)) + 300 * save.up.patience;
+const tipMult   = () => 1 + 0.3 * save.up.tips;
+
+// ---------- sound ----------
+let ac = null;
+function tone(f, d, type = 'sine', v = .15, when = 0, to = null) {
+  const t = ac.currentTime + when, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + .02);
+}
+function sfx(n) {
+  if (muted) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    if (n === 'pop')  tone(500, .1, 'sine', .15, 0, 900);
+    if (n === 'add')  tone(760, .07, 'triangle', .12);
+    if (n === 'bake') { tone(220, .25, 'square', .08); tone(330, .25, 'square', .08, .12); }
+    if (n === 'ding') { tone(1175, .2, 'sine', .18); tone(1568, .35, 'sine', .18, .12); }
+    if (n === 'coin') { tone(988, .1, 'square', .1); tone(1319, .25, 'square', .1, .09); }
+    if (n === 'bad')  tone(180, .3, 'sawtooth', .12, 0, 90);
+    if (n === 'burn') tone(120, .5, 'sawtooth', .12, 0, 60);
+    if (n === 'rush') { tone(600, .25, 'square', .08, 0, 900); tone(900, .25, 'square', .08, .28, 600); }
+    if (n === 'fan')  [523, 659, 784, 1047].forEach((f, i) => tone(f, .25, 'triangle', .15, i * .11));
+  } catch (e) {}
+}
+
+// ---------- effects ----------
+const fx = $('#fx');
+function confetti(n = 24) {
+  const list = ['🎉','🧀','🍕','⭐','🪙','✨'];
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement('span');
+    s.className = 'fall'; s.textContent = list[rnd(list.length)];
+    s.style.left = Math.random() * 100 + 'vw';
+    s.style.setProperty('--dx', (Math.random() * 200 - 100) + 'px');
+    s.style.animationDelay = Math.random() * .4 + 's';
+    s.addEventListener('animationend', () => s.remove());
+    fx.appendChild(s);
+  }
+}
+function floatText(el, text) {
+  const r = el.getBoundingClientRect(), s = document.createElement('span');
+  s.className = 'float'; s.textContent = text;
+  s.style.left = (r.left + r.width / 2) + 'px'; s.style.top = (r.top + 10) + 'px';
+  s.addEventListener('animationend', () => s.remove());
+  fx.appendChild(s);
+}
+let toastT = 0;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800);
+}
+let bannerT = 0;
+function banner(msg) {
+  const b = $('#banner'); b.textContent = msg; b.classList.add('show');
+  clearTimeout(bannerT); bannerT = setTimeout(() => b.classList.remove('show'), 2600);
+}
+
+// ---------- game state ----------
+let phase = 'menu', paused = false, G = null;
+const seatsEl = $('#seats'), traysEl = $('#trays'), bottomEl = $('#bottom');
+
+function newDay() {
+  G = { timeLeft:DAY_T, seats:Array(seatCount()).fill(null), trays:[], sel:-1, spawn:30,
+        combo:0, earned:0, served:0, lost:0, rush:false, closingShown:false };
+  for (let i = 0; i < trayCount(); i++) G.trays.push({ st:'empty', tops:[], p:0, w:0 });
+  buildSeats(); buildTrays(); buildBottom();
+  phase = 'play'; paused = false;
+  ['menu','pause','shop'].forEach(id => $('#' + id).classList.remove('show'));
+  banner('Day ' + save.day + ' — open for business! 🍕');
+}
+
+function buildSeats() {
+  seatsEl.innerHTML = '';
+  G.seats.forEach((_, i) => {
+    const d = document.createElement('div'); d.className = 'seat empty'; d.dataset.i = i; d._sig = '';
+    seatsEl.appendChild(d);
+  });
+}
+function buildTrays() {
+  traysEl.innerHTML = '';
+  G.trays.forEach((_, i) => {
+    const d = document.createElement('div'); d.className = 'tray'; d.dataset.i = i; d._sig = '';
+    d.innerHTML = '<div class="pizza"></div><div class="tl"></div><div class="pbar"><i></i></div>';
+    traysEl.appendChild(d);
+  });
+}
+function buildBottom() {
+  bottomEl.innerHTML = '';
+  save.tops.forEach((id, i) => {
+    const t = TOP[id], b = document.createElement('button');
+    b.className = 'tb'; b.dataset.t = id; b.innerHTML = t.e + '<small>' + (i + 1) + ' ' + t.n + '</small>';
+    bottomEl.appendChild(b);
+  });
+  bottomEl.insertAdjacentHTML('beforeend',
+    '<button class="act" id="bake">🔥 Bake (B)</button><button class="act" id="trash" style="background:#555">🗑 Toss (T)</button>');
+}
+
+// ---------- orders ----------
+function makeOrder(a) {
+  const un = save.tops, maxN = Math.min(save.day < 2 ? 1 : save.day < 4 ? 2 : 3, un.length);
+  const n = 1 + rnd(maxN), pool = un.slice(), out = [];
+  if (un.includes(a.fav) && Math.random() < .6) { out.push(a.fav); pool.splice(pool.indexOf(a.fav), 1); }
+  while (out.length < n && pool.length) out.push(pool.splice(rnd(pool.length), 1)[0]);
+  return out;
+}
+function spawnCustomer(i) {
+  const a = ANIMALS[rnd(ANIMALS.length)], golden = save.day >= 2 && Math.random() < .08;
+  const pat = Math.round(patBase() * (golden ? .7 : 1));
+  G.seats[i] = { e:a.e, order:makeOrder(a), pat, max:pat, golden, leave:0, mood:'' };
+  sfx('pop');
+  if (golden) banner('🌟 A golden customer! Triple coins!');
+}
+const sameOrder = (a, b) => a.length === b.length && a.slice().sort().join() === b.slice().sort().join();
+
+// ---------- actions ----------
+function selTray() { return G.sel >= 0 ? G.trays[G.sel] : null; }
+function clickTray(i) {
+  const t = G.trays[i];
+  if (t.st === 'empty') { t.st = 'raw'; t.tops = []; G.sel = i; sfx('pop'); }
+  else if (t.st === 'burnt') { t.st = 'empty'; t.tops = []; if (G.sel === i) G.sel = -1; sfx('pop'); }
+  else if (t.st === 'ready' && G.sel === i) G.sel = -1;
+  else G.sel = i;
+}
+function addTopping(id) {
+  let t = selTray();
+  if (!t || t.st !== 'raw') {
+    const e = G.trays.findIndex(x => x.st === 'empty');
+    if (e < 0) { toast('All trays are busy! Serve or toss one 🍕'); return; }
+    G.sel = e; t = G.trays[e]; t.st = 'raw'; t.tops = [];
+  }
+  const k = t.tops.indexOf(id);
+  if (k >= 0) t.tops.splice(k, 1);
+  else if (t.tops.length >= 4) { toast('That is plenty of toppings! (max 4)'); return; }
+  else t.tops.push(id);
+  sfx('add');
+}
+function bake() {
+  const t = selTray();
+  if (!t || t.st !== 'raw') { toast('Tap a tray with dough first!'); return; }
+  if (!t.tops.length) { toast('Add a topping first! 🧀'); return; }
+  t.st = 'baking'; t.p = 0; sfx('bake');
+}
+function trash() {
+  const t = selTray();
+  if (!t || t.st === 'empty') { toast('Pick a pizza to toss'); return; }
+  t.st = 'empty'; t.tops = []; G.sel = -1; sfx('pop');
+}
+function clickSeat(i) {
+  const s = G.seats[i]; if (!s || s.leave) return;
+  const t = selTray(), el = seatsEl.children[i];
+  if (!t || t.st !== 'ready') {
+    toast(t && t.st === 'raw' ? 'Bake it first! 🔥' : 'Tap a baked pizza first!'); return;
+  }
+  const tray = t; G.sel = -1; tray.st = 'empty'; const made = tray.tops; tray.tops = [];
+  if (sameOrder(made, s.order)) {
+    const base = 8 + s.order.reduce((a, id) => a + TOP[id].v, 0);
+    const tip = Math.round(base * .5 * (s.pat / s.max) * tipMult());
+    G.combo++;
+    const mult = 1 + Math.min(G.combo - 1, 9) * .1;
+    let gain = Math.round((base + tip) * mult * (s.golden ? 3 : 1));
+    if (G.combo % 5 === 0) { gain += 25; confetti(30); banner('🎉 Combo x' + G.combo + '! +25 bonus!'); sfx('fan'); }
+    save.coins += gain; G.earned += gain; G.served++; persist();
+    s.leave = 50; s.mood = 'happy'; sfx('coin');
+    floatText(el, '+' + gain + ' 🪙' + (tip > 3 ? ' 💖' : ''));
+  } else {
+    s.pat = Math.max(1, s.pat - Math.round(s.max * .25)); G.combo = 0; sfx('bad');
+    el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+    toast('Wrong toppings! 😬 Check the bubble.');
+  }
+}
+
+// ---------- update (fixed step) ----------
+function update() {
+  if (G.timeLeft > 0) G.timeLeft--;
+  const el = DAY_T - G.timeLeft, rush = el >= 2700 && el < 3600 && G.timeLeft > 0;
+  if (rush !== G.rush) { G.rush = rush; if (rush) { banner('🚨 RUSH HOUR! Hungry animals!'); sfx('rush'); } else banner('Phew, rush hour is over!'); }
+  if (G.timeLeft === 0 && !G.closingShown) { G.closingShown = true; banner('🔔 Last orders! Finish serving!'); }
+
+  if (G.timeLeft > 0 && --G.spawn <= 0) {
+    const free = [];
+    G.seats.forEach((s, i) => { if (!s) free.push(i); });
+    if (free.length) spawnCustomer(free[rnd(free.length)]);
+    G.spawn = Math.max(90, 200 + rnd(160) - Math.min(save.day * 8, 100)) * (G.rush ? .5 : 1);
+  }
+  G.seats.forEach((s, i) => {
+    if (!s) return;
+    if (s.leave) { if (--s.leave <= 0) G.seats[i] = null; return; }
+    if (--s.pat <= 0) {
+      s.leave = 50; s.mood = 'angry'; G.combo = 0; G.lost++; sfx('bad');
+      floatText(seatsEl.children[i], '😡 left!');
+    }
+  });
+  G.trays.forEach(t => {
+    if (t.st === 'baking' && ++t.p >= bakeTime()) { t.st = 'ready'; t.w = readyWin(); sfx('ding'); }
+    else if (t.st === 'ready' && --t.w <= 0) { t.st = 'burnt'; sfx('burn'); toast('Oh no, a pizza burnt! 🔥'); }
+  });
+  if (G.timeLeft === 0 && G.seats.every(s => !s)) endDay();
+}
+
+function endDay() {
+  phase = 'shop';
+  save.best = Math.max(save.best, G.earned); save.day++; persist();
+  sfx('fan'); confetti(40);
+  $('#sumTitle').textContent = 'Day ' + (save.day - 1) + ' done! 🎉';
+  $('#sumText').textContent = '🍕 Served ' + G.served + ' · 😡 Lost ' + G.lost + ' · 🪙 Earned ' + G.earned + ' · 🏆 Best day ' + save.best;
+  $('#nextBtn').textContent = 'Start Day ' + save.day + ' ▶';
+  buildShop(); $('#shop').classList.add('show');
+}
+function buildShop() {
+  const list = $('#shopList'); list.innerHTML = '';
+  const add = (title, desc, price, can, buy) => {
+    const d = document.createElement('div'); d.className = 'item';
+    d.innerHTML = '<b>' + title + '</b><small>' + desc + '</small>';
+    const b = document.createElement('button');
+    b.textContent = price == null ? '✅ Maxed!' : '🪙 ' + price;
+    b.disabled = price == null || save.coins < price;
+    b.onclick = () => { if (save.coins >= price) { save.coins -= price; buy(); persist(); sfx('coin'); buildShop(); renderHud(); } };
+    d.appendChild(b); list.appendChild(d);
+  };
+  UPS.forEach(u => {
+    const l = save.up[u.k], c = u.costs[l];
+    add(u.e + ' ' + u.n, u.d + '<br>Now: ' + u.show(l) + (c != null ? ' → ' + u.show(l + 1) : ''), c == null ? null : c, true, () => { save.up[u.k]++; });
+  });
+  TOPS.filter(t => !save.tops.includes(t.id)).forEach(t =>
+    add(t.e + ' New topping: ' + t.n, 'Animals will start ordering it! Worth ' + t.v + ' coins.', t.cost, true, () => { save.tops.push(t.id); }));
+  const left = $('#sumText'); left.dataset.c = save.coins;
+}
+
+// ---------- render ----------
+function setText(el, v) { if (el.textContent !== v) el.textContent = v; }
+function renderHud() {
+  setText($('#hCoins'), '🪙 ' + save.coins);
+  if (!G) return;
+  setText($('#hDay'), 'Day ' + save.day);
+  setText($('#hClock'), G.timeLeft > 0 ? '⏰ ' + Math.ceil(G.timeLeft / 60) : '🔔 Closing!');
+  const m = 1 + Math.min(Math.max(G.combo - 1, 0), 9) * .1;
+  setText($('#hCombo'), '🔥 Combo ' + G.combo + ' (x' + m.toFixed(1) + ')');
+}
+const SPOTS = [[32,30],[66,28],[50,52],[28,68],[70,64],[50,20],[20,48],[78,46]];
+function pizzaHTML(t) {
+  if (t.st === 'empty') return '+';
+  let h = '', k = 0; const per = t.tops.length <= 2 ? 3 : 2;
+  t.tops.forEach(id => { for (let j = 0; j < per; j++, k++) { const p = SPOTS[k % 8]; h += '<span style="left:' + p[0] + '%;top:' + p[1] + '%">' + TOP[id].e + '</span>'; } });
+  return h;
+}
+const LABEL = { empty:'Tap for dough', raw:'Add toppings', baking:'Baking...', ready:'READY! Serve it', burnt:'Burnt! Tap to toss' };
+function render() {
+  renderHud();
+  if (!G) return;
+  G.seats.forEach((s, i) => {
+    const el = seatsEl.children[i];
+    const sig = s ? [s.e, s.order.join(), s.golden, s.leave ? s.mood : '', s.pat < s.max * .33 ? 'mad' : ''].join('|') : '';
+    if (el._sig !== sig) {
+      el._sig = sig;
+      if (!s) { el.className = 'seat empty'; el.innerHTML = ''; }
+      else {
+        const face = s.leave ? (s.mood === 'happy' ? '😋' : '😡') : (s.pat < s.max * .33 ? s.e + '💢' : s.e);
+        el.className = 'seat' + (s.golden ? ' gold' : '') + (s.leave ? ' leaving' : '');
+        el.innerHTML = '<div class="bubble">' + (s.leave ? (s.mood === 'happy' ? '💖' : '💤') : s.order.map(id => TOP[id].e).join(' ')) + '</div>' +
+          '<div class="animal">' + (s.leave && s.mood === 'happy' ? s.e : face) + '</div>' + (s.golden ? '<div class="crown">👑</div>' : '') +
+          '<div class="bar"><i></i></div>';
+      }
+    }
+    if (s) {
+      const f = Math.max(0, s.pat / s.max), bar = el.querySelector('.bar i');
+      if (bar) { bar.style.width = (f * 100) + '%'; bar.style.background = f > .5 ? '#5bd65b' : f > .25 ? '#ffd24d' : '#ff4d4d'; }
+    }
+  });
+  G.trays.forEach((t, i) => {
+    const el = traysEl.children[i], sig = t.st + '|' + t.tops.join();
+    if (el._sig !== sig) {
+      el._sig = sig;
+      const pz = el.querySelector('.pizza'); pz.className = 'pizza ' + t.st; pz.innerHTML = pizzaHTML(t);
+      setText(el.querySelector('.tl'), LABEL[t.st]);
+    }
+    el.classList.toggle('sel', i === G.sel);
+    const bar = el.querySelector('.pbar i');
+    let w = 0, burn = false;
+    if (t.st === 'baking') w = t.p / bakeTime();
+    else if (t.st === 'ready') { w = t.w / readyWin(); burn = true; }
+    bar.style.width = (w * 100) + '%'; bar.className = burn ? 'burn' : '';
+  });
+  const st = selTray();
+  bottomEl.querySelectorAll('.tb').forEach(b => b.classList.toggle('on', !!st && st.st === 'raw' && st.tops.includes(b.dataset.t)));
+}
+
+// ---------- loop ----------
+let last = performance.now(), acc = 0;
+function frame(now) {
+  acc += Math.min(now - last, 250); last = now;
+  if (phase === 'play' && !paused) {
+    while (acc >= STEP && phase === 'play') { update(); acc -= STEP; }
+  } else acc = 0;
+  render();
+  requestAnimationFrame(frame);
+}
+
+// ---------- input ----------
+seatsEl.addEventListener('click', e => { const s = e.target.closest('.seat'); if (s && phase === 'play' && !paused) clickSeat(+s.dataset.i); });
+traysEl.addEventListener('click', e => { const t = e.target.closest('.tray'); if (t && phase === 'play' && !paused) clickTray(+t.dataset.i); });
+bottomEl.addEventListener('click', e => {
+  if (phase !== 'play' || paused) return;
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.t) addTopping(b.dataset.t);
+  else if (b.id === 'bake') bake();
+  else if (b.id === 'trash') trash();
+});
+function setPause(p) {
+  if (phase !== 'play') return;
+  paused = p; $('#pause').classList.toggle('show', p);
+}
+$('#pauseBtn').onclick = () => setPause(!paused);
+$('#resumeBtn').onclick = () => setPause(false);
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
+window.addEventListener('keydown', e => {
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { setPause(!paused); return; }
+  if (phase !== 'play' || paused) return;
+  const k = e.key.toLowerCase();
+  if (k >= '1' && k <= '9') { const id = save.tops[+k - 1]; if (id) addTopping(id); }
+  else if (k === 'b') bake();
+  else if (k === 't' || k === 'delete' || k === 'backspace') trash();
+});
+$('#mute').textContent = muted ? '🔇' : '🔊';
+$('#mute').onclick = () => {
+  muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊';
+  try { localStorage.setItem('pizzapals-mute', muted ? '1' : '0'); } catch (e) {}
+};
+function menuInfo() {
+  $('#playBtn').textContent = save.day > 1 ? '▶ Play Day ' + save.day : '▶ Play';
+  $('#menuInfo').textContent = save.day > 1 ? '🪙 ' + save.coins + ' coins · 🏆 Best day ' + save.best : '';
+  $('#newBtn').style.display = save.day > 1 || save.coins ? '' : 'none';
+}
+$('#playBtn').onclick = () => { sfx('pop'); newDay(); };
+let sure = 0;
+$('#newBtn').onclick = () => {
+  if (!sure) { sure = 1; $('#newBtn').textContent = 'Really erase everything? Tap again'; setTimeout(() => { sure = 0; $('#newBtn').textContent = 'New game'; }, 3000); return; }
+  save = fresh(); persist(); sure = 0; $('#newBtn').textContent = 'New game'; menuInfo(); renderHud();
+};
+$('#nextBtn').onclick = () => { newDay(); };
+menuInfo(); renderHud();
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
 </body>
 </html>
