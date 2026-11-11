@@ -166,10 +166,8 @@ function loadLetters() {
 function saveLetters(l) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch (e) {} }
 function showLetters() {
   const l = loadLetters();
-  $("letterList").innerHTML = (boss ? `<button class="send" id="wipe">🧹 Wipe all letters</button>` : "") +
-    l.map((x, i) => `<div class="letter">${esc(x.text)}<small>— ${esc(x.who)}${boss ? ` <button class="del" data-i="${i}">✖ delete</button>` : ""}</small></div>`).join("");
+  $("letterList").innerHTML = l.map((x, i) => `<div class="letter">${esc(x.text)}<small>— ${esc(x.who)}${boss ? ` <button class="del" data-i="${i}">✖ delete</button>` : ""}</small></div>`).join("");
   if (boss) {
-    $("wipe").onclick = () => { if (confirm("Wipe ALL letters?")) { saveLetters([]); showLetters(); } };
     document.querySelectorAll(".del").forEach(b => b.onclick = () => { const l2 = loadLetters(); l2.splice(+b.dataset.i, 1); saveLetters(l2); showLetters(); });
   }
 }
@@ -205,10 +203,8 @@ function loadReqs() { try { const r = JSON.parse(localStorage.getItem(REQ_KEY));
 function saveReqs(r) { try { localStorage.setItem(REQ_KEY, JSON.stringify(r)); } catch (e) {} }
 function showReqs() {
   const r = loadReqs();
-  $("reqList").innerHTML = (boss && r.length ? `<button class="send" id="reqWipe">🧹 Wipe all requests</button>` : "") +
-    r.map((x, i) => `<div class="letter"><b>${esc(x.type)}:</b> ${esc(x.text)}${boss ? ` <button class="del" data-r="${i}">✖ delete</button>` : ""}</div>`).join("");
+  $("reqList").innerHTML = r.map((x, i) => `<div class="letter"><b>${esc(x.type)}:</b> ${esc(x.text)}${boss ? ` <button class="del" data-r="${i}">✖ delete</button>` : ""}</div>`).join("");
   if (boss && r.length) {
-    $("reqWipe").onclick = () => { if (confirm("Wipe ALL requests?")) { saveReqs([]); showReqs(); } };
     document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { const r2 = loadReqs(); r2.splice(+b.dataset.r, 1); saveReqs(r2); showReqs(); });
   }
 }
