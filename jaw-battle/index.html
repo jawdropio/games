@@ -150,16 +150,18 @@
     medium: { label: '😎 Medium', speed: 2.2, err: 0.16, cd: 1.2, fireP: 0.09, dodge: 0.6, hp: 20, guns: [0, 1] },
     hard:   { label: '😤 Hard',   speed: 2.7, err: 0.08, cd: 1.0, fireP: 0.13, dodge: 0.9, hp: 24, guns: [0, 1, 2] },
     insane: { label: '💀 Insane', speed: 3.3, err: 0.04, cd: 0.9, fireP: 1.0, dodge: 1.0, hp: 30, guns: [0, 1, 2, 3] },
+    godlike: { label: '👑 Godlike', speed: 3.4, err: 0.01, cd: 0.8, fireP: 1.0, dodge: 1.0, hp: 40, guns: [0, 1, 2, 3] },
   };
   let diffName = 'medium';
   try { const d = localStorage.getItem('jawBattleDiff'); if (DIFFS[d]) diffName = d; } catch (e) {}
   const diff = () => DIFFS[diffName];
+  const topDiff = () => diffName === 'insane' || diffName === 'godlike';
   // coins + owned guns (saved in the browser)
-  let mode = '1p', teamSize = 2, score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false, false, false, false, false, false], startMap = 0;
+  let mode = '1p', teamSize = 2, score1 = 0, score2 = 0, coins = 0, owned = [true, false, false, false, false, false, false, false, false, false], startMap = 0;
   try { coins = +localStorage.getItem('jawBattleCoins') || 0; const o = JSON.parse(localStorage.getItem('jawBattleGuns') || 'null'); if (Array.isArray(o)) owned = owned.map((_, i) => !!o[i]); owned[0] = true; } catch (e) {}
   // gun levels: guns level up by dealing damage with them
   const XP_AT = [0, 40, 100, 200, 400]; // only used to carry over levels earned before upgrades were for sale
-  let gunLv = Array(9).fill(1), toast = null, shovelLv = 1;
+  let gunLv = Array(10).fill(1), toast = null, shovelLv = 1;
   try { shovelLv = Math.max(1, Math.min(5, +localStorage.getItem('jawBattleShovel') || 1)); } catch (e) {}
   try {
     const lv = JSON.parse(localStorage.getItem('jawBattleLv') || 'null'), x = JSON.parse(localStorage.getItem('jawBattleXP') || 'null');
@@ -190,13 +192,14 @@
     [{ n: '⚡ Quick load', d: 'reloads 20% faster', fx: { cdMul: 0.8 } }, { n: '💥 Explosive', d: 'blows up where it lands', fx: { boom: 80 } }, { n: '🔥 Napalm', d: 'blast sets enemies on fire', fx: { fire: 1, boom: 95 } }, { n: '☄️ Mega blast', d: 'huge explosion + big fire', fx: { boom: 140, fire: 2 } }],
     [{ n: '⚡ Overclock', d: 'shoots 20% faster', fx: { cdMul: 0.8 } }, { n: '🧲 Seeking', d: 'bullets curve to enemies', fx: { home: 0.06 } }, { n: '❄️ Freeze zap', d: 'slows enemies down', fx: { slow: 1 } }, { n: '🛰️ Heat seeker', d: 'through blocks + strong seeking', fx: { pierce: 1, home: 0.12 } }],
     [{ n: '⚡ Overdrive', d: 'shoots 15% faster', fx: { cdMul: 0.85 } }, { n: '🔥 Fire shots', d: 'sets enemies on fire', fx: { fire: 1 } }, { n: '💥 Explosive', d: 'blows up where it lands', fx: { boom: 75 } }, { n: '☄️ Meteor storm', d: '+1 bullet, strong seeking', fx: { nAdd: 1, home: 0.14 } }],
+    [{ n: '⚡ Hyper fire', d: 'shoots 15% faster', fx: { cdMul: 0.85 } }, { n: '🔥 Wildfire', d: 'sets enemies on fire', fx: { fire: 1 } }, { n: '🐾 Pounce', d: '+2 bullets', fx: { nAdd: 2 } }, { n: '🌪️ Apex predator', d: '+2 bullets, huge blasts, freezing', fx: { nAdd: 2, boom: 100, slow: 1 } }],
   ];
   function gunFx(gi, lvl) {
-    const fx = {};
+    const fx = Object.assign({}, GUNS[gi].base || {});
     for (let l = 2; l <= lvl; l++) { const u = UPG[gi][l - 2]; if (!u) continue; for (const k in u.fx) { const v = u.fx[k]; if (['cdMul', 'spreadMul', 'speedMul', 'lifeMul', 'dmgMul'].includes(k)) fx[k] = (fx[k] ?? 1) * v; else if (['nAdd', 'bounceAdd'].includes(k)) fx[k] = (fx[k] || 0) + v; else fx[k] = Math.max(fx[k] || 0, v); } }
     return fx;
   }
-  const botPerk = gi => (diffName === 'insane' && gi === 8) ? 'fire' : ((diffName === 'hard' || diffName === 'insane') && gi === 1) ? 'fire' : (diffName === 'insane' && gi === 2) ? 'ice' : null;
+  const botPerk = gi => (topDiff() && gi === 8) ? 'fire' : ((diffName === 'hard' || topDiff()) && gi === 1) ? 'fire' : (topDiff() && gi === 2) ? 'ice' : null;
   const upCost = lv => [30, 60, 100, 150][lv - 1];
   let aimbot = false, aimPro = false, aimShots = 0;
   // OPERATOR mode (the secret code): everything unlocked and maxed, infinite coins, free ghost, infinite walls
@@ -204,8 +207,8 @@
   const shovel = () => aimbot ? 5 : shovelLv;
   const coinText = () => aimbot ? '∞' : coins;
   // where each gun sits in the gun bar (you can rearrange it)
-  let gunOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-  try { const o = JSON.parse(localStorage.getItem('jawBattleOrder') || 'null'); if (Array.isArray(o) && o.length === 9 && [...o].sort((a, b) => a - b).every((v, i) => v === i)) gunOrder = o; } catch (e) {}
+  let gunOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+  try { const o = JSON.parse(localStorage.getItem('jawBattleOrder') || 'null'); if (Array.isArray(o) && (o.length === 9 || o.length === 10)) { const oo = o.length === 9 ? o.concat([9]) : o; if ([...oo].sort((a, b) => a - b).every((v, i) => v === i)) gunOrder = oo; } } catch (e) {}
   // character skins
   let skinId = 'sky', skinsOwned = ['sky'];
   try { const v = localStorage.getItem('jawBattleSkin'); if (v) skinId = v; const o = JSON.parse(localStorage.getItem('jawBattleSkins') || 'null'); if (Array.isArray(o)) skinsOwned = o.concat(['sky']); } catch (e) {}
@@ -289,9 +292,10 @@
     { name: 'Sniper', icon: '🎯',      cd: 75, n: 1, spread: 0,    speed: 18,  dmg: 12, life: 80,  freq: 300, color: '#ffffff', cost: 500, info: 'Slow, but 3 hearts per hit!' },
     { name: 'Triple Shot', icon: '🔱', short: 'Triple',  cd: 28, n: 3, spread: 0.30, speed: 9,   dmg: 2,   life: 120, freq: 450, color: '#ffb3f0', cost: 150, info: '3 bullets in a fan (+1 bullet per level!)' },
     { name: 'Bouncer', icon: '🏀',     short: 'Bouncer', cd: 22, n: 1, spread: 0.03, speed: 8,   dmg: 3,   life: 200, freq: 380, color: '#7dffb0', cost: 350, info: 'Bullets bounce off walls!', bounce: 3 },
-    { name: 'Cannon', icon: '💣',      short: 'Cannon',  cd: 70, n: 1, spread: 0,    speed: 5,   dmg: 8,   life: 200, freq: 110, color: '#ff9a4d', cost: 700, info: 'Huge slow ball, smashes blocks', r: 11, obs: 3 },
+    { name: 'Cannon', icon: '🎃',      short: 'Cannon',  cd: 70, n: 1, spread: 0,    speed: 5,   dmg: 8,   life: 200, freq: 110, color: '#ff9a4d', cost: 700, info: 'Shoots giant pumpkins that smash blocks!', r: 11, obs: 3 },
     { name: 'Laser', icon: '🛸',       short: 'Laser',   cd: 9,  n: 1, spread: 0.02, speed: 15,  dmg: 1.2, life: 90,  freq: 900, color: '#ff5de0', cost: 250, info: 'Fast zappy shots' },
     { name: 'Mega Blaster', icon: '☄️', short: 'MEGA', cd: 7, n: 2, spread: 0.06, speed: 14, dmg: 2.5, life: 130, freq: 600, color: '#ffd700', cost: 1000, info: 'OP! Rapid double shots that blast through dirt', r: 7, obs: 3 },
+    { name: 'Jagwire', short: 'Jagwire', icon: '🐆', cd: 4, n: 3, spread: 0.10, speed: 20, dmg: 5.5, life: 150, freq: 800, color: '#ffcc33', cost: 99999, secret: true, info: 'SECRET gun. Needs a special code!', r: 6, obs: 3, base: { home: 0.25, pierce: 1, boom: 55 } },
   ];
 
   // ---------- building ----------
@@ -321,8 +325,10 @@
   function rng(seed) { let a = (seed * 2654435761) >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function mapName(seed) { const r = rng(seed); r(); return ADJ[Math.floor(r() * ADJ.length)] + ' ' + NOUN[Math.floor(r() * NOUN.length)]; }
   function carveRect(list, x1, y1, x2, y2) {
+    x1 = Math.round(x1); y1 = Math.round(y1); x2 = Math.round(x2); y2 = Math.round(y2); // whole pixels only: fractional edges made hairline gaps in the dirt
     const out = []; let dug = false;
     for (const o of list) {
+      if (o.type === 't') { out.push(o); continue; } // towers can't be dug away
       if (x1 >= o.x + o.w || x2 <= o.x || y1 >= o.y + o.h || y2 <= o.y) { out.push(o); continue; }
       dug = true;
       const ix1 = Math.max(o.x, x1), ix2 = Math.min(o.x + o.w, x2), iy1 = Math.max(o.y, y1), iy2 = Math.min(o.y + o.h, y2);
@@ -376,6 +382,17 @@
         const rx = Math.round(x / 10) * 10, ry = Math.round(y / 10) * 10;
         add(rx, ry, 22, h, 'w'); add(MAP_W - rx - 22, ry, 22, h, 'w');
       }
+      const style = Math.floor(r() * 4); // 0 caverns, 1 crossroads, 2 fortress, 3 canyon
+      if (style === 1) { // wide plus-shaped tunnels with a crate pile where they cross
+        doCarve(margin - 10, MAP_H / 2 - 55, MAP_W - margin + 10, MAP_H / 2 + 55); doCarve(W2 - 55, 0, W2 + 55, MAP_H); add(W2 - 40, MAP_H / 2 - 40, 80, 80, 'c');
+      } else if (style === 2) { // stone castle walls around each base, with a gate
+        const wx = margin - 30;
+        for (const side of [0, 1]) { const x = side ? MAP_W - wx - 22 : wx, hx = side ? MAP_W - wx : 10;
+          add(x, MAP_H / 2 - 210, 22, 150, 'w'); add(x, MAP_H / 2 + 60, 22, 150, 'w'); add(hx, MAP_H / 2 - 210, wx - 10 + (side ? 10 : 0), 22, 'w'); add(hx, MAP_H / 2 + 188, wx - 10 + (side ? 10 : 0), 22, 'w'); }
+      } else if (style === 3) { // an open canyon down the middle with stone pillars
+        doCarve(margin - 10, MAP_H / 2 - 120, MAP_W - margin + 10, MAP_H / 2 + 120);
+        for (let i = 0; i < 5; i++) add(Math.round(margin + 60 + i * ((MAP_W - 2 * margin - 170) / 4)), MAP_H / 2 - 110 + (i % 2) * 80, 50, 80, 'w');
+      }
       add(130, MAP_H / 2 - 70, 22, 140, 'w'); add(MAP_W - 152, MAP_H / 2 - 70, 22, 140, 'w'); // spawn shields (added last so caves can't cut them)
     } else {
       const style = Math.floor(r() * 4);
@@ -415,6 +432,110 @@
   const nearestFoe = f => { let best = null, bd = 1e9; for (const o of fighters) { if (o.team === f.team || o.dead) continue; const d = Math.hypot(o.x - f.x, o.y - f.y); if (d < bd) { bd = d; best = o; } } return best; };
   const foeNear = (team, x, y) => { let best = null, bd = 1e9; for (const o of fighters) { if (o.team === team || o.dead) continue; const d = Math.hypot(o.x - x, o.y - y); if (d < bd) { bd = d; best = o; } } return best; };
   const startGun = () => { const g = gunOrder.find(i => own(i)); return g === undefined ? 0 : g; }; // slot 1 (or the first gun you own)
+  // ---------- Capture the Flag: fortify your towers, and a prettier dirt layer ----------
+  const TOWER_COST = [100, 250, 450], TOWER_HP = [6, 10, 16], TOWER_NAMES = ['Stone Tower', 'Cannon Tower', 'Fortress'];
+  let pads = [], cash = { p: 0, b: 0 }, dirtLayer = null, dirtDirty = false, dirtTick = 0;
+  function setupTowers() {
+    pads = [];
+    for (const [team, x] of [[0, BASE_P.x], [1, BASE_B.x]]) for (const dy of [-130, 130]) pads.push({ x, y: H / 2 + dy, team, lvl: 0, ob: null });
+  }
+  function upgradePad(pad, who) {
+    if (pad.lvl >= 3 || (pad.ob && pad.ob.dead)) return false;
+    const free = who === 'p' && aimbot, cost = TOWER_COST[pad.lvl];
+    if (!free && cash[who] < cost) { if (who === 'p') beep(200, 0.12, 'sawtooth', 0.06); return false; }
+    if (!free) cash[who] -= cost;
+    pad.lvl++;
+    if (pad.ob) obstacles = obstacles.filter(o => o !== pad.ob);
+    const ob = { x: pad.x - 20, y: pad.y - 20, w: 40, h: 40, type: 't', team: pad.team, lvl: pad.lvl, hp: TOWER_HP[pad.lvl - 1], maxHp: TOWER_HP[pad.lvl - 1], cd: 30, aim: pad.team === 0 ? 0 : Math.PI };
+    obstacles.push(ob); pad.ob = ob;
+    burst(pad.x, pad.y, pad.team === 0 ? '#8fe3ff' : '#ff9ec0', 16); if (who === 'p') [500, 700, 950].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'square', 0.06), i * 60));
+    return true;
+  }
+  const padAt = (x, y) => pads.find(p => Math.abs(p.x - x) < 32 && Math.abs(p.y - y) < 32);
+  function upgradeNearest() {
+    let best = null, bd = 170; for (const p of pads) { if (p.team !== 0 || p.lvl >= 3) continue; const d = Math.hypot(p.x - player.x, p.y - player.y); if (d < bd) { bd = d; best = p; } }
+    if (best) upgradePad(best, 'p');
+  }
+  function botFortify(b) {
+    if ((b.fortT = (b.fortT || 0) + 1) < 70) return; b.fortT = 0;
+    const mine = pads.filter(p => p.team === 1 && p.lvl < 3 && !(p.ob && p.ob.dead) && cash.b >= TOWER_COST[p.lvl]).sort((a, c) => a.lvl - c.lvl);
+    if (mine.length) upgradePad(mine[0], 'b');
+  }
+  function turretTick() { // level 2 and 3 towers shoot at enemies that come close
+    for (const o of obstacles) {
+      if (o.type !== 't' || o.lvl < 2 || o.dead) continue;
+      if (--o.cd > 0) continue;
+      const cx = o.x + 20, cy = o.y + 20; let best = null, bd = 400;
+      for (const f of fighters) { if (f.team === o.team || f.dead || f.invuln > 0) continue; const d = Math.hypot(f.x - cx, f.y - cy); if (d < bd && lineClear(cx + (f.x - cx) / d * 26, cy + (f.y - cy) / d * 26, f.x, f.y)) { bd = d; best = f; } }
+      if (best) {
+        const a = Math.atan2(best.y - cy, best.x - cx); o.aim = a;
+        bullets.push({ x: cx + Math.cos(a) * 24, y: cy + Math.sin(a) * 24, vx: Math.cos(a) * 9.5, vy: Math.sin(a) * 9.5, owner: 't', team: o.team, life: 55, dmg: o.lvl === 2 ? 1.5 : 2.6, color: o.team === 0 ? '#8fe3ff' : '#ff9ec0', r: 5, bounce: 0, obs: 1, gi: -1 });
+        o.cd = o.lvl === 2 ? 45 : 22; beep(330, 0.05, 'square', 0.03);
+      } else o.cd = 10;
+    }
+  }
+  // glue neighbouring dirt pieces back together (keeps the game fast after lots of digging)
+  function mergeDirt() {
+    dirtDirty = false;
+    let d = obstacles.filter(o => o.type === 'd'); const rest = obstacles.filter(o => o.type !== 'd');
+    for (let pass = 0; pass < 6; pass++) {
+      let merged = false;
+      for (let i = 0; i < d.length; i++) for (let j = i + 1; j < d.length; j++) {
+        const a = d[i], b = d[j];
+        if (a.x === b.x && a.w === b.w && (a.y + a.h === b.y || b.y + b.h === a.y)) { a.y = Math.min(a.y, b.y); a.h += b.h; d.splice(j, 1); merged = true; j--; }
+        else if (a.y === b.y && a.h === b.h && (a.x + a.w === b.x || b.x + b.w === a.x)) { a.x = Math.min(a.x, b.x); a.w += b.w; d.splice(j, 1); merged = true; j--; }
+      }
+      if (!merged) break;
+    }
+    obstacles = rest.concat(d);
+  }
+  function makeDirtLayer(seed) {
+    const c = document.createElement('canvas'); c.width = MAP_W; c.height = MAP_H;
+    const g = c.getContext('2d'), r = rng(seed * 131 + 7), rx = () => r() * MAP_W, ry = () => r() * MAP_H;
+    g.fillStyle = dirtPattern(); g.fillRect(0, 0, MAP_W, MAP_H);
+    const vg = g.createLinearGradient(0, 0, 0, MAP_H); vg.addColorStop(0, 'rgba(0,0,0,.12)'); vg.addColorStop(0.5, 'rgba(25,8,0,.30)'); vg.addColorStop(1, 'rgba(0,0,0,.12)'); g.fillStyle = vg; g.fillRect(0, 0, MAP_W, MAP_H);
+    g.lineCap = 'round';
+    for (let i = 0; i < 70; i++) { const x = rx(), y = ry(), w = 5 + r() * 9; g.fillStyle = 'rgba(40,28,20,.55)'; g.beginPath(); g.ellipse(x, y + 1.5, w, w * 0.65, 0, 0, 6.283); g.fill(); g.fillStyle = '#8a7a6a'; g.beginPath(); g.ellipse(x, y, w, w * 0.65, 0, 0, 6.283); g.fill(); g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.ellipse(x - w * 0.3, y - w * 0.25, w * 0.35, w * 0.2, 0, 0, 6.283); g.fill(); }
+    g.strokeStyle = 'rgba(60,35,12,.7)'; g.lineWidth = 2;
+    for (let i = 0; i < 40; i++) { let x = rx(), y = ry(); g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 26; y += 8 + r() * 12; g.lineTo(x, y); } g.stroke(); }
+    const ORES = [['#ffd23a', '#fff6b0'], ['#ff4060', '#ffc0cc'], ['#4aa8ff', '#cfe8ff'], ['#4be08a', '#c8ffe0'], ['#e8873a', '#ffd0a0']];
+    for (let i = 0; i < 34; i++) { const cx = rx(), cy = ry(), [c1, c2] = ORES[Math.floor(r() * ORES.length)], n = 3 + Math.floor(r() * 5);
+      for (let k = 0; k < n; k++) { const x = cx + (r() - 0.5) * 30, y = cy + (r() - 0.5) * 22, sz = 2.5 + r() * 3.5; g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x - sz + 1, y - sz + 1, sz * 2, sz * 2); g.fillStyle = c1; g.beginPath(); g.moveTo(x, y - sz * 1.3); g.lineTo(x + sz, y); g.lineTo(x, y + sz * 1.3); g.lineTo(x - sz, y); g.closePath(); g.fill(); g.fillStyle = c2; g.fillRect(x - 1, y - sz * 0.7, 1.6, sz * 0.6); } }
+    for (let i = 0; i < 16; i++) { const x = rx(), y = ry(), pr = 6 + r() * 5; g.globalAlpha = 0.85; g.fillStyle = '#e07a1a'; g.beginPath(); g.ellipse(x, y, pr * 1.15, pr, 0, 0, 6.283); g.fill(); g.fillStyle = '#4a7a2a'; g.fillRect(x - 1.5, y - pr - 3, 3, 4); g.globalAlpha = 1; }
+    return c;
+  }
+  function drawDirt(o) {
+    const x = Math.floor(o.x), y = Math.floor(o.y), w = Math.ceil(o.x + o.w) - x, h = Math.ceil(o.y + o.h) - y;
+    if (dirtLayer) ctx.drawImage(dirtLayer, x, y, w, h, x, y, w, h); else { ctx.fillStyle = dirtPattern(); ctx.fillRect(x, y, w, h); }
+  }
+  function drawTower(o) {
+    const col = o.team === 0 ? '#4fd1ff' : '#ff6b9a';
+    ctx.fillStyle = '#7d7a8c'; ctx.fillRect(o.x, o.y, 40, 40);
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(o.x, o.y, 40, 4);
+    ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1.5; ctx.beginPath(); for (let k = 1; k < 4; k++) { ctx.moveTo(o.x, o.y + k * 10); ctx.lineTo(o.x + 40, o.y + k * 10); } ctx.moveTo(o.x + 20, o.y); ctx.lineTo(o.x + 20, o.y + 10); ctx.moveTo(o.x + 10, o.y + 10); ctx.lineTo(o.x + 10, o.y + 20); ctx.moveTo(o.x + 30, o.y + 10); ctx.lineTo(o.x + 30, o.y + 20); ctx.stroke();
+    ctx.fillStyle = '#9a97ab'; for (let i = 0; i < 4; i++) ctx.fillRect(o.x + 1 + i * 10, o.y - 4, 8, 6);
+    ctx.fillStyle = col; ctx.fillRect(o.x, o.y + 17, 40, 5);
+    const cx = o.x + 20, cy = o.y + 20;
+    if (o.lvl >= 2) { ctx.save(); ctx.translate(cx, cy); ctx.rotate(o.aim || 0); ctx.fillStyle = '#2a2840'; ctx.fillRect(2, -4, 24, 8); if (o.lvl >= 3) ctx.fillRect(2, -9, 20, 4), ctx.fillRect(2, 5, 20, 4); ctx.restore(); ctx.fillStyle = '#403d5c'; ctx.beginPath(); ctx.arc(cx, cy, 11, 0, 6.283); ctx.fill(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 6.283); ctx.fill(); }
+    if (o.lvl >= 3) { ctx.strokeStyle = '#ffd23a'; ctx.lineWidth = 3; ctx.strokeRect(o.x + 1.5, o.y + 1.5, 37, 37); }
+    if (o.hp < o.maxHp) { ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(o.x, o.y - 10, 40, 5); ctx.fillStyle = '#4be08a'; ctx.fillRect(o.x + 1, o.y - 9, 38 * Math.max(0, o.hp) / o.maxHp, 3); }
+  }
+  function drawPads() {
+    for (const p of pads) {
+      ctx.fillStyle = p.team === 0 ? 'rgba(79,209,255,.18)' : 'rgba(255,107,154,.18)'; ctx.strokeStyle = p.team === 0 ? 'rgba(79,209,255,.7)' : 'rgba(255,107,154,.7)'; ctx.lineWidth = 2; ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.arc(p.x, p.y, 34, 0, 6.283); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+      if (ctfPhase > 0 && p.team === 0 && p.lvl < 3 && !(p.ob && p.ob.dead)) {
+        ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(p.lvl === 0 ? '＋ Build' : '⬆ Upgrade', p.x, p.y - 38);
+        ctx.fillStyle = '#ffd23a'; ctx.fillText(aimbot ? 'FREE' : '$' + TOWER_COST[p.lvl] + '  • ' + TOWER_NAMES[p.lvl], p.x, p.y + 44);
+      }
+    }
+    // torches by each base
+    for (const [bx, dir] of [[BASE_P.x, 1], [BASE_B.x, -1]]) for (const dy of [-70, 70]) {
+      const x = bx + dir * 30, y = H / 2 + dy, fl = 1 + 0.25 * Math.sin(Date.now() / 90 + x + dy);
+      const gr = ctx.createRadialGradient(x, y - 10, 2, x, y - 10, 34); gr.addColorStop(0, 'rgba(255,170,60,.45)'); gr.addColorStop(1, 'rgba(255,120,0,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y - 10, 34, 0, 6.283); ctx.fill();
+      ctx.fillStyle = '#6b4420'; ctx.fillRect(x - 2, y - 4, 4, 14); ctx.fillStyle = '#ff9a2a'; ctx.beginPath(); ctx.ellipse(x, y - 9, 5 * fl, 8 * fl, 0, 0, 6.283); ctx.fill(); ctx.fillStyle = '#ffe35a'; ctx.beginPath(); ctx.ellipse(x, y - 8, 2.5 * fl, 4.5 * fl, 0, 0, 6.283); ctx.fill();
+    }
+  }
   function startRound() {
     setArena(MAP_W, MAP_H);
     const mp = genMap(mapSeed, mode === 'ctf' ? 'ctf' : 'battle');
@@ -424,13 +545,16 @@
     player = makeFighter(80, H / 2, '#4fd1ff', false); player.team = 0;
     bot = makeFighter(W - 80, H / 2, '#ff6b9a', true); bot.team = 1; bot.isBot = mode !== '2p';
     player.gun = startGun();
-    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; player.shield = sk.id === 'galaxy' ? 1 : 0; player.shT2 = 0; player.rainCd = 0; rainFx = []; player.usedRevive = false; }
+    { const sk = ownSkin(skinId) ? skinById(skinId) : SKINS[0]; player.skin = sk.id; player.color = sk.base; player.shield = sk.id === 'galaxy' ? 1 : 0; player.shT2 = 0; player.rainCd = 0; player.dashT = 0; player.storm = 0; rainFx = []; player.usedRevive = false; }
     fighters = [player, bot];
     player.lane = newLane(); bot.lane = newLane();
     if (mode === 'team') buildTeams();
     foe = bot;
-    bullets = []; parts = []; puddles = []; trails = []; flags = null;
-    if (mode === 'ctf') initFlags();
+    bullets = []; parts = []; puddles = []; trails = []; holes = []; lavaPools = []; zaps = []; flags = null;
+    if (mode === 'ctf') {
+      initFlags(); dirtLayer = makeDirtLayer(mapSeed); setupTowers(); ctfPhase = 25 * 60; cash = { p: aimbot ? 99999 : 900, b: 900 }; dirtDirty = false;
+      if (aimbot) for (const pd of pads) if (pd.team === 0) while (pd.lvl < 3) upgradePad(pd, 'p'); // operator starts with max towers
+    } else { ctfPhase = 0; pads = []; }
     state = 'play';
     toast = { text: '🗺️ Map ' + mapSeed + ': ' + mp.name, t: 150 };
     showOverlay(false);
@@ -542,7 +666,7 @@
   // carve a square hole (half-size hs) out of every wall / block / dirt it touches
   function carve(hx, hy, hs) {
     const res = carveRect(obstacles, hx - hs, hy - hs, hx + hs, hy + hs);
-    if (res.dug) { obstacles = res.out; burst(hx, hy, '#c9b48a', 8); }
+    if (res.dug) { obstacles = res.out; dirtDirty = true; burst(hx, hy, '#c9b48a', 8); }
     return res.dug;
   }
   // the shovel: higher level = bigger holes, dug faster
@@ -560,7 +684,7 @@
   }
   function endCTF(won) {
     state = 'over'; mapSeed = randMap();
-    const gain = Math.round((won ? 15 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] : 3) * (player.skin === 'gold' ? 1.5 : 1));
+    const gain = Math.round((won ? 15 + { easy: 0, medium: 5, hard: 10, insane: 20, godlike: 35 }[diffName] : 3) * goldMul());
     coins += gain; saveStuff();
     showOverlay(true, won ? '🏆 You win the flag battle!' : '💥 The bot captured 3 flags!',
       'Final score: You <b>' + caps1 + '</b> – <b>' + caps2 + '</b> Bot<br>💰 +' + gain + ' coins (you have ' + coinText() + ')', 'Play again', newCTF, true, p => {
@@ -579,6 +703,10 @@
   const aceBtn = document.getElementById('aceBtn'), acePanel = document.getElementById('acePanel'), aceIn = document.getElementById('aceIn'), aceMsg = document.getElementById('aceMsg');
   function setMenuFlag(v) { onMenu = v; aceBtn.style.display = v ? 'block' : 'none'; if (!v) acePanel.style.display = 'none'; }
   aceBtn.onclick = () => { acePanel.style.display = acePanel.style.display === 'block' ? 'none' : 'block'; aceMsg.textContent = ''; aceIn.value = ''; aceIn.focus(); };
+  function unlockJagwire() {
+    owned[9] = true; saveStuff(); beep(1000, 0.2, 'square', 0.08);
+    showMenu('🐆 JAGWIRE unlocked! It is in hot bar slot 10 (press J). Handle with care!');
+  }
   let resetAsk = 0;
   function doReset() { // wipes coins + guns (and their levels), keeps skins, then gives 10000 coins
     coins = 10000; owned = owned.map((_, i) => i === 0); gunLv = gunLv.map(() => 1); saveStuff();
@@ -587,6 +715,7 @@
   function submitAce() {
     const c = aceIn.value.trim();
     if (/^JAW-?1234$/i.test(c)) applyCode(true);
+    else if (normCode(c) === 'SWTB') unlockJagwire();
     else if (normCode(c) === 'JWRESET') {
       if (Date.now() - resetAsk < 20000) { resetAsk = 0; doReset(); }
       else { resetAsk = Date.now(); aceMsg.textContent = '⚠️ This deletes ALL your coins and guns (skins stay) and gives you 10000 coins. Type the code again to confirm.'; }
@@ -606,6 +735,7 @@
     if (!onMenu || e.key.length !== 1 || e.ctrlKey || e.metaKey) return;
     typed = (typed + e.key.toLowerCase()).slice(-10);
     if (typed.endsWith('jaw1234')) { typed = ''; applyCode(true); }
+    else if (typed.endsWith('swtb')) { typed = ''; unlockJagwire(); }
   });
   function menuLinks(p) {
     const dr = document.createElement('div'); dr.className = 'row';
@@ -657,6 +787,7 @@
       if (shopTab === 'guns') {
         for (let i = 0; i < GUNS.length; i++) {
           const g = GUNS[i], lv = gunLevel(i), has = own(i);
+          if (g.secret && !has) continue;
           const perk = UPG[i].map((u, k) => (lv >= k + 2 ? '✅' : '🔒') + ' Lv' + (k + 2) + ' ' + u.n + ' – ' + u.d).join('<br>');
           let txt, dis, fn;
           if (has && lv >= 5) { txt = '👑 MAX'; dis = true; }
@@ -697,7 +828,7 @@
     const row = document.createElement('div'); row.className = 'slots';
     gunOrder.forEach((gi, sl) => {
       const c = document.createElement('div'); c.className = 'slot' + (arrSel === sl ? ' sel' : '') + (sl === 0 ? ' first' : ''); c.draggable = true;
-      c.innerHTML = '<div class="num">' + (sl === 0 ? '⭐ ' : '') + (sl + 1) + '</div><div class="ic">' + GUNS[gi].icon + '</div><small>' + (GUNS[gi].short || GUNS[gi].name) + (own(gi) ? '' : ' 🔒') + '</small>';
+      c.innerHTML = '<div class="num">' + (sl === 0 ? '⭐ ' : '') + (sl + 1) + '</div><div class="ic">' + (GUNS[gi].secret && !own(gi) ? '❔' : GUNS[gi].icon) + '</div><small>' + (GUNS[gi].secret && !own(gi) ? '???' : (GUNS[gi].short || GUNS[gi].name)) + (own(gi) ? '' : ' 🔒') + '</small>';
       const swap = (a, b) => { if (a === b || a == null || isNaN(a)) { arrSel = null; rerender(); return; } [gunOrder[a], gunOrder[b]] = [gunOrder[b], gunOrder[a]]; arrSel = null; saveStuff(); beep(600, 0.05, 'square', 0.05); rerender(); };
       c.onclick = () => { if (arrSel === null) { arrSel = sl; rerender(); } else swap(arrSel, sl); };
       c.ondragstart = e => { e.dataTransfer.setData('text/plain', String(sl)); };
@@ -726,10 +857,12 @@
     if (state === 'play') {
       if (k >= '1' && k <= '9' && own(gunOrder[+k - 1])) player.gun = gunOrder[+k - 1];
       if (k === 'b' && !e.repeat) tryBuild();
+      if (k === 'j' && own(gunOrder[9])) player.gun = gunOrder[9];
       if (k === 'z' && !e.repeat) cycleGun(-1);
       if (k === 'x' && !e.repeat) cycleGun(1);
       if ((k === '0' || k === 'q') && !e.repeat) placePuddle(player);
       if (k === 'f' && !e.repeat) makeItRain();
+      if (k === 'u' && !e.repeat && mode === 'ctf' && ctfPhase > 0) upgradeNearest();
       if (k === '.' && mode === '2p' && !e.repeat) placePuddle(bot);
       if (k === 'o' && aimbot && !e.repeat) { aimPro = !aimPro; toast = { text: aimPro ? '🤖 Autopilot ON' : '🕹️ Autopilot OFF – you drive!', t: 90 }; }
       if (mode === '2p' && !e.repeat) {
@@ -755,7 +888,7 @@
     const i = Math.floor((x - 16) / 76), off = (x - 16) - i * 76;
     if (i >= 0 && i < GUNS.length && off < 72) { const g = gunOrder[i]; if (own(g)) { player.gun = g; beep(500, 0.04, 'square', 0.04); } return true; }
     if (i === GUNS.length && off < 72) { placePuddle(player); return true; }
-    const xr = x - (16 + GUNS.length * 76 + 80); if (player.skin === 'tux' && xr >= 0 && xr < 72) { makeItRain(); return true; }
+    const xr = x - (16 + GUNS.length * 76 + 80); if (POWERS[player.skin] && xr >= 0 && xr < 72) { usePower(); return true; }
     return false;
   }
   cv.addEventListener('pointerdown', e => {
@@ -763,6 +896,7 @@
     const [x, y] = toGame(e);
     if (e.pointerType !== 'touch' && e.button === 2) { mouse.x = x; mouse.y = y; if (state === 'play') tryBuild(); return; }
     if (state === 'play' && y > H - 40 && hotbarTap(x)) return;
+    if (state === 'play' && mode === 'ctf' && ctfPhase > 0) { const pd = padAt(x, y); if (pd && pd.team === 0) { upgradePad(pd, 'p'); return; } }
     if (e.pointerType === 'touch') { try { cv.setPointerCapture(e.pointerId); } catch (_) {} touch.aimId = e.pointerId; mouse.x = x; mouse.y = y; touch.lastAim = Date.now(); } // phones: drag to aim
     else { mouse.x = x; mouse.y = y; mouse.down = true; }
   });
@@ -806,12 +940,12 @@
   function syncTouchUI() {
     if (!isTouch || !touchUI) return;
     const show = state === 'play' && !!player;
-    const key = show ? [player.skin === 'tux', ghostOwned || aimbot, mode === 'ctf', player.gun, player.rainCd > 0 ? Math.ceil(player.rainCd / 60) : 0, aimbot ? 99 : player.water].join('|') : 'hide';
+    const key = show ? [player.skin, ghostOwned || aimbot, mode === 'ctf', player.gun, player.rainCd > 0 ? Math.ceil(player.rainCd / 60) : 0, aimbot ? 99 : player.water].join('|') : 'hide';
     if (key === uiCache) return; uiCache = key;
     touchUI.style.display = show ? 'block' : 'none';
     if (!show) { touch.dx = touch.dy = 0; touch.fire = false; return; }
-    $('btnPower').style.display = player.skin === 'tux' ? 'block' : 'none';
-    $('btnPower').textContent = player.rainCd > 0 ? String(Math.ceil(player.rainCd / 60)) : '💸';
+    $('btnPower').style.display = POWERS[player.skin] ? 'block' : 'none';
+    $('btnPower').textContent = player.rainCd > 0 ? String(Math.ceil(player.rainCd / 60)) : (POWERS[player.skin] ? skinById(player.skin).picon : '');
     $('btnGhost').style.display = (ghostOwned || aimbot) ? 'block' : 'none';
     $('btnDig').style.display = mode === 'ctf' ? 'block' : 'none';
     $('btnWater').textContent = '💧' + (aimbot ? '' : player.water);
@@ -844,12 +978,14 @@
     return true;
   }
   function fire(f, owner, gi) {
+    if (mode === 'ctf' && ctfPhase > 0) return; // fortify time: no fighting yet
     const g = GUNS[gi];
     const lvl = owner === 'p' ? gunLevel(gi) : 1;
     let fx = owner === 'p' ? gunFx(gi, lvl) : {};
     if (owner === 'b') { const bp = botPerk(gi); if (bp === 'fire') fx = { fire: 1 }; else if (bp === 'ice') fx = { slow: 1 }; }
-    let dmgMul = owner === 'b' && diffName === 'insane' ? 1.2 : 1 + 0.1 * (lvl - 1); // each level: +10% damage and a bit faster, plus something new (see UPG)
+    let dmgMul = owner === 'b' && topDiff() ? (diffName === 'godlike' ? 1.5 : 1.2) : 1 + 0.1 * (lvl - 1); // each level: +10% damage and a bit faster, plus something new (see UPG)
     if (owner === 'p' && player.skin === 'tux') dmgMul *= 1.25;
+    if (owner === 'p' && player.skin === 'lava') fx.fire = Math.max(fx.fire || 0, 1); // molten bullets
     const missShot = owner === 'p' && aimbot && ++aimShots % 10 === 0; // aimbot misses every 10th shot
     const missOff = missShot ? (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.15) : 0;
     const n = g.n + (fx.nAdd || 0), spread = g.spread * (fx.spreadMul || 1) + (n - g.n) * (gi === 4 ? 0.08 : 0.03);
@@ -863,7 +999,7 @@
       if (fx.pierce) bl.pierce = true;
       if (fx.boom) bl.boom = fx.boom;
       if (fx.home) bl.home = fx.home;
-      if (owner === 'b' && diffName === 'insane') bl.home = 0.2; // insane bots have good aim help (but less than Operator)
+      if (owner === 'b' && topDiff()) bl.home = diffName === 'godlike' ? 0.3 : 0.2; // insane bots have good aim help (but less than Operator)
       bl.hue = crit ? '#ffd700' : bl.fire ? '#ff8a2b' : bl.slow ? '#7fd8ff' : bl.boom ? '#ffb347' : bl.pierce ? '#ffffff' : bl.home ? '#ff5de0' : null;
       bullets.push(bl);
     }
@@ -876,18 +1012,49 @@
   function ignite(f, power) { if (f.skin === 'lava') return; if (!inPuddle(f)) f.burn = Math.max(f.burn || 0, 300 * power); }
   // Tuxedo Boss power: money storm that stuns everyone close to you
   let rainFx = [];
+  const goldMul = () => player && player.skin === 'gold' ? 5 : 1;
   function reviveTux() { // golden parachute: one free comeback per round
     player.usedRevive = true; player.hp = 12; player.invuln = 120; burst(player.x, player.y, '#ffd23a', 28); toast = { text: '💼 Golden parachute! You came back!', t: 110 };
     [600, 900, 1300].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'square', 0.07), i * 80));
   }
-  function makeItRain() {
-    if (player.skin !== 'tux' || player.dead || player.rainCd > 0) return false;
-    player.rainCd = 720; rainFx.push({ x: player.x, y: player.y, t: 36 });
+  function rainRun() {
+    rainFx.push({ x: player.x, y: player.y, t: 36 });
     for (const o of fighters) if (o.team !== player.team && !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < 420) { o.stun = 180; o.slow = Math.max(o.slow || 0, 300); }
     for (let i = 0; i < 46; i++) { const a = Math.random() * 6.283, sp = 2 + Math.random() * 5; trails.push({ k: 'money', x: player.x, y: player.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 36 + Math.random() * 20, max: 55, ph: Math.random() * 6.283 }); }
     [900, 1200, 1500, 1800].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'square', 0.06), i * 60));
-    return true;
   }
+  // ----- skin powers: press F -----
+  let ctfPhase = 0;
+  let holes = [], lavaPools = [], zaps = [];
+  const foesWithin = R => fighters.filter(o => o.team !== player.team && !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < R);
+  const POWERS = {
+    tux: { cd: 720, run: rainRun },
+    lava: { cd: 900, run() { // Eruption
+      rainFx.push({ x: player.x, y: player.y, t: 36, col: '255,110,30', R: 260 });
+      for (const o of foesWithin(260)) { ignite(o, 2); o.hp -= 3; o.flash = 10; burst(o.x, o.y, '#ff8a2b', 12); }
+      burst(player.x, player.y, '#ffd23a', 30); [200, 160, 120].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'sawtooth', 0.09), i * 70)); shake = 14; } },
+    rainbow: { cd: 360, run() { // Rainbow Dash
+      player.dashT = 26; player.invuln = Math.max(player.invuln || 0, 30); [800, 1100, 1400].forEach((f, i) => setTimeout(() => beep(f, 0.08, 'square', 0.05), i * 40)); } },
+    galaxy: { cd: 1080, run() { // Black Hole
+      holes.push({ x: player.x, y: player.y, t: 110, R: 380 }); [150, 100, 70].forEach((f, i) => setTimeout(() => beep(f, 0.25, 'sine', 0.09), i * 120)); } },
+    death: { cd: 840, run() { // Soul Drain
+      rainFx.push({ x: player.x, y: player.y, t: 36, col: '255,40,70', R: 300 });
+      let heal = 0; for (const o of foesWithin(300)) { o.hp -= 4; o.flash = 10; heal += 4; burst(o.x, o.y, '#ff3b4a', 12); }
+      player.hp = Math.min(player.maxHp, player.hp + Math.min(12, heal)); [300, 220, 160].forEach((f, i) => setTimeout(() => beep(f, 0.16, 'sawtooth', 0.08), i * 70)); } },
+    thunder: { cd: 720, run() { // Lightning Strike
+      const list = foesWithin(520).sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y)).slice(0, 3);
+      for (const o of list) { o.hp -= 5; o.stun = 60; o.slow = Math.max(o.slow || 0, 180); o.flash = 10; zaps.push({ x: o.x, y: o.y, t: 16, seed: Math.random() * 99 }); burst(o.x, o.y, '#fff36b', 16); }
+      [1400, 1000, 700].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'square', 0.08), i * 50)); shake = 10; } },
+    leaves: { cd: 900, run() { // Leaf Storm
+      player.storm = 240; [500, 700, 900].forEach((f, i) => setTimeout(() => beep(f, 0.14, 'triangle', 0.08), i * 80)); } },
+  };
+  function usePower() {
+    const pw = POWERS[player.skin];
+    if (!pw || player.dead || player.rainCd > 0) return false;
+    if (mode === 'ctf' && ctfPhase > 0) return false;
+    player.rainCd = pw.cd; pw.run(); return true;
+  }
+  function makeItRain() { return usePower(); }
   function placePuddle(f) {
     const free = aimbot && f === player;
     if (f.dead || (!free && f.water < 1)) return false;
@@ -901,6 +1068,7 @@
       if (f.dead) { f.burn = 0; f.slow = 0; continue; }
       if (f.invuln > 0) f.invuln--;
       if (f === player && f.rainCd > 0) f.rainCd--;
+      if (f === player && f.skin === 'leaves' && (f.regT = (f.regT || 0) + 1) >= 60) { f.regT = 0; f.hp = Math.min(f.maxHp, f.hp + 1); } // autumn: heal 1 hp per second
       if (f.skin === 'lava') for (const o of fighters) if (o.team !== f.team && !o.dead && Math.hypot(o.x - f.x, o.y - f.y) < f.r + o.r + 8) ignite(o, 1); // lava skin: touching you burns
       if (f.skin === 'galaxy' && !(f.shield > 0) && --f.shT2 <= 0) { f.shield = 1; beep(900, 0.12, 'sine', 0.06); }
       if (f.burn > 0) {
@@ -921,12 +1089,12 @@
     burst(x, y, '#ff9a4d', 26); burst(x, y, '#ffd24d', 12); shake = Math.max(shake, 12); beep(90, 0.22, 'sawtooth', 0.09, -50);
     if (!hitFighter) for (const tg of fighters) if (tg.team !== team && !tg.dead && Math.hypot(tg.x - x, tg.y - y) < R + tg.r) { tg.hp -= dmg; tg.flash = 10; }
     for (const o of obstacles) {
-      if (o.dead || (o.type !== 'c' && o.type !== 'b')) continue;
+      if (o.dead || (o.type !== 'c' && o.type !== 'b' && o.type !== 't')) continue;
       const cx = Math.max(o.x, Math.min(x, o.x + o.w)), cy = Math.max(o.y, Math.min(y, o.y + o.h));
       if (Math.hypot(x - cx, y - cy) < R) { o.hp -= 2; if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, '#d9a05b', 12); } }
     }
     const dirt = obstacles.filter(o => o.type === 'd');
-    if (dirt.length) { const res = carveRect(dirt, x - R * 0.5, y - R * 0.5, x + R * 0.5, y + R * 0.5); if (res.dug) obstacles = obstacles.filter(o => o.type !== 'd').concat(res.out); }
+    if (dirt.length) { const res = carveRect(dirt, x - R * 0.5, y - R * 0.5, x + R * 0.5, y + R * 0.5); if (res.dug) { obstacles = obstacles.filter(o => o.type !== 'd').concat(res.out); dirtDirty = true; } }
   }
   const botCdMul = () => diff().cd * Math.max(0.6, 1 - (round - 1) * 0.05);
 
@@ -966,10 +1134,18 @@
     for (const f of fighters) { f.vxm = f.x - (f.lx ?? f.x); f.vym = f.y - (f.ly ?? f.y); f.lx = f.x; f.ly = f.y; if (f.skin && !f.dead && Math.hypot(f.vxm, f.vym) > 0.5) spawnTrail(f); }
     for (const tr of trails) { tr.x += tr.vx; tr.y += tr.vy; tr.life--; }
     for (const r of rainFx) r.t--; rainFx = rainFx.filter(r => r.t > 0);
+    for (const z of zaps) z.t--; zaps = zaps.filter(z => z.t > 0);
+    if (player.dashT > 0) { player.dashT--; for (let i = 0; i < 3; i++) trails.push({ k: 'rainbow', x: player.x + (Math.random() - 0.5) * 14, y: player.y + (Math.random() - 0.5) * 14, vx: 0, vy: 0, life: 24, max: 50, ph: Math.random() * 6.283 }); }
+    if (player.storm > 0) { player.storm--; player.invuln = Math.max(player.invuln || 0, 3); }
+    for (const h of holes) { h.t--; for (const o of fighters) { if (o.team === player.team || o.dead) continue; const dx = h.x - o.x, dy = h.y - o.y, d = Math.hypot(dx, dy); if (d < h.R && d > 28) { moveFighter(o, dx / d * 3.4, dy / d * 3.4); o.slow = Math.max(o.slow || 0, 20); } } }
+    holes = holes.filter(h => h.t > 0);
+    if (player.skin === 'lava' && !player.dead && Math.hypot(player.vxm || 0, player.vym || 0) > 0.5 && (player.poolT = (player.poolT || 0) + 1) % 9 === 0) lavaPools.push({ x: player.x, y: player.y, t: 260 });
+    for (const lp of lavaPools) { lp.t--; for (const o of fighters) if (o.team !== player.team && !o.dead && Math.hypot(o.x - lp.x, o.y - lp.y) < 26) ignite(o, 1); }
+    lavaPools = lavaPools.filter(lp => lp.t > 0);
     trails = trails.filter(tr => tr.life > 0);
     const auto = aimbot && (mouse.down || keys[' '] || touch.fire || aimPro) && !player.dead && (mode === 'ctf' || !foe.dead);
     if (auto) { const am = autoMove(); mx = am[0]; my = am[1]; }
-    const psp = (mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2) * (player.slow > 0 ? 0.5 : 1) * (player.skin === 'rainbow' ? 1.1 : 1);
+    const psp = (mode === 'ctf' && flags.b.carrier === player ? 2.7 : 3.2) * (player.slow > 0 ? 0.5 : 1) * (player.skin === 'rainbow' ? 1.15 : 1) * (player.skin === 'leaves' ? 1.2 : 1) * (player.storm > 0 ? 1.25 : 1) * (player.dashT > 0 ? 2.6 : 1);
     const ox0 = player.x, oy0 = player.y;
     const hasGhost = ghostOwned || aimbot;
     const inWall = hasGhost && obstacles.some(o => circleHitsRect(player.x, player.y, player.r, o));
@@ -1003,7 +1179,7 @@
     if ((mouse.down || keys[' '] || touch.fire || autoFire) && player.cd <= 0 && !player.dead) fire(player, 'p', player.gun);
     if (player.blocks < MAX_BLOCKS && ++player.blockT >= 150) { player.blocks++; player.blockT = 0; }
 
-    if (aimbot && player.skin === 'tux' && foe && !foe.dead && Math.hypot(foe.x - player.x, foe.y - player.y) < 380) makeItRain(); // operator uses Make It Rain too
+    if (aimbot && POWERS[player.skin] && foe && !foe.dead && Math.hypot(foe.x - player.x, foe.y - player.y) < 380) usePower(); // operator uses its skin power too
     // Operator autopilot throws up a quick shield wall when bullets are coming at it
     if (auto && aimbot && !foe.dead && (player.shT = (player.shT || 0) - 1) <= 0) {
       const threat = bullets.some(bl => bl.team !== player.team && Math.hypot(bl.x - player.x, bl.y - player.y) < 340 && ((player.x - bl.x) * bl.vx + (player.y - bl.y) * bl.vy) > 0);
@@ -1013,7 +1189,12 @@
         player.shT = 20;
       }
     }
-    if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) { if (f.stun > 0) { f.stun--; continue; } updateBot(f); }
+    if (mode === 'ctf') {
+      if (ctfPhase > 0 && --ctfPhase === 0) { banner = { text: '⚔️ FIGHT!', t: 100 }; sfx.win(); }
+      else if (ctfPhase <= 0) turretTick();
+      if (dirtDirty && ++dirtTick % 20 === 0) mergeDirt();
+    }
+    if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) { if (f.stun > 0) { f.stun--; continue; } if (mode === 'ctf' && ctfPhase > 0) { botFortify(f); continue; } updateBot(f); }
     for (const f of fighters) if (f !== player && f.blocks < MAX_BLOCKS && ++f.blockT >= 150) { f.blocks++; f.blockT = 0; }
 
     // bullets
@@ -1031,9 +1212,9 @@
       for (const o of obstacles) {
         if (o.dead) continue;
         if (o.team !== undefined && o.team === b.team) continue; // your own team's walls don't stop your bullets
-        if (b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h) {
+        if (b.x >= o.x && b.x <= o.x + o.w && b.y >= o.y && b.y <= o.y + o.h) {
           if (b.bounce > 0) { const px = b.x - b.vx, py = b.y - b.vy; if (px <= o.x || px >= o.x + o.w) b.vx *= -1; else b.vy *= -1; b.x += b.vx; b.y += b.vy; b.bounce--; } else if (!(b.pierce && o.type !== 'w' && o.type !== 'd')) b.dead = true;
-          if (o.type !== 'w' && o.type !== 'd') { const c = o.type === 'b' ? '#4fe0c0' : '#d9a05b'; o.hp -= (b.obs || 1); sfx.crate(); burst(b.x, b.y, c, 5); if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, c, 14); } }
+          if (o.type !== 'w' && o.type !== 'd') { const c = o.type === 'b' ? '#4fe0c0' : o.type === 't' ? '#b9b5c9' : '#d9a05b'; o.hp -= (b.obs || 1); sfx.crate(); burst(b.x, b.y, c, 5); if (o.hp <= 0) { o.dead = true; burst(o.x + o.w / 2, o.y + o.h / 2, c, 14); } }
           else { if (o.type === 'd' && b.obs > 1) carve(b.x, b.y, 10 + b.r * 1.5); burst(b.x, b.y, o.type === 'd' ? '#a07a4a' : '#8f84d6', 3); }
           break;
         }
@@ -1045,15 +1226,15 @@
       if (target) {
         b.dead = true;
         if (target.skin === 'galaxy' && target.shield > 0) { // star shield soaks up the hit
-          target.shield = 0; target.shT2 = 1200; burst(b.x, b.y, '#c9a6ff', 16); beep(500, 0.15, 'sine', 0.08);
+          target.shield = 0; target.shT2 = 900; burst(b.x, b.y, '#c9a6ff', 16); beep(500, 0.15, 'sine', 0.08);
         } else {
-          target.hp -= b.dmg * (target.skin === 'tux' ? 0.6 : 1); target.flash = 10; shake = 8;
+          target.hp -= b.dmg * (target.skin === 'tux' ? 0.6 : target.skin === 'leaves' ? 0.75 : 1); target.flash = 10; shake = 8;
           if (b.fire) ignite(target, b.fire);
           if (b.slow) target.slow = Math.max(target.slow || 0, 90 * b.slow);
           if (b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, true);
           if (b.owner === 'p' && !player.dead) {
-            if (player.skin === 'death') { player.hp = Math.min(player.maxHp, player.hp + b.dmg * 0.2); if (Math.random() < 0.4) burst(player.x, player.y, '#ff3b4a', 3); }
-            if (player.skin === 'thunder' && Math.random() < 0.2) { target.slow = Math.max(target.slow || 0, 70); burst(target.x, target.y, '#ffe14a', 10); beep(1100, 0.06, 'square', 0.05); }
+            if (player.skin === 'death') { player.hp = Math.min(player.maxHp, player.hp + b.dmg * 0.3); if (Math.random() < 0.4) burst(player.x, player.y, '#ff3b4a', 3); }
+            if (player.skin === 'thunder' && Math.random() < 0.25) { target.slow = Math.max(target.slow || 0, 70); burst(target.x, target.y, '#ffe14a', 10); beep(1100, 0.06, 'square', 0.05); }
           }
           burst(b.x, b.y, target.color, 10); sfx.hit();
         }
@@ -1241,7 +1422,7 @@
     const dx = fo.x - b.x, dy = fo.y - b.y, dist = Math.hypot(dx, dy) || 1;
     const los = !fo.dead && lineClear(b.x, b.y, fo.x, fo.y);
     const goal = mode === 'ctf' ? botGoal() : null;
-    if (b.burn > 0 && diffName !== 'easy' && b.water > 0) { b.burnAge = (b.burnAge || 0) + 1; if (b.burnAge > ({ medium: 90, hard: 50, insane: 25 }[diffName] || 90)) { placePuddle(b); b.burnAge = 0; } } else b.burnAge = 0;
+    if (b.burn > 0 && diffName !== 'easy' && b.water > 0) { b.burnAge = (b.burnAge || 0) + 1; if (b.burnAge > ({ medium: 90, hard: 50, insane: 25, godlike: 15 }[diffName] || 90)) { placePuddle(b); b.burnAge = 0; } } else b.burnAge = 0;
     const speed = Math.min(3.4, diff().speed + round * 0.04) * (mode === 'ctf' && flags.p.carrier === b ? 0.85 : 1) * (b.slow > 0 ? 0.5 : 1);
 
     const fight = !!goal && los && dist < 300 && !(fo.invuln > 0) && Math.hypot(goal.x - b.x, goal.y - b.y) > 220 && !(mode === 'ctf' && flags.p.carrier === b); // in Capture the Flag: fight if you see the enemy, but run if you carry a flag
@@ -1281,8 +1462,8 @@
     if (Math.hypot(b.x - ox, b.y - oy) < speed * 0.4) { if (++b.stuck > 8) { b.strafe *= -1; b.strafeT = 40; b.stuck = 0; b.detour = Math.random() < 0.5 ? -1 : 1; b.detourT = 50; } } else b.stuck = 0;
 
     // aim + shoot
-    const ins = diffName === 'insane';
-    const err = ins ? 0.012 : Math.max(0.02, diff().err - round * 0.008);
+    const ins = topDiff();
+    const err = ins ? (diffName === 'godlike' ? 0.006 : 0.012) : Math.max(0.02, diff().err - round * 0.008);
     let tx = fo.x, ty = fo.y;
     if (ins) for (let i = 0; i < 3; i++) { const t = Math.hypot(tx - b.x, ty - b.y) / 11; tx = fo.x + fo.vxm * t; ty = fo.y + fo.vym * t; } // insane bots lead their shots
     const target = Math.atan2(ty - b.y, tx - b.x);
@@ -1312,14 +1493,14 @@
       return;
     }
     if (won) {
-      const gain = Math.round((10 + { easy: 0, medium: 5, hard: 10, insane: 20 }[diffName] + (mode === 'team' ? 5 * (teamSize - 1) : 0)) * (player.skin === 'gold' ? 1.5 : 1)); coins += gain; saveStuff();
+      const gain = Math.round((10 + { easy: 0, medium: 5, hard: 10, insane: 20, godlike: 35 }[diffName] + (mode === 'team' ? 5 * (teamSize - 1) : 0)) * goldMul()); coins += gain; saveStuff();
       wins++; round++; layoutIdx++; mapSeed = randMap();
       if (wins > best) { best = wins; try { localStorage.setItem('jawBattleBest_' + diffName, best); } catch (e) {} }
       sfx.win();
       showOverlay(true, (mode === 'team' ? '🎉 Your team wins!' : '🎉 You win!'), 'Win streak: <b>' + wins + '</b> &nbsp; 🏆 Best: ' + best + '<br>💰 +' + gain + ' coins (you have ' + coinText() + ')<br>The next bot is a little tougher...', 'Next round', startRound);
     } else {
-      sfx.lose(); coins += 2; saveStuff();
-      showOverlay(true, (mode === 'team' ? '💥 Your team lost!' : '💥 Bot wins!'), 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>💰 +2 coins (you have ' + coinText() + ')<br>Change the difficulty if you like:', 'Try again', newGame, true, mainMenuBtn);
+      sfx.lose(); coins += 2 * goldMul(); saveStuff();
+      showOverlay(true, (mode === 'team' ? '💥 Your team lost!' : '💥 Bot wins!'), 'You beat ' + wins + ' bot' + (wins === 1 ? '' : 's') + ' in a row.<br>🏆 Best: ' + best + '<br>💰 +' + (2 * goldMul()) + ' coins (you have ' + coinText() + ')<br>Change the difficulty if you like:', 'Try again', newGame, true, mainMenuBtn);
     }
   }
 
@@ -1339,9 +1520,9 @@
       paint(g, t, r) { g.fillStyle = '#1f78e8'; g.fillRect(-r, -r, 2 * r, 2 * r); g.lineWidth = 2; for (let k = 0; k < 6; k++) { g.strokeStyle = 'rgba(255,255,255,' + (0.18 + 0.1 * (k % 2)) + ')'; g.beginPath(); for (let x = -r; x <= r; x += 4) { const y = -r + k * 7 + Math.sin(x / 6 + t / 220 + k) * 2.5; x === -r ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke(); } g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.ellipse(-r * 0.35, -r * 0.45, 4, 2.4, -0.5, 0, 6.283); g.fill(); } },
     { id: 'ice', name: 'Frost', icon: '❄️', base: '#9fdcff', cost: 700, anim: true, eye: '#0a2a55', info: 'Glittery ice',
       paint(g, t, r) { g.fillStyle = '#9fdcff'; g.fillRect(-r, -r, 2 * r, 2 * r); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-r, -3); g.lineTo(-2, 4); g.lineTo(6, -2); g.lineTo(r, 6); g.moveTo(-2, 4); g.lineTo(-4, r); g.stroke(); sparkle(g, t, r, 9, '#fff'); } },
-    { id: 'leaves', name: 'Autumn Leaves', icon: '🍂', base: '#b8541a', cost: 800, anim: true, eye: '#2a0d00', info: 'Swirling fall leaves',
+    { id: 'leaves', name: 'Autumn Leaves', icon: '🍂', base: '#b8541a', cost: 2500, anim: true, eye: '#2a0d00', info: 'Swirling fall leaves – SUPER OP!', picon: '🍂', pname: 'Storm', power: '🍂 Heals 1 health every second • takes 25% less damage • runs 20% faster • Press F: Leaf Storm — 4 seconds where NOTHING can hurt you (15s cooldown)',
       paint(g, t, r) { g.fillStyle = '#b8541a'; g.fillRect(-r, -r, 2 * r, 2 * r); const cols = ['#ffb02e', '#e8731a', '#c9411f', '#f2d04a']; for (let i = 0; i < 9; i++) { const a = t / 900 + i * 0.7, d = r * (0.2 + (i % 4) * 0.2); g.save(); g.translate(Math.cos(a) * d, Math.sin(a * 1.1) * d); g.rotate(a * 2 + i); g.fillStyle = cols[i % 4]; g.beginPath(); g.ellipse(0, 0, 5, 2.4, 0, 0, 6.283); g.fill(); g.restore(); } } },
-    { id: 'lava', name: 'Lava', icon: '🌋', base: '#c2300a', cost: 900, anim: true, eye: '#fff2b0', glowEye: true, info: 'Molten rock with glowing cracks and flames', power: '🔥 Fireproof, and enemies who touch you catch fire',
+    { id: 'lava', name: 'Lava', icon: '🌋', base: '#c2300a', cost: 900, anim: true, eye: '#fff2b0', glowEye: true, info: 'Molten rock with glowing cracks and flames', picon: '🌋', pname: 'Eruption', power: '🔥 Fireproof • enemies who touch you burn • your bullets set enemies on fire • you leave burning lava puddles • Press F: Eruption burns and hurts everyone close (15s cooldown)',
       aura(g, t, r) {
         const p = (Math.sin(t / 180) + 1) / 2, gr = g.createRadialGradient(0, 0, r * 0.6, 0, 0, r * 2.1);
         gr.addColorStop(0, 'rgba(255,140,30,' + (0.5 + 0.2 * p) + ')'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 2.1, 0, 6.283); g.fill();
@@ -1356,9 +1537,9 @@
           g.strokeStyle = 'rgba(255,60,0,' + 0.5 * pulse + ')'; g.lineWidth = 4; g.stroke(); g.strokeStyle = 'rgba(255,230,120,' + pulse + ')'; g.lineWidth = 1.5; g.stroke(); }
         for (let i = 0; i < 4; i++) { const ph = ((t / 900 + i * 0.27) % 1), x = Math.sin(i * 5.1) * r * 0.6, y = r - ph * r * 2; g.fillStyle = 'rgba(255,220,100,' + (1 - ph) + ')'; g.beginPath(); g.arc(x, y, 1.5 + ph * 2, 0, 6.283); g.fill(); }
       } },
-    { id: 'rainbow', name: 'Rainbow', icon: '🌈', base: '#ff7ac8', cost: 1000, anim: true, eye: '#1a1a1a', info: 'Cycling colors', power: '💨 Runs 10% faster',
+    { id: 'rainbow', name: 'Rainbow', icon: '🌈', base: '#ff7ac8', cost: 1000, anim: true, eye: '#1a1a1a', info: 'Cycling colors', picon: '🌈', pname: 'Dash', power: '💨 Runs 15% faster • Press F: Rainbow Dash — a super speed burst where nothing can hurt you (6s cooldown)',
       paint(g, t, r) { const gr = g.createLinearGradient(-r, -r, r, r), h = (t / 8) % 360; for (let k = 0; k <= 4; k++) gr.addColorStop(k / 4, 'hsl(' + ((h + k * 70) % 360) + ',90%,60%)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); } },
-    { id: 'galaxy', name: 'Galaxy', icon: '🌌', base: '#150b3a', cost: 1200, anim: true, eye: '#ffffff', glowEye: true, info: 'A swirling galaxy with shooting stars', power: '🛡️ Star shield blocks the next hit (comes back after 20 seconds)',
+    { id: 'galaxy', name: 'Galaxy', icon: '🌌', base: '#150b3a', cost: 1200, anim: true, eye: '#ffffff', glowEye: true, info: 'A swirling galaxy with shooting stars', picon: '🕳️', pname: 'Black Hole', power: '🛡️ Star shield blocks a hit (comes back every 15s) • Press F: Black Hole pulls in and slows nearby enemies (18s cooldown)',
       aura(g, t, r) {
         const gr = g.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 1.9); gr.addColorStop(0, 'rgba(150,90,255,.4)'); gr.addColorStop(1, 'rgba(100,60,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 1.9, 0, 6.283); g.fill();
         for (let i = 0; i < 3; i++) { const a = t / (500 + i * 200) + i * 2.1, x = Math.cos(a) * r * 1.45, y = Math.sin(a) * r * 1.45; g.fillStyle = ['#fff', '#ffc8ff', '#bfe0ff'][i]; g.beginPath(); for (let k = 0; k < 8; k++) { const rr = k % 2 ? 1.6 : 4.5, aa = k * 0.785 + a; g.lineTo(x + Math.cos(aa) * rr, y + Math.sin(aa) * rr); } g.closePath(); g.fill(); } },
@@ -1369,7 +1550,7 @@
         sparkle(g, t, r, 14, '#fff');
         const ph = (t / 2600) % 1; if (ph < 0.25) { const q = ph / 0.25; g.strokeStyle = 'rgba(255,255,255,' + (1 - q) + ')'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-r + q * 2 * r, -r + q * 1.4 * r); g.lineTo(-r + q * 2 * r - 9, -r + q * 1.4 * r - 6); g.stroke(); }
       } },
-    { id: 'death', name: 'Black Death', icon: '🖤', base: '#0a0a0f', cost: 1500, anim: true, eye: '#ff2a44', glowEye: true, info: 'Living shadow with a glowing red core', power: '🩸 Heals you for 20% of the damage you deal',
+    { id: 'death', name: 'Black Death', icon: '🖤', base: '#0a0a0f', cost: 1500, anim: true, eye: '#ff2a44', glowEye: true, info: 'Living shadow with a glowing red core', picon: '💀', pname: 'Drain', power: '🩸 Heals you for 30% of the damage you deal • Press F: Soul Drain hurts every close enemy and heals you (14s cooldown)',
       aura(g, t, r) {
         for (let i = 0; i < 8; i++) { const a = i * 0.785 + t / 1400, d = r * (1.15 + 0.3 * Math.sin(t / 500 + i * 1.7)), x = Math.cos(a) * d, y = Math.sin(a) * d, rr = r * (0.45 + 0.15 * Math.sin(t / 420 + i)), gr = g.createRadialGradient(x, y, 1, x, y, rr);
           gr.addColorStop(0, 'rgba(40,10,70,.55)'); gr.addColorStop(1, 'rgba(10,0,20,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 6.283); g.fill(); }
@@ -1381,7 +1562,7 @@
         const p = (Math.sin(t / 240) + 1) / 2, gr = g.createRadialGradient(0, 0, 1, 0, 0, r * 0.7); gr.addColorStop(0, 'rgba(255,40,70,' + (0.3 + 0.4 * p) + ')'); gr.addColorStop(1, 'rgba(255,40,70,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r);
         g.strokeStyle = 'rgba(255,40,60,' + (0.4 + 0.5 * p) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, r - 2, 0, 6.283); g.stroke();
       } },
-    { id: 'tux', name: 'Tuxedo Boss', icon: '🎩', base: '#14141a', cost: 0, secret: true, anim: true, img: 'tux', eye: '#ffffff', info: 'A cartoon dude in a tux and top hat. Reward skin!', power: '🛡️ Takes 40% less damage • 💪 deals 25% more • 💰 +10 coins and +5 health for every KO • 💼 comes back to life once per round • 💸 Press F: Make It Rain stuns nearby enemies for 3 seconds (12 second cooldown) • leaves a trail of money',
+    { id: 'tux', name: 'Tuxedo Boss', icon: '🎩', base: '#14141a', cost: 0, secret: true, anim: true, img: 'tux', eye: '#ffffff', info: 'A cartoon dude in a tux and top hat. Reward skin!', picon: '💸', pname: 'Rain', power: '🛡️ Takes 40% less damage • 💪 deals 25% more • 💰 +10 coins and +5 health for every KO • 💼 comes back to life once per round • 💸 Press F: Make It Rain stuns nearby enemies for 3 seconds (12 second cooldown) • leaves a trail of money',
       paint(g, t, r) {
         g.fillStyle = '#14141a'; g.fillRect(-r, -r, 2 * r, 2 * r);
         g.fillStyle = '#f6f6f6'; g.beginPath(); g.moveTo(-r * 0.4, -r); g.lineTo(r * 0.4, -r); g.lineTo(r * 0.22, r * 0.75); g.lineTo(-r * 0.22, r * 0.75); g.closePath(); g.fill();
@@ -1397,7 +1578,7 @@
         g.fillStyle = '#c4142c'; g.fillRect(-r * 0.58, y - r * 0.36, r * 1.16, r * 0.22);
         g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(-r * 0.44, y - r * 0.98, r * 0.12, r * 0.6);
       } },
-    { id: 'thunder', name: 'Thunder', icon: '⚡', base: '#1a1f5a', cost: 2000, anim: true, eye: '#fff36b', glowEye: true, info: 'A crackling storm with lightning arcs', power: '⚡ 1 in 5 of your hits zaps enemies and slows them',
+    { id: 'thunder', name: 'Thunder', icon: '⚡', base: '#1a1f5a', cost: 2000, anim: true, eye: '#fff36b', glowEye: true, info: 'A crackling storm with lightning arcs', picon: '⚡', pname: 'Strike', power: '⚡ 1 in 4 of your hits zaps enemies and slows them • Press F: Lightning Strike zaps the 3 nearest enemies hard (12s cooldown)',
       aura(g, t, r) {
         const fl = (Math.sin(t / 70) + 1) / 2, gr = g.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 1.8); gr.addColorStop(0, 'rgba(255,240,90,' + (0.25 + 0.2 * fl) + ')'); gr.addColorStop(1, 'rgba(120,160,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 1.8, 0, 6.283); g.fill();
         const seed = Math.floor(t / 100); g.lineCap = 'round';
@@ -1412,7 +1593,7 @@
         const ph = (t / 900) % 1; if (ph < 0.09) { g.fillStyle = 'rgba(255,255,255,' + (0.35 * (1 - ph / 0.09)) + ')'; g.fillRect(-r, -r, 2 * r, 2 * r); }
         sparkle(g, t, r, 6, '#fff7a0');
       } },
-    { id: 'gold', name: 'Golden King', icon: '👑', base: '#e6b422', cost: 2500, anim: true, eye: '#3a2600', info: 'Shiny gold', power: '🪙 +50% coins from every win',
+    { id: 'gold', name: 'Golden King', icon: '👑', base: '#e6b422', cost: 2500, anim: true, eye: '#3a2600', info: 'Shiny gold', power: '🪙 You earn 5x the coins every round!',
       paint(g, t, r) { g.fillStyle = '#d9a518'; g.fillRect(-r, -r, 2 * r, 2 * r); const x = ((t / 14) % (4 * r)) - 2 * r, gr = g.createLinearGradient(x - 12, 0, x + 12, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(-r, -r, 2 * r, 2 * r); sparkle(g, t, r, 5, '#fff6c0'); } },
   ];
   // pictures for skins (files in the assets folder)
@@ -1593,18 +1774,20 @@
       for (const o of obstacles) ctx.fillRect(o.x + 5, o.y + 8, o.w, o.h);
       // 2) dark outlines (only show around the outside of connected pieces)
       for (const o of obstacles) {
-        if (o.type === 'd') { ctx.fillStyle = '#2e1b0c'; ctx.fillRect(o.x - 3, o.y - 3, o.w + 6, o.h + 6); }
-        else if (o.type === 'w') { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(o.x - 2, o.y - 2, o.w + 4, o.h + 4); }
+        if (o.type === 'd') { ctx.fillStyle = '#2e1b0c'; ctx.fillRect(Math.floor(o.x) - 3, Math.floor(o.y) - 3, Math.ceil(o.w) + 7, Math.ceil(o.h) + 7); }
+        else if (o.type === 'w' || o.type === 't') { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(o.x - 2, o.y - 2, o.w + 4, o.h + 4); }
       }
       // 3) the bodies
       for (const o of obstacles) {
-        if (o.type === 'd') { ctx.fillStyle = dirtPattern(); ctx.fillRect(o.x, o.y, o.w, o.h); }
+        if (o.type === 'd') drawDirt(o);
+        else if (o.type === 't') drawTower(o);
         else if (o.type === 'w') drawWallBody(o);
         else {
           for (let yy = o.y; yy < o.y + o.h - 0.5; yy += 40) for (let xx = o.x; xx < o.x + o.w - 0.5; xx += 40) drawCrateCell(xx, yy, Math.min(40, o.x + o.w - xx), Math.min(40, o.y + o.h - yy), o.type === 'b');
           if (o.hp < o.maxHp) { ctx.fillStyle = 'rgba(0,0,0,' + (0.6 * (o.maxHp - o.hp) / o.maxHp) + ')'; ctx.fillRect(o.x, o.y, o.w, o.h); }
         }
       }
+      if (mode === 'ctf') drawPads();
       // build preview
       if (state === 'play' && (player.blocks > 0 || aimbot)) {
         const gx = Math.floor(mouse.x / GRID) * GRID, gy = Math.floor(mouse.y / GRID) * GRID;
@@ -1613,13 +1796,24 @@
         ctx.strokeRect(gx + 1, gy + 1, GRID - 2, GRID - 2); ctx.setLineDash([]);
       }
       drawTrails();
-      for (const r of rainFx) { ctx.strokeStyle = 'rgba(255,215,60,' + (r.t / 36) + ')'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(r.x, r.y, 420 * (1 - r.t / 36), 0, 6.283); ctx.stroke(); }
+      for (const lp of lavaPools) { const f = Math.min(1, lp.t / 80), pu = 0.8 + 0.2 * Math.sin(Date.now() / 150 + lp.x); ctx.globalAlpha = 0.75 * f; const gr = ctx.createRadialGradient(lp.x, lp.y, 2, lp.x, lp.y, 26 * pu); gr.addColorStop(0, '#ffe35a'); gr.addColorStop(0.5, '#ff7a1a'); gr.addColorStop(1, 'rgba(160,30,0,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(lp.x, lp.y, 28, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
+      for (const r of rainFx) { ctx.strokeStyle = 'rgba(' + (r.col || '255,215,60') + ',' + (r.t / 36) + ')'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(r.x, r.y, (r.R || 420) * (1 - r.t / 36), 0, 6.283); ctx.stroke(); }
+      for (const h of holes) { const f = Math.min(1, h.t / 30), a0 = Date.now() / 200; ctx.save(); ctx.translate(h.x, h.y); const gr = ctx.createRadialGradient(0, 0, 4, 0, 0, 60); gr.addColorStop(0, 'rgba(0,0,0,' + (0.9 * f) + ')'); gr.addColorStop(0.6, 'rgba(90,30,170,' + (0.5 * f) + ')'); gr.addColorStop(1, 'rgba(90,30,170,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0, 0, 60, 0, 6.283); ctx.fill(); ctx.strokeStyle = 'rgba(200,160,255,' + (0.6 * f) + ')'; ctx.lineWidth = 2; for (let k = 0; k < 3; k++) { ctx.beginPath(); for (let i = 0; i < 20; i++) { const a = a0 + k * 2.09 + i * 0.3, d = 6 + i * 2.6; i ? ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d) : ctx.moveTo(6, 0); } ctx.stroke(); } ctx.restore(); }
+      for (const z of zaps) { ctx.strokeStyle = 'rgba(255,248,140,' + (z.t / 16) + ')'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); let x = z.x + (z.seed % 40 - 20), y = z.y - 360; ctx.moveTo(x, y); for (let j = 1; j <= 7; j++) { x += ((z.seed * j) % 30) - 15; y += 360 / 7; ctx.lineTo(j === 7 ? z.x : x, j === 7 ? z.y : y); } ctx.stroke(); ctx.strokeStyle = 'rgba(160,190,255,' + (z.t / 16) + ')'; ctx.lineWidth = 9; ctx.globalAlpha = 0.35; ctx.stroke(); ctx.globalAlpha = 1; }
       for (const pd of puddles) {
         const fade = Math.min(1, pd.t / 120), rip = 1 + Math.sin(Date.now() / 250 + pd.x) * 0.04;
         ctx.globalAlpha = 0.5 * fade; ctx.fillStyle = '#4aa8ff'; ctx.beginPath(); ctx.ellipse(pd.x, pd.y + 6, pd.r * rip, pd.r * 0.7 * rip, 0, 0, 6.283); ctx.fill();
         ctx.globalAlpha = 0.7 * fade; ctx.strokeStyle = '#bfe4ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(pd.x, pd.y + 6, pd.r * 0.6 * rip, pd.r * 0.4 * rip, 0, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1;
       }
       for (const b of bullets) {
+        if (b.gi === 6 && b.owner === 'p') { // the Cannon shoots pumpkins!
+          ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.life / 7);
+          ctx.fillStyle = '#f08a24'; ctx.beginPath(); ctx.ellipse(0, 0, b.r * 1.25, b.r * 1.05, 0, 0, 6.283); ctx.fill();
+          ctx.strokeStyle = '#b85d0e'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -b.r); ctx.quadraticCurveTo(-b.r * 0.7, 0, 0, b.r); ctx.moveTo(0, -b.r); ctx.quadraticCurveTo(b.r * 0.7, 0, 0, b.r); ctx.stroke();
+          ctx.fillStyle = '#4a7a2a'; ctx.fillRect(-1.6, -b.r - 4, 3.2, 5);
+          ctx.fillStyle = '#5a2a00'; ctx.beginPath(); ctx.moveTo(-b.r * 0.55, -b.r * 0.1); ctx.lineTo(-b.r * 0.2, -b.r * 0.1); ctx.lineTo(-b.r * 0.38, b.r * 0.25); ctx.closePath(); ctx.moveTo(b.r * 0.55, -b.r * 0.1); ctx.lineTo(b.r * 0.2, -b.r * 0.1); ctx.lineTo(b.r * 0.38, b.r * 0.25); ctx.closePath(); ctx.fill();
+          ctx.restore(); continue;
+        }
         ctx.fillStyle = b.hue || (b.owner === 'p' ? b.color : '#ffc2d6');
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.283); ctx.fill();
         ctx.fillStyle = b.owner === 'p' ? 'rgba(79,209,255,.35)' : 'rgba(255,107,154,.35)';
@@ -1634,6 +1828,7 @@
         drawFlag(flags.b.x, flags.b.y, '#ff6b9a', !!flags.b.carrier);
       }
       for (const f of fighters) { if (f.dead) continue; const flick = f.invuln > 0 && Math.floor(Date.now() / 90) % 2 ? 0.35 : 1; if (f === player) { ctx.globalAlpha = player.ghosting ? 0.45 : flick; drawFighter(player, t); ctx.globalAlpha = 1; } else { ctx.globalAlpha = flick; drawFighter(f, t); ctx.globalAlpha = 1; } }
+      if (player.storm > 0 && !player.dead) { ctx.save(); ctx.translate(player.x, player.y); for (let i = 0; i < 10; i++) { const a = Date.now() / 160 + i * 0.628; ctx.fillStyle = ['#ffb02e', '#e8731a', '#c9411f', '#f2d04a'][i % 4]; ctx.save(); ctx.translate(Math.cos(a) * 40, Math.sin(a) * 40); ctx.rotate(a * 2); ctx.beginPath(); ctx.ellipse(0, 0, 7, 3, 0, 0, 6.283); ctx.fill(); ctx.restore(); } ctx.restore(); }
       for (const f of fighters) if (!f.dead && f.shield > 0) { ctx.strokeStyle = 'rgba(200,160,255,' + (0.55 + 0.25 * Math.sin(Date.now() / 200)) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, f.r + 8, 0, 6.283); ctx.stroke(); }
       if (mode === 'team' && !player.dead) { ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#4fd1ff'; ctx.fillText('▼', player.x, player.y - 36); }
       if (mode === 'team') for (const f of fighters) { if (f.dead || f === player) continue; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(f.x - 18, f.y - 34, 36, 6); ctx.fillStyle = f.team === 0 ? '#4fd1ff' : '#ff6b9a'; ctx.fillRect(f.x - 17, f.y - 33, 34 * Math.max(0, f.hp) / f.maxHp, 4); }
@@ -1666,6 +1861,7 @@
       if (aimbot) { ctx.fillStyle = '#ff6b9a'; ctx.fillText(aimPro ? '🤖 OPERATOR PRO  (O = drive yourself)' : '🕶️ OPERATOR  (O = autopilot)', W / 2, 80); }
       if (mode === 'ctf') {
         ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.textAlign = 'center';
+        if (ctfPhase > 0) { ctx.font = '900 26px system-ui, sans-serif'; ctx.fillStyle = '#ffd24d'; ctx.fillText('🛠️ FORTIFY YOUR TOWERS!  ' + Math.ceil(ctfPhase / 60) + 's', W / 2, 118); ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText('Click a tower spot by your flag (or stand near it and press U)   💵 ' + (aimbot ? 'FREE' : '$' + cash.p) + '   • no shooting yet', W / 2, 150); }
         const hint = aimPro ? '🤖 OPERATOR PRO autopilot is playing Capture the Flag' : flags.b.carrier === player ? '🏃 You have the flag! Run it to your base!' : flags.p.carrier === bot ? '😱 The bot has YOUR flag! Get it back!' : player.dead ? '💀 Respawning...' : '';
         if (hint) ctx.fillText(hint, W / 2, 60);
         ctx.font = '600 13px system-ui, sans-serif'; ctx.fillStyle = '#a99ee0'; ctx.fillText('⛏ Hold E to dig (Shovel Lv ' + shovel() + ')', W / 2, 100);
@@ -1679,7 +1875,7 @@
         ctx.fillStyle = sel ? 'rgba(255,176,32,.9)' : 'rgba(255,255,255,.1)';
         ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill();
         ctx.fillStyle = sel ? '#2a1a00' : '#cfc8f5'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.font = '700 13px system-ui, sans-serif'; ctx.fillText((own(i) ? (sl + 1) + ' ' : '🔒 ') + GUNS[i].icon, x + 36, y + 9);
+        ctx.font = '700 13px system-ui, sans-serif'; ctx.fillText((own(i) ? (sl + 1) + ' ' : '🔒 ') + (GUNS[i].secret && !own(i) ? '❔' : GUNS[i].icon), x + 36, y + 9);
         if (own(i)) {
           ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText((GUNS[i].short || GUNS[i].name) + (gunLevel(i) >= 5 ? ' MAX' : ' L' + gunLevel(i)), x + 36, y + 19);
         }
@@ -1693,7 +1889,7 @@
         ctx.fillText('0 💧 Water', x + 36, y + 9);
         ctx.font = '700 9px system-ui, sans-serif'; ctx.fillText(aimbot ? '∞' : '×' + player.water, x + 36, y + 19);
       }
-      if (player.skin === 'tux') { const x = 16 + GUNS.length * 76 + 80, y = H - 34, cd = player.rainCd > 0; ctx.globalAlpha = 1; ctx.fillStyle = cd ? 'rgba(255,255,255,.12)' : 'rgba(255,200,40,.9)'; ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill(); ctx.fillStyle = cd ? '#cfc8f5' : '#3a2600'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('F 💸 Rain', x + 36, y + 9); ctx.font = '700 9px system-ui, sans-serif'; ctx.fillText(cd ? Math.ceil(player.rainCd / 60) + 's' : 'READY', x + 36, y + 19); }
+      if (POWERS[player.skin]) { const sk = skinById(player.skin), x = 16 + GUNS.length * 76 + 80, y = H - 34, cd = player.rainCd > 0; ctx.globalAlpha = 1; ctx.fillStyle = cd ? 'rgba(255,255,255,.12)' : 'rgba(255,200,40,.9)'; ctx.beginPath(); ctx.roundRect(x, y, 72, 26, 8); ctx.fill(); ctx.fillStyle = cd ? '#cfc8f5' : '#3a2600'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('F ' + sk.picon + ' ' + sk.pname, x + 36, y + 9); ctx.font = '700 9px system-ui, sans-serif'; ctx.fillText(cd ? Math.ceil(player.rainCd / 60) + 's' : 'READY', x + 36, y + 19); }
       if (player.burn > 0 && !player.dead) { ctx.font = '900 24px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = '#ff8a2b'; ctx.fillText("🔥 YOU'RE BURNING! Press 0 or Q for water 💧", W / 2, 120); ctx.textBaseline = 'middle'; }
       if (ghostOwned || aimbot) {
         const gw = 120, gx = W - 16 - gw, gy = H - 50, fr = aimbot ? 1 : Math.max(0, player.ghostE) / GHOST_MAX;
