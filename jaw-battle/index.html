@@ -906,6 +906,30 @@
     arrSel = null;
     showOverlay(true, '🔧 Arrange Guns', '', 'Done', back, false, p => arrangePanel(p, () => showArrange(back)));
   }
+  // ---------- pause screen: resume, arrange guns, or leave the match ----------
+  function pause() {
+    if (state !== 'play') return;
+    state = 'paused'; touch.fire = false; touch.dx = touch.dy = 0;
+    showPauseScreen();
+  }
+  function showPauseScreen() {
+    showOverlay(true, '⏸ Paused', 'Take a breather!', 'Resume', resume, false, p => {
+      const row = document.createElement('div'); row.className = 'row';
+      const a = document.createElement('button'); a.textContent = '🔧 Arrange my guns'; a.onclick = () => showArrange(showPauseScreen);
+      const l = document.createElement('button'); l.textContent = '🚪 Leave match'; l.onclick = () => leaveMatch(false);
+      row.append(a, l); p.appendChild(row);
+    });
+  }
+  function leaveMatch(sure) {
+    if (roundSpent > 0 && !sure) { // you paid for a cannon: leaving counts like losing, so ask first
+      showOverlay(true, '🚪 Leave the match?', 'If you leave, you lose the 🪙' + roundSpent + ' you spent on your cannon.', 'Keep playing', showPauseScreen, false, p => {
+        const b = document.createElement('button'); b.textContent = '🚪 Yes, leave'; b.onclick = () => leaveMatch(true); p.appendChild(b);
+      });
+      return;
+    }
+    roundSpent = 0; state = 'menu'; for (const k in keys) keys[k] = false; mouse.down = false; touch.fire = false; touch.dx = touch.dy = 0;
+    sfx.lose(); showMenu('🚪 You left the match.');
+  }
   function resume() { if (state === 'paused') { state = 'play'; showOverlay(false); } }
   pauseBtn.addEventListener('click', () => state === 'paused' ? resume() : pause());
 
