@@ -26,7 +26,7 @@ let W, H;
 function resize() { W = c.width = innerWidth; H = c.height = innerHeight; }
 addEventListener('resize', resize); resize();
 
-const BASE_W = 80, MAX_LIVES = 5;
+const BASE_W = 400, MAX_LIVES = 5;
 const basket = { x: W / 2, w: BASE_W, h: 18, speed: 8 };
 let stars, score, lives, over, spawnTimer, paused = false, best = 0, toast = null, keys = {};
 let fx = {}; // active power-ups: name -> frames left
@@ -79,7 +79,7 @@ function drawStar(x, y, r, color) {
   ctx.closePath(); ctx.fillStyle = color; ctx.fill();
 }
 
-function giveScore(n) { score += n * (fx.double > 0 ? 2 : 1); if (score > best) { best = score; try { localStorage.setItem('catchStarBest', best); } catch (e) {} } }
+function giveScore(n) { score += n * 1234 * (fx.double > 0 ? 2 : 1); if (score > best) { best = score; try { localStorage.setItem('catchStarBest', best); } catch (e) {} } }
 
 function catchPower(type) {
   const p = POWERS[type];
