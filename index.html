@@ -20,6 +20,23 @@
   .title { font-family:"Press Start 2P", monospace; font-size:14px; line-height:1.5; margin:14px 0 8px; color:var(--cool); }
   .desc { color:var(--muted); margin:0; }
   .empty { grid-column:1/-1; text-align:center; color:var(--muted); }
+  a.game.soon { position:relative; border-style:dashed; border-color:#6b5a1a; }
+  a.game.soon:hover { border-color:var(--pop); }
+  a.game.soon .emoji { filter:grayscale(.6); }
+  .badge { position:absolute; top:14px; right:14px; background:var(--pop); color:#2a1a00; font-weight:800; font-size:12px; padding:4px 10px; border-radius:999px; }
+  a.game.soon.unlocked .badge { background:var(--cool); color:#00261d; }
+  dialog { background:var(--card); color:var(--ink); border:3px solid #33267a; border-radius:20px; padding:24px; width:min(380px, calc(100vw - 32px)); text-align:center; }
+  dialog::backdrop { background:rgba(8,4,24,.8); }
+  dialog h2 { font-family:"Press Start 2P", monospace; font-size:15px; line-height:1.6; color:var(--pop); margin:4px 0 12px; }
+  dialog p { color:var(--muted); margin:0 0 14px; }
+  dialog input { width:100%; background:#0d0824; border:3px solid #33267a; border-radius:12px; padding:12px; font:800 18px Nunito, sans-serif; color:var(--ink); text-align:center; text-transform:uppercase; outline:none; }
+  dialog input:focus { border-color:var(--cool); }
+  dialog .row { display:flex; gap:10px; justify-content:center; margin-top:16px; }
+  dialog button { font:800 16px Nunito, sans-serif; border-radius:12px; padding:10px 16px; border:2px solid #33267a; background:#241860; color:var(--ink); cursor:pointer; }
+  dialog button.go { background:var(--pop); border-color:var(--pop); color:#2a1a00; }
+  #eb-msg { min-height:1.4em; margin:10px 0 0; color:var(--hot); font-weight:800; }
+  .shake { animation:shake .35s; }
+  @keyframes shake { 25% { transform:translateX(-8px); } 75% { transform:translateX(8px); } }
   footer { text-align:center; color:var(--muted); padding:40px 16px; font-size:14px; }
 </style>
 </head>
@@ -30,7 +47,68 @@
 </header>
 <main id="games"><p class="empty">Loading games…</p></main>
 <footer>Made at the JawDrop studio 🕹️</footer>
+<dialog id="early">
+  <form method="dialog" id="eb-form">
+    <div class="emoji" id="eb-emoji">🐣</div>
+    <h2 id="eb-title">COMING SOON</h2>
+    <p>This game isn't out yet. Know the <b>Early Bird Code</b>? Type it in to play early!</p>
+    <input id="eb-code" autocomplete="off" maxlength="30" placeholder="Early Bird Code" aria-label="Early Bird Code">
+    <p id="eb-msg"></p>
+    <div class="row"><button type="button" id="eb-cancel">Back</button><button class="go" type="submit">Let me in 🐣</button></div>
+  </form>
+</dialog>
 <script>
+  // "Coming soon" games: games.json has comingSoon + earlyBird (sha256 of "<slug>:<CODE>"),
+  // so the code itself isn't in the page. It's a fun lock, not real security.
+function sha256(str) {
+  const K = [], H = [];
+  const isPrime = (n) => { for (let i = 2; i * i <= n; i++) if (n % i === 0) return false; return true; };
+  for (let n = 2, k = 0; k < 64; n++) if (isPrime(n)) { if (k < 8) H[k] = (Math.pow(n, 1 / 2) * 2 ** 32) | 0; K[k++] = (Math.pow(n, 1 / 3) * 2 ** 32) | 0; }
+  const bytes = [...new TextEncoder().encode(str)], bitLen = bytes.length * 8;
+  bytes.push(0x80); while (bytes.length % 64 !== 56) bytes.push(0);
+  for (let i = 7; i >= 0; i--) bytes.push(i > 3 ? 0 : (bitLen >>> (i * 8)) & 255);
+  const r = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let o = 0; o < bytes.length; o += 64) {
+    const w = [];
+    for (let i = 0; i < 64; i++) w[i] = i < 16 ? (bytes[o + i * 4] << 24 | bytes[o + i * 4 + 1] << 16 | bytes[o + i * 4 + 2] << 8 | bytes[o + i * 4 + 3])
+      : (w[i - 16] + (r(w[i - 15], 7) ^ r(w[i - 15], 18) ^ (w[i - 15] >>> 3)) + w[i - 7] + (r(w[i - 2], 17) ^ r(w[i - 2], 19) ^ (w[i - 2] >>> 10))) | 0;
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+      const t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    [a, b, c, d, e, f, g, h].forEach((v, i) => { H[i] = (H[i] + v) | 0; });
+  }
+  return H.map(v => (v >>> 0).toString(16).padStart(8, '0')).join('');
+}
+  const normCode = (c) => c.trim().toUpperCase().replace(/\s+/g, ' ');
+  const unlocked = (g) => { try { return localStorage.getItem('earlybird:' + g.slug) === g.earlyBird; } catch { return false; } };
+  let pending = null;
+  function askCode(g) {
+    pending = g;
+    document.getElementById('eb-emoji').textContent = g.emoji || '🐣';
+    document.getElementById('eb-title').textContent = g.title.toUpperCase() + ': COMING SOON';
+    document.getElementById('eb-code').value = '';
+    document.getElementById('eb-msg').textContent = '';
+    document.getElementById('early').showModal();
+  }
+  document.getElementById('eb-cancel').onclick = () => document.getElementById('early').close();
+  document.getElementById('eb-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const g = pending, code = normCode(document.getElementById('eb-code').value);
+    if (code && sha256(g.slug + ':' + code) === g.earlyBird) {
+      try { localStorage.setItem('earlybird:' + g.slug, g.earlyBird); } catch {}
+      document.getElementById('eb-msg').style.color = 'var(--cool)';
+      document.getElementById('eb-msg').textContent = 'You\'re in! 🎉';
+      setTimeout(() => { location.href = g.slug + '/'; }, 600);
+    } else {
+      const f = document.getElementById('eb-form');
+      f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
+      document.getElementById('eb-msg').textContent = code ? 'Nope! That\'s not it 🥚' : 'Type the code first!';
+    }
+  });
+
   fetch('games.json', { cache: 'no-store' })
     .then(r => r.json())
     .then(games => {
@@ -45,6 +123,16 @@
         a.querySelector('.emoji').textContent = g.emoji || '🎮';
         a.querySelector('.title').textContent = g.title;
         a.querySelector('.desc').textContent = g.description || '';
+        if (g.comingSoon && g.earlyBird) {
+          a.classList.add('soon');
+          const open = unlocked(g);
+          if (open) a.classList.add('unlocked');
+          const b = document.createElement('span');
+          b.className = 'badge';
+          b.textContent = open ? '🐣 Early bird' : '🐣 Coming soon';
+          a.appendChild(b);
+          if (!open) a.addEventListener('click', (e) => { e.preventDefault(); askCode(g); });
+        }
         el.appendChild(a);
       }
     })
