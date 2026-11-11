@@ -99,7 +99,7 @@ function update() {
 
   if (--spawnTimer <= 0) {
     const special = Math.random() < 0.08; // power-ups are rare now
-    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 4 + Math.random() * 3 + Math.min(score * 0.12, 6), r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
+    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 14 + Math.random() * 6, r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
     spawnTimer = Math.max(14, 40 - score * 0.6); // stars come faster and faster
   }
   const by = H - 50, slow = fx.slow > 0 ? 0.45 : 1;
