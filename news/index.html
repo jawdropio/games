@@ -81,7 +81,18 @@
 
 <script>
 // ====== EDIT THE NEWS HERE (or ask your buddy to!) ======
-const CODE = "ASK-DAD-FOR-THE-CODE";   // the code readers see
+// A new silly code every day, the same for everybody
+function dailyCode() {
+  const d = new Date();
+  const day = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  let h = day;
+  const next = () => { h = (Math.imul(h, 1103515245) + 12345) >>> 0; return h >>> 8; };
+  const A = ["WOBBLY","SOGGY","SNEAKY","FLUFFY","GIGGLY","CRUNCHY","ZIPPY","GOOFY","SPICY","BOUNCY","TOASTY","WIGGLY"];
+  const B = ["PICKLE","GOAT","NINJA","WAFFLE","DUCK","SOCK","TACO","ROBOT","MUFFIN","LLAMA","BANANA","PIRATE"];
+  next();
+  return A[next() % A.length] + "-" + B[next() % B.length] + "-" + (10 + next() % 90);
+}
+const CODE = dailyCode();
 
 // Letters everyone sees (ask your buddy to add more!)
 const LETTERS = [
