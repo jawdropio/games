@@ -79,6 +79,16 @@
     <div id="msg"></div>
     <div id="letterList"></div>
   </div>
+
+  <div class="letters">
+    <h2>🎮 Game Requests</h2>
+    <form id="reqForm" autocomplete="off">
+      <input type="text" id="reqText" maxlength="100" placeholder="What game should come out next?">
+      <button class="send" type="submit">Request 🎮</button>
+    </form>
+    <div id="reqMsg"></div>
+    <div id="reqList"></div>
+  </div>
 </div>
 
 <script>
@@ -176,7 +186,7 @@ $("form").addEventListener("submit", e => {
   if (hashCode(t) === BOSS_HASH) {   // typing the boss code turns boss mode on or off
     boss = !boss; $("text").value = ""; $("msg").className = "ok";
     $("msg").textContent = boss ? "🔧 Boss mode ON: you can delete letters." : "Boss mode off.";
-    showLetters(); return;
+    showLetters(); if (typeof showReqs === "function") showReqs(); return;
   }
   const who = $("who").value.trim() || "a mysterious reader";
   let bad = checkSafe(t);
@@ -187,6 +197,35 @@ $("form").addEventListener("submit", e => {
   showLetters();
 });
 showLetters();
+
+// ---- game requests (same safety rules, same boss mode) ----
+const REQ_KEY = "dailyjaw-requests";
+function loadReqs() { try { const r = JSON.parse(localStorage.getItem(REQ_KEY)); return Array.isArray(r) ? r : []; } catch (e) { return []; } }
+function saveReqs(r) { try { localStorage.setItem(REQ_KEY, JSON.stringify(r)); } catch (e) {} }
+function showReqs() {
+  const r = loadReqs();
+  $("reqList").innerHTML = (boss && r.length ? `<button class="send" id="reqWipe">🧹 Wipe all requests</button>` : "") +
+    r.map((x, i) => `<div class="letter">🎮 ${esc(x)}${boss ? ` <button class="del" data-r="${i}">✖ delete</button>` : ""}</div>`).join("");
+  if (boss && r.length) {
+    $("reqWipe").onclick = () => { if (confirm("Wipe ALL requests?")) { saveReqs([]); showReqs(); } };
+    document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { const r2 = loadReqs(); r2.splice(+b.dataset.r, 1); saveReqs(r2); showReqs(); });
+  }
+}
+$("reqForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = $("reqText").value.trim();
+  if (hashCode(t) === BOSS_HASH) {
+    boss = !boss; $("reqText").value = ""; $("reqMsg").className = "ok";
+    $("reqMsg").textContent = boss ? "🔧 Boss mode ON." : "Boss mode off.";
+    showLetters(); showReqs(); return;
+  }
+  const bad = checkSafe(t);
+  if (bad) { $("reqMsg").className = "err"; $("reqMsg").textContent = "🚫 " + bad; return; }
+  const r = loadReqs(); r.unshift(t); saveReqs(r.slice(0, 30));
+  $("reqText").value = ""; $("reqMsg").className = "ok"; $("reqMsg").textContent = "✅ Request sent!";
+  showReqs();
+});
+showReqs();
 </script>
 </body>
 </html>
