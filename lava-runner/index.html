@@ -2,16 +2,1004 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lava Runner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Pizza Pals</title>
 <style>
-  html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; display:grid; place-items:center; text-align:center; }
-  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
-  h1 { font-size:48px; margin:0 0 12px; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:#2b1608; color:#fff7ea; font-family:system-ui, "Segoe UI", sans-serif; overflow:hidden; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; overscroll-behavior:none; touch-action:manipulation; }
+  body { display:flex; flex-direction:column; height:100vh; height:100dvh; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  button { font:inherit; cursor:pointer; border:0; border-radius:14px; color:inherit; }
+  header { display:flex; align-items:center; gap:8px; padding:6px 12px; background:linear-gradient(#2a2a2e,#141416); flex-wrap:wrap; border-bottom:2px solid #444; }
+  header a { color:#ffcf8a; text-decoration:none; font-weight:800; padding:10px 6px; font-size:17px; }
+  header .sp { flex:1; }
+  .chip { background:#000a; padding:6px 14px; font-size:16px; border-radius:20px; font-weight:800; white-space:nowrap; border:1px solid #fff2; }
+  .hbtn { background:#ff8a2b; color:#2b1608; font-weight:800; padding:10px 16px; min-height:44px; font-size:16px; }
+  #banner { position:absolute; top:52px; left:50%; transform:translate(-50%,-20px); background:#ff3d3d; padding:8px 20px; border-radius:20px; font-weight:900; opacity:0; transition:.3s; z-index:5; pointer-events:none; white-space:nowrap; box-shadow:0 4px 14px #0008; }
+  #banner.show { opacity:1; transform:translate(-50%,0); }
+
+  /* ---- diner room ---- */
+  #room { position:relative; flex:1.1; min-height:0; overflow:hidden; border-bottom:8px solid #3b2210;
+    background:
+      repeating-linear-gradient(90deg, #0000 0 78px, #0004 78px 80px) 0 34% / 100% 28% no-repeat,
+      linear-gradient(#f7d9a0 0 33%, #fff0cc 33% 34%, #8a4a22 34% 62%, #3a1d0c 62% 100%); }
+  #room::before { content:'🍂 PIZZA PALS 🍂'; position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:2; font-weight:900; font-size:clamp(13px,2.8vmin,22px); color:#fff6b0; text-shadow:0 0 6px #ff3d3d, 0 0 14px #ff3d3d; border:3px solid #ff9a9a; border-radius:12px; padding:2px 14px; background:#2b1608cc; white-space:nowrap; }
+  @keyframes neon { 0%,92%,100%{opacity:1} 94%{opacity:.5} 96%{opacity:1} 98%{opacity:.6} }
+  #decor { position:absolute; inset:0; pointer-events:none; z-index:0; }
+  .winw { position:absolute; top:16%; width:clamp(50px,10vw,100px); aspect-ratio:1.1; overflow:hidden; background:linear-gradient(#ffc27a,#ffe6bd 66%,#b8651f 66%); border:5px solid #fff3dc; outline:3px solid #8a5a2c; box-shadow:0 3px 8px #0005; }
+  .winw::before, .winw::after { z-index:2; }
+  .winw .lf { position:absolute; top:-20%; font-size:clamp(10px,2vmin,16px); z-index:1; animation:leaf 6s linear infinite; }
+  @keyframes leaf { 0% { top:-20%; transform:translateX(0) rotate(0); } 50% { transform:translateX(14px) rotate(200deg); } 100% { top:105%; transform:translateX(-8px) rotate(400deg); } }
+  .frame { position:absolute; left:50%; top:20%; width:clamp(54px,9vw,88px); aspect-ratio:60/70; border:5px solid #7a4a1a; outline:2px solid #d2a35a; box-shadow:0 3px 6px #0006; background:#ffe6b0; transform:translateX(-50%); }
+  .frame svg { display:block; width:100%; height:100%; }
+  @keyframes wob { 0%,100% { transform:translateX(-50%) rotate(-2deg); } 50% { transform:translateX(-50%) rotate(2deg); } }
+  .winw::before, .winw::after { content:''; position:absolute; background:#fff; }
+  .winw::before { left:50%; top:0; bottom:0; width:4px; margin-left:-2px; }
+  .winw::after { top:50%; left:0; right:0; height:4px; margin-top:-2px; }
+  .dec { position:absolute; font-size:clamp(26px,6vmin,48px); filter:drop-shadow(0 3px 3px #0006); }
+  .dec.lights { top:0; left:0; right:0; font-size:13px; white-space:nowrap; overflow:hidden; letter-spacing:6px; filter:none; }
+  @keyframes blink { 50% { opacity:.55; } }
+  .dec.shelf { background:linear-gradient(#b5793c,#8a5424); padding:0 10px 3px; border-radius:4px; box-shadow:0 5px 0 #5a3317; font-size:clamp(20px,4.4vmin,34px); }
+  #seats { position:relative; z-index:1; height:100%; display:flex; justify-content:center; align-items:flex-end; padding:6px 10px 0; }
+  .seat { position:relative; width:clamp(80px,17vw,160px); height:100%; max-height:240px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; cursor:pointer; }
+  .bubble { background:#fff; color:#222; border-radius:18px; padding:3px 9px; margin-bottom:3px; min-height:1.5em; box-shadow:0 3px 0 #0003; display:flex; gap:3px; align-items:center; justify-content:center; font-size:clamp(14px,3vmin,24px); position:relative; }
+  .bubble::after { content:''; position:absolute; bottom:-7px; left:50%; margin-left:-6px; border:7px solid transparent; border-top-color:#fff; border-bottom:0; }
+  .ic { width:clamp(18px,4vmin,30px); height:clamp(18px,4vmin,30px); display:block; }
+  .sep { width:2px; height:1.2em; background:#0002; margin:0 2px; }
+  .animal { font-size:clamp(40px,9.5vmin,84px); line-height:1; transition:transform .2s; filter:drop-shadow(0 4px 3px #0005); }
+  .seat.gold .animal { filter:drop-shadow(0 0 10px gold); }
+  .crown { position:absolute; top:calc(100% - clamp(150px,30vmin,230px)); font-size:22px; }
+  .counter { position:relative; width:calc(100% + 2px); height:clamp(16px,3.4vmin,26px); margin-top:-6px; background:linear-gradient(#f2c88f,#d9a066 30%,#b87a3e); border-top:2px solid #fbe0b4; border-bottom:4px solid #7a4a22; box-shadow:0 4px 6px #0005; display:grid; place-items:center; }
+  .bar { width:70%; height:8px; background:#0006; border-radius:6px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:100%; background:#5bd65b; }
+  .stool { width:46%; height:clamp(12px,3vmin,22px); background:linear-gradient(#e24242,#a81c1c); border-radius:50% 50% 30% 30%/60% 60% 30% 30%; border-bottom:4px solid #6a1010; position:relative; margin-top:4px; margin-bottom:clamp(14px,3vmin,24px); }
+  .stool::after { content:''; position:absolute; left:46%; top:100%; width:8%; height:clamp(14px,3vmin,24px); background:linear-gradient(90deg,#999,#eee,#999); }
+  .seat.leaving .animal { transform:translateY(-8px) scale(1.15); }
+  .seat.shake { animation:shake .3s; }
+  @keyframes shake { 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  .seat.empty { cursor:default; }
+  .seat.empty .bubble, .seat.empty .animal, .seat.empty .bar { visibility:hidden; }
+
+  /* ---- kitchen ---- */
+  #mid { flex:1.1; min-height:0; overflow:hidden; display:flex; flex-direction:column; justify-content:center; gap:8px; padding:8px;
+    background:repeating-linear-gradient(#0000 0 17px, #0005 17px 19px), repeating-linear-gradient(90deg, #0000 0 39px, #0004 39px 41px), linear-gradient(#a24a2c,#7c3320); }
+  #trays { display:flex; justify-content:center; gap:clamp(6px,1.6vw,18px); flex-wrap:wrap; }
+  .tray { width:clamp(84px,15vw,140px); background:#0007; border-radius:16px; padding:6px; text-align:center; cursor:pointer; border:4px solid #3a1a10; box-shadow:0 4px 0 #0006; }
+  .tray.sel { border-color:#ffe14d; box-shadow:0 0 16px #ffe14d, 0 4px 0 #0005; transform:translateY(-3px); }
+  .oven { position:relative; background:repeating-linear-gradient(#0000 0 9px, #0003 9px 11px), linear-gradient(#c05a38,#9a3e22); border-radius:14px 14px 4px 4px; border:3px solid #5a2414; padding:8px 6px 6px; }
+  .oven::before { content:'◉ ◉ ◉'; position:absolute; top:0; left:0; right:0; font-size:8px; letter-spacing:3px; color:#ffd24d; line-height:8px; }
+  .oven::after { content:''; display:block; height:5px; margin:6px auto 0; width:60%; background:linear-gradient(#eee,#777); border-radius:3px; }
+  .win { margin:4px auto 0; width:82%; aspect-ratio:1.2; background:radial-gradient(circle,#222,#0a0808); border:4px solid #666; border-radius:50% 50% 8px 8px; display:grid; place-items:center; overflow:hidden; box-shadow:inset 0 0 10px #000; }
+  .oven.baking .win { background:radial-gradient(circle,#ffb347,#ff5a1f 70%); box-shadow:inset 0 0 14px #ff7a1a; }
+  .oven.ready .win { background:radial-gradient(circle,#ffe58a,#ffa21f 70%); box-shadow:0 0 14px gold, inset 0 0 10px #ffb; }
+  .oven.burnt .win { background:radial-gradient(circle,#666,#111 70%); }
+  @keyframes pulse { 50% { filter:brightness(1.2); } }
+  .board { background:repeating-linear-gradient(95deg,#c68a4e 0 7px,#b87c42 7px 9px); border-radius:10px; border:3px solid #7a4d22; margin-top:6px; padding:4px; min-height:clamp(50px,9vw,90px); display:grid; place-items:center; box-shadow:inset 0 2px 4px #0005; }
+  .pizza { width:clamp(54px,9.5vw,92px); aspect-ratio:1; }
+  .win .pizza { width:70%; }
+  .pizza svg { width:100%; height:100%; display:block; filter:drop-shadow(0 2px 2px #0007); }
+  .tray.sel .pizza svg { filter:drop-shadow(0 0 4px #ffe14d); }
+  .tl { color:#fff; font-size:clamp(10px,1.8vw,13px); font-weight:800; margin-top:4px; min-height:1.2em; }
+  .pbar { height:8px; background:#0006; border-radius:5px; overflow:hidden; margin-top:3px; }
+  .pbar i { display:block; height:100%; width:0; background:#ff9a2b; }
+  .pbar i.burn { background:#ff3d3d; }
+
+  /* ---- counter / buttons ---- */
+  #bottom { display:flex; justify-content:center; align-items:center; gap:6px; flex-wrap:wrap; padding:8px; max-height:38vh; overflow-y:auto; background:linear-gradient(#c9ced4,#7f858d); border-top:4px solid #e8ecef; }
+  .tb { background:linear-gradient(#4a2a14,#2e1808); padding:6px 10px; min-width:76px; min-height:68px; border:3px solid #6a3c1a; box-shadow:0 3px 0 #0006; }
+  .tb svg { width:clamp(32px,5.8vmin,46px); height:clamp(32px,5.8vmin,46px); display:block; margin:0 auto; }
+  .tb small { display:block; font-size:12px; font-weight:800; margin-top:1px; }
+  .tb:active { transform:scale(.94); }
+  .tb.on { border-color:#ffe14d; }
+  .tb.drink { background:linear-gradient(#2a3a4a,#16202c); border-color:#4a6a8a; }
+  .act { padding:14px 22px; min-height:60px; font-weight:900; font-size:clamp(16px,2.8vmin,22px); box-shadow:0 3px 0 #0006; }
+  #cups { display:flex; gap:5px; align-items:flex-end; margin:0 4px; }
+  .cup { position:relative; width:40px; height:58px; border:3px solid #fff8; border-top-width:2px; border-radius:3px 3px 9px 9px; overflow:hidden; background:#ffffff20; }
+  .cup i { position:absolute; bottom:0; left:0; width:100%; height:0; }
+  .cup.ready { border-color:#fff; cursor:pointer; box-shadow:0 0 10px #fffb; }
+  .cup.sel { border-color:#ffe14d; box-shadow:0 0 12px #ffe14d; transform:translateY(-3px); }
+  #bake { background:#ff5a1f; }
+  .bgt { position:absolute; top:41%; width:clamp(42px,7vw,66px); text-align:center; }
+  .bgt .pp { display:block; font-size:clamp(22px,4.4vmin,34px); line-height:1; animation:eat 3.4s ease-in-out infinite; }
+  .bgt .tb2 { height:clamp(14px,2.8vmin,22px); margin-top:-3px; background:linear-gradient(#e8b676,#b97b3c); border-radius:50%; border-bottom:3px solid #7a4a22; display:grid; place-items:center; font-size:clamp(10px,2vmin,15px); }
+  .bgt .leg { width:6px; height:clamp(12px,3vmin,22px); margin:0 auto; background:#5a3317; }
+  @keyframes eat { 0%,80%,100% { transform:translateY(0); } 88% { transform:translateY(3px); } }
+  .say { position:absolute; top:-18px; left:50%; transform:translateX(-50%); background:#fff; color:#222; border-radius:10px; padding:0 6px; font-size:13px; font-weight:800; white-space:nowrap; opacity:0; animation:say 2.2s forwards; }
+  @keyframes say { 10%,80% { opacity:1; } 100% { opacity:0; } }
+  .chalk { position:absolute; left:36%; top:17%; width:clamp(48px,8vw,78px); padding:5px 3px; text-align:center; font-weight:800; font-size:clamp(9px,1.7vmin,13px); color:#f4f4e8; background:#2f4a3a; border:4px solid #8a5a2c; box-shadow:0 3px 6px #0005; line-height:1.25; }
+  .pend { position:absolute; top:0; width:2px; height:clamp(14px,4vmin,30px); background:#222; }
+  .pend::after { content:''; position:absolute; top:100%; left:-13px; width:28px; height:14px; background:#ffcf6a; border-radius:14px 14px 4px 4px; box-shadow:0 8px 22px 6px #ffcf6a66; }
+  #room.still * { animation-play-state:paused !important; }
+  #warmers { display:flex; justify-content:center; gap:clamp(6px,1.6vw,18px); flex-wrap:wrap; }
+  .warmer { width:clamp(84px,15vw,140px); background:#0007; border:4px solid #7a5a1a; border-radius:14px; padding:4px 6px; text-align:center; cursor:pointer; box-shadow:0 4px 0 #0006; }
+  .warmer .lamp { font-size:16px; line-height:1; background:linear-gradient(#ffb347,#c46a10); border-radius:10px 10px 0 0; padding:2px 0; box-shadow:0 6px 14px #ff9a2b88; }
+  .warmer .wplate { background:linear-gradient(#d8dce0,#8a9097); border-radius:0 0 10px 10px; padding:4px; display:grid; place-items:center; min-height:clamp(44px,7vw,68px); }
+  .warmer .pizza { width:clamp(40px,6.5vw,58px); }
+  .warmer.full { border-color:#ffb347; }
+  .warmer.sel { border-color:#ffe14d; box-shadow:0 0 16px #ffe14d, 0 4px 0 #0005; }
+  #bake.go { transform:scale(1.06); box-shadow:0 0 16px #ffd24d, 0 3px 0 #0006; }
+  @keyframes bounce { 50% { transform:scale(1.08); } }
+  #hint { align-self:center; text-align:center; font-weight:900; font-size:clamp(15px,2.8vmin,22px); background:#000b; border-radius:20px; padding:6px 18px; border:2px solid #ffd24d88; width:min(94%,760px); height:3.2em; display:grid; place-items:center; overflow:hidden; line-height:1.15; }
+  .tray.nudge { border-color:#ffb347; }
+  @keyframes nudge { 50% { border-color:#ffe14d; box-shadow:0 0 16px #ffe14d; } }
+  .seat.want .bubble { outline:3px solid #ffd24d; }
+  #toast { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:#000d; padding:8px 16px; border-radius:16px; font-weight:700; opacity:0; transition:.25s; pointer-events:none; z-index:6; text-align:center; max-width:90vw; }
+  #toast.show { opacity:1; }
+
+  /* ---- overlays ---- */
+  .ov { position:fixed; inset:0; background:#120802ee; display:none; flex-direction:column; align-items:center; justify-content:flex-start; gap:12px; z-index:10; text-align:center; padding:16px; overflow:auto; }
+  .ov.show { display:flex; }
+  .ov > :first-child { margin-top:auto; } .ov > :last-child { margin-bottom:auto; }
+  .ov h1 { margin:0; font-size:clamp(34px,8vmin,64px); }
+  .big { background:#ff8a2b; color:#2b1608; font-weight:900; font-size:22px; padding:12px 30px; box-shadow:0 4px 0 #a04a08; }
+  .alt { background:#3d2210; padding:12px 22px; min-height:48px; font-weight:700; font-size:16px; }
+  #shopList { display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:10px; width:min(920px,100%); }
+  #shopList h3 { grid-column:1/-1; margin:8px 0 0; text-align:left; color:#ffcf8a; border-bottom:2px solid #ffcf8a55; }
+  .item { background:#3d2210; border-radius:14px; padding:10px; text-align:left; display:flex; flex-direction:column; gap:4px; }
+  .item b { font-size:16px; display:flex; align-items:center; gap:8px; }
+  .item b svg { width:30px; height:30px; flex:none; }
+  .item small { color:#e8c9a0; }
+  .item button { background:#ffd24d; color:#2b1608; font-weight:900; padding:7px; margin-top:auto; }
+  .item button:disabled { background:#666; color:#aaa; cursor:not-allowed; }
+  #fx { position:fixed; inset:0; pointer-events:none; z-index:20; overflow:hidden; }
+  .fall { position:absolute; top:-40px; font-size:28px; animation:fall 1.8s ease-in forwards; }
+  @keyframes fall { to { transform:translate(var(--dx),110vh) rotate(540deg); } }
+  .float { position:absolute; font-weight:900; font-size:22px; color:#ffe14d; text-shadow:0 2px 0 #000a; transform:translateX(-50%); animation:up 1.1s ease-out forwards; white-space:nowrap; }
+  @keyframes up { to { transform:translate(-50%,-70px); opacity:0; } }
+  /* ---- 3D look ---- */
+  #floorwrap { position:absolute; left:0; right:0; top:67%; bottom:0; perspective:360px; perspective-origin:50% 0; overflow:hidden; z-index:0; }
+  #floor { position:absolute; left:-70%; right:-70%; top:0; height:230px; transform-origin:50% 0; transform:rotateX(62deg); background:conic-gradient(#f3e0bc 25%, #c8622a 0 50%, #f3e0bc 0 75%, #c8622a 0) 0 0/64px 64px; box-shadow:inset 0 30px 40px #0005; }
+  #room::after { content:''; position:absolute; inset:0; pointer-events:none; z-index:3; background:radial-gradient(ellipse at 50% 35%, #0000 45%, #0008 110%); }
+  .beam { position:absolute; top:26%; width:14%; height:62%; background:linear-gradient(#fff6c855,#fff6c800); clip-path:polygon(0 0,100% 0,150% 100%,50% 100%); pointer-events:none; }
+  .counter::before { content:''; position:absolute; left:0; right:0; bottom:100%; height:9px; background:linear-gradient(#fff0cc,#f0c890); transform-origin:50% 100%; transform:perspective(40px) rotateX(40deg); }
+  .stool::before { content:''; position:absolute; left:-25%; right:-25%; top:calc(100% + clamp(14px,3vmin,24px) - 2px); height:9px; background:radial-gradient(ellipse,#0007,#0000 70%); }
+  #trays, #warmers { perspective:800px; }
+  .tray { transform:rotateX(9deg); box-shadow:0 2px 0 #2a120a, 0 4px 0 #2a120a, 0 6px 0 #22100a, 0 14px 14px #000a; }
+  .tray.sel { transform:rotateX(9deg) translateY(-4px); box-shadow:0 0 16px #ffe14d, 0 2px 0 #2a120a, 0 4px 0 #2a120a, 0 6px 0 #22100a, 0 16px 14px #000a; }
+  .warmer { transform:rotateX(9deg); box-shadow:0 2px 0 #4a3010, 0 4px 0 #4a3010, 0 6px 0 #3a2408, 0 12px 12px #000a; }
+  .warmer.sel { box-shadow:0 0 16px #ffe14d, 0 2px 0 #4a3010, 0 4px 0 #4a3010, 0 6px 0 #3a2408, 0 14px 12px #000a; }
+  .oven { box-shadow:inset 0 3px 0 #e8845c, inset 0 -8px 12px #0007, 0 5px 0 #4a1c10; }
+  .board { box-shadow:inset 0 2px 4px #0005, 0 3px 0 #6a3f18; }
+  .board .pizza, .wplate .pizza { transform:perspective(240px) rotateX(50deg); transform-origin:50% 55%; }
+  .board .pizza svg, .wplate .pizza svg { filter:drop-shadow(0 3px 0 #a87530) drop-shadow(0 7px 3px #0008); }
+  .tray.sel .board .pizza svg { filter:drop-shadow(0 3px 0 #a87530) drop-shadow(0 0 6px #ffe14d); }
+  .tb, .act { box-shadow:0 2px 0 #1a0c04, 0 5px 0 #1a0c04, 0 8px 8px #0008; }
+  .tb:active, .act:active { transform:translateY(4px); box-shadow:0 1px 0 #1a0c04; }
+  .animal { filter:drop-shadow(0 8px 4px #0007); }
+  .bubble { box-shadow:0 5px 0 #0003, 0 8px 10px #0004; }
+
+  /* ---- brick pizza ovens ---- */
+  .oven { position:relative; background:none; border:0; padding:0; box-shadow:none; border-radius:0; height:clamp(96px,16vw,142px); }
+  .oven::before, .oven::after { display:none; }
+  .chim { position:absolute; left:64%; top:0; width:15%; height:34%; background:repeating-linear-gradient(0deg,#0000 0 6px,#0005 6px 7px), linear-gradient(90deg,#7a2c18,#c86040 45%,#7a2c18); border-radius:3px 3px 0 0; box-shadow:inset 0 4px 0 #3a1208, 3px 0 6px #0006; }
+  .dome { position:absolute; left:0; right:0; top:14%; bottom:14%; border-radius:50% 50% 8px 8px / 64% 64% 8px 8px;
+    background:repeating-linear-gradient(0deg,#0000 0 9px,#4a1a0c 9px 11px), repeating-linear-gradient(90deg,#0000 0 17px,#4a1a0c 17px 19px), radial-gradient(ellipse at 35% 25%,#e88a60,#b84e2c 55%,#7a2a16);
+    box-shadow:inset -10px -12px 18px #0009, inset 8px 8px 14px #ffb08a55, 0 8px 10px #0009; }
+  .dial { position:absolute; left:13%; top:30%; width:15%; aspect-ratio:1; border-radius:50%; background:radial-gradient(#fff,#d4d4d4); border:2px solid #666; box-shadow:0 2px 3px #0007; }
+  .dial::after { content:''; position:absolute; left:47%; top:12%; width:2px; height:40%; background:#c00; transform-origin:50% 100%; transform:rotate(40deg); }
+  .arch { position:absolute; left:20%; right:20%; bottom:12%; height:58%; border-radius:50% 50% 0 0 / 72% 72% 0 0; border:4px solid #4a2214; border-bottom:0; box-shadow:inset 0 8px 16px #000, 0 0 0 3px #2e140c; overflow:hidden; background:radial-gradient(ellipse at 50% 100%,#5a1e0a,#140806 72%); }
+  .oven.baking .arch { background:radial-gradient(ellipse at 50% 100%,#ffd36a,#ff7a1f 42%,#7a1a08 85%); box-shadow:inset 0 8px 16px #0008, 0 0 14px #ff7a1f88, 0 0 0 3px #2e140c; }
+  .oven.ready .arch { background:radial-gradient(ellipse at 50% 100%,#ffe9a0,#ffa21f 45%,#6a2a0a 88%); box-shadow:inset 0 8px 16px #0006, 0 0 18px #ffb347, 0 0 0 3px #2e140c; }
+  .oven.burnt .arch { background:radial-gradient(ellipse at 50% 100%,#555,#111 72%); }
+  .obase { position:absolute; left:-4%; right:-4%; bottom:0; height:16%; background:linear-gradient(#bfb2a2,#7c7266); border-radius:4px; box-shadow:inset 0 3px 0 #e6dccd, 0 5px 0 #4a443c, 0 9px 8px #0009; }
+  .oven .win, .oven.baking .win, .oven.ready .win, .oven.burnt .win { margin:0; width:100%; height:100%; aspect-ratio:auto; background:none; border:0; border-radius:0; box-shadow:none; animation:none; display:grid; place-items:end center; padding-bottom:6%; }
+  .oven .win .pizza { width:64%; transform:perspective(160px) rotateX(52deg); transform-origin:50% 70%; }
+
+  /* ---- prep counter (like a real kitchen) ---- */
+  #trays { gap:0; }
+  .tray { background:none; border:0; border-radius:0; box-shadow:none; padding:0 2px; width:clamp(92px,16vw,150px); }
+  .tray.sel { box-shadow:none; }
+  .tray.sel .board { outline:3px solid #ffe14d; outline-offset:-3px; }
+  .tray.nudge .oven { filter:drop-shadow(0 0 8px #ffb347); }
+  .board { background:radial-gradient(circle at 20% 30%,#fff9 0 1px,#0000 2px) 0 0/9px 9px, radial-gradient(circle at 70% 60%,#0003 0 1px,#0000 2px) 0 0/13px 13px, linear-gradient(#e6e1d7,#b4aea3);
+    border:0; border-top:4px solid #fffc; border-radius:0; margin-top:0; position:relative; padding:6px 4px; box-shadow:inset 0 -4px 0 #8a857b, 0 6px 8px #0006; }
+  .board::before { content:''; position:absolute; left:50%; top:52%; width:78%; aspect-ratio:1; border-radius:50%; background:radial-gradient(circle,#e0ac68,#b98040); box-shadow:0 4px 0 #7a4a1c, 0 8px 6px #0006; transform:translate(-50%,-50%) perspective(240px) rotateX(50deg); transform-origin:50% 55%; }
+  .board .pizza { position:relative; z-index:1; }
+  .tray .tl { background:linear-gradient(#6a4a2a,#3a2816); margin:0; padding:4px 2px; border-top:3px solid #8a6a3a; }
+  .tray .pbar { margin:0; border-radius:0; height:7px; }
+
+  /* ---- ingredient station ---- */
+  #bottom { background:radial-gradient(circle at 20% 30%,#fff9 0 1px,#0000 2px) 0 0/9px 9px, radial-gradient(circle at 70% 60%,#0003 0 1px,#0000 2px) 0 0/13px 13px, linear-gradient(#e6e1d7,#a8a297); border-top:4px solid #fffc; border-bottom:10px solid #6a655c; box-shadow:0 -6px 12px #0006; }
+  .tb[data-t] { background:none; border:0; box-shadow:none; padding:2px 4px; min-width:86px; min-height:0; }
+  .tb[data-t]:active { transform:translateY(3px); box-shadow:none; }
+  .tb svg.bowl { width:clamp(52px,8.4vmin,74px); height:auto; filter:drop-shadow(0 4px 3px #0006); }
+  .tb[data-t] small { background:#3a2a1c; color:#fff; border-radius:8px; padding:1px 7px; margin-top:2px; display:inline-block; }
+  .tb[data-t].on { background:#ffe14d66; border-radius:16px; box-shadow:0 0 0 3px #ffe14d; }
+  #bakeall.go { transform:scale(1.06); box-shadow:0 0 16px #ffd24d, 0 3px 0 #0006; }
+  .seat.vip .animal { position:relative; filter:brightness(.28) contrast(1.4) drop-shadow(0 0 10px gold); }
+  .seat.vip .animal::after { content:'🕶️'; position:absolute; left:50%; top:16%; transform:translateX(-50%); font-size:.5em; }
+  .vipchip { background:linear-gradient(#ffe27a,#d9a21a); color:#4a2a00; font-weight:900; font-size:11px; border-radius:8px; padding:1px 6px; margin-right:3px; }
 </style>
 </head>
 <body>
-<a href="../">← Arcade</a>
-<div><h1>🔥 Lava Runner</h1><p>🚧 Under construction. Tell your buddy what to build!</p></div>
+<header>
+  <a href="../">← Arcade</a>
+  <span class="chip" id="hDay">Day 1</span>
+  <span class="chip" id="hClock">⏰ 90</span>
+  <span class="chip" id="hCombo">🔥 Combo 0</span>
+  <span class="sp"></span>
+  <span class="chip" id="hCoins">🪙 0</span>
+  <button class="hbtn" id="shopBtn">🛒 Shop</button>
+  <button class="hbtn" id="mute" title="Sound">🔊</button>
+  <button class="hbtn" id="pauseBtn">⏸ Pause</button>
+</header>
+<div id="banner"></div>
+<section id="room"><div id="floorwrap"><div id="floor"></div></div><div id="decor"><div class="winw" style="left:4%"></div><div class="winw" style="right:4%"></div>
+  <div class="frame"><svg viewBox="0 0 60 70">
+    <rect width="60" height="70" fill="#a9b48a"/><rect y="0" width="60" height="24" fill="#c9d3b4"/>
+    <path d="M0 30 Q12 20 22 28 T44 26 T60 30 V70 H0Z" fill="#7f9370"/>
+    <path d="M44 70 Q38 58 50 50 Q56 46 52 40" fill="none" stroke="#e0cf9a" stroke-width="2"/>
+    <path d="M10 70 Q9 48 20 40 L40 40 Q51 48 50 70Z" fill="#2f2a18"/>
+    <ellipse cx="30" cy="33" rx="17" ry="21" fill="#2e1a0c"/>
+    <path d="M15 70 Q18 54 30 52 Q42 54 45 70Z" fill="#3d4a24"/>
+    <path d="M23 52 L30 60 L37 52 Q30 49 23 52Z" fill="#d8b070"/>
+    <ellipse cx="30" cy="34" rx="11" ry="13.5" fill="#ecc89a"/>
+    <path d="M20 25 Q30 16 40 25 Q34 21 30 21 Q26 21 20 25Z" fill="#2e1a0c"/>
+    <path d="M22 29 Q25 27 28 29" fill="none" stroke="#3a2412" stroke-width="1.3"/>
+    <path d="M32 27 Q36 20 40 25" fill="none" stroke="#3a2412" stroke-width="1.3"/>
+    <circle cx="25" cy="31.5" r="2.2" fill="#fff"/><circle cx="25.8" cy="31.8" r="1.1" fill="#222"/>
+    <circle cx="36" cy="31" r="3.4" fill="#fff"/><circle cx="37" cy="30" r="1.6" fill="#222"/>
+    <circle cx="30.5" cy="37" r="3" fill="#c0392b"/><circle cx="29.7" cy="36.2" r=".8" fill="#e2594c"/>
+    <path d="M23.5 42.5 Q30 46 38 41" fill="none" stroke="#8a3a2a" stroke-width="1.4" stroke-linecap="round"/>
+    <path d="M31 44.5 Q30 52 34 55" fill="none" stroke="#f6d462" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M23 56 L37 56 L30 67Z" fill="#f6d462" stroke="#c07a2a" stroke-width="1"/><rect x="22" y="54.5" width="16" height="3" rx="1.5" fill="#d9a04a"/>
+    <circle cx="29" cy="60" r="1.6" fill="#b7281f"/><circle cx="32.5" cy="58.5" r="1.3" fill="#b7281f"/>
+    <rect y="63" width="60" height="7" fill="#000" opacity=".55"/>
+    <text x="30" y="68.2" text-anchor="middle" font-size="5.6" font-weight="bold" fill="#ffe9b0" font-family="sans-serif">MONA PIZZA</text>
+  </svg></div></div><div id="seats"></div></section>
+<section id="mid"><div id="hint"></div><div id="trays"></div><div id="warmers"></div></section>
+<section id="bottom"></section>
+<div id="toast"></div>
+<div id="fx"></div>
+
+<div class="ov show" id="menu">
+  <h1>🍕 Pizza Pals 🍂</h1>
+  <p style="margin:0;color:#ffb066;font-weight:800">Fall Edition 🍁</p>
+  <p style="max-width:440px">Hungry animals want pizza! Tap dough, add the toppings they ask for, bake it, pour drinks, and serve. No rush: the animals are very patient. 😊</p>
+  <button class="big" id="playBtn">▶ Play</button>
+  <button class="alt" id="menuShopBtn">🛒 Shop</button>
+  <button class="alt" id="newBtn">New game</button>
+  <p id="menuInfo" style="opacity:.8"></p>
+</div>
+
+<div class="ov" id="pause">
+  <h1>⏸ Paused</h1>
+  <button class="big" id="resumeBtn">▶ Resume</button>
+  <button class="alt" id="resetBtn">🔄 Reset day</button>
+  <a class="alt" style="color:#fff7ea;text-decoration:none;border-radius:14px" href="../">← Arcade</a>
+  <p style="opacity:.7">Keys: 1-9 toppings · B bake · C/L/M/J drinks · T toss · P/Esc pause</p>
+</div>
+
+<div class="ov" id="shop">
+  <h1 id="sumTitle">🛒 Pizza Shop</h1>
+  <p id="sumText" style="margin:0"></p>
+  <p id="shopCoins" style="margin:0;font-size:22px;font-weight:900;color:#ffe14d"></p>
+  <div id="shopList"></div>
+  <button class="big" id="nextBtn">← Back</button>
+</div>
+
+<script>
+(() => {
+'use strict';
+const STEP = 1000 / 60;      // fixed 60 updates per second
+const DAY_T = 5400;          // 90 seconds
+const $ = s => document.querySelector(s);
+const rnd = n => Math.floor(Math.random() * n);
+const KH = !(window.matchMedia && matchMedia('(hover: none)').matches);   // show keyboard hints only with a keyboard
+
+// ---------- data ----------
+const TOPS = [
+  { id:'cheese', n:'Cheese',     v:3, cost:0 },
+  { id:'pep',    n:'Pepperoni',  v:4, cost:0 },
+  { id:'mush',   n:'Mushroom',   v:4, cost:0 },
+  { id:'corn',   n:'Sweetcorn',  v:5, cost:70 },
+  { id:'olive',  n:'Olives',     v:5, cost:40 },
+  { id:'carrot', n:'Carrot',     v:5, cost:60 },
+  { id:'pine',   n:'Pineapple',  v:6, cost:90 },
+  { id:'ham',    n:'Ham',        v:6, cost:100 },
+  { id:'fish',   n:'Fish',       v:7, cost:120 },
+  { id:'straw',  n:'Strawberry', v:8, cost:160 },
+  { id:'shrimp', n:'Shrimp',     v:9, cost:200 },
+];
+const TOP = Object.fromEntries(TOPS.map(t => [t.id, t]));
+const DRINKS = [
+  { id:'coke',  n:'Coke',         c:'#3a1a0a', v:6, cost:0,   key:'c' },
+  { id:'lemon', n:'Lemonade',     c:'#f4e04d', v:7, cost:80,  key:'l' },
+  { id:'shake', n:'Milkshake',    c:'#f6b6c8', v:9, cost:150, key:'m' },
+  { id:'juice', n:'Orange juice', c:'#ff9a1f', v:8, cost:200, key:'j' },
+];
+const DRINK = Object.fromEntries(DRINKS.map(d => [d.id, d]));
+const ANIMALS = [
+  { e:'🐶', fav:'pep' }, { e:'🐱', fav:'fish' }, { e:'🐰', fav:'carrot' }, { e:'🐸', fav:'mush' },
+  { e:'🐵', fav:'pine' }, { e:'🐼', fav:'olive' }, { e:'🦊', fav:'straw' }, { e:'🐷', fav:'ham' },
+  { e:'🐻', fav:'cheese' }, { e:'🐨', fav:'corn' }, { e:'🦁', fav:'pep' }, { e:'🐮', fav:'cheese' },
+];
+const CD = [600, 420, 240, 120, 0];    // robot cooldowns in ticks: 10s, 7s, 4s, 2s, none
+const cdShow = l => l >= 4 ? 'NO cooldown!' : (CD[l] / 60) + 's cooldown';
+const UPS = [
+  { k:'trays',    e:'🍕', n:'More ovens',    d:'More ovens and prep boards',     costs:[60,120,200,320], show:l => (2+l)+' ovens' },
+  { k:'warmers',  e:'🔆', n:'Pizza warmer',  d:'Keeps a baked pizza warm and never burns it', costs:[70,140,220,320], show:l => l + (l === 1 ? ' warmer' : ' warmers') },
+  { k:'auto',     e:'🤖', n:'Auto-topper',   d:'A robot adds the toppings for the next customer! Level 2 bakes it too.', costs:[1500,4000], show:l => l === 0 ? 'off' : l === 1 ? 'adds toppings' : 'toppings + baking' },
+  { k:'autoCd',   e:'⏱️', n:'Topper speed',  d:'Shorter cooldown for the Auto-topper. The last upgrade has NO cooldown!', req:'auto', costs:[250,400,600,1000], show:cdShow },
+  { k:'server',   e:'🧑‍🍳', n:'Auto-server',   d:'A robot waiter serves ready pizzas and drinks to the right animals for you!', costs:[2500], show:l => l ? 'on' : 'off' },
+  { k:'serverCd', e:'⏱️', n:'Server speed',  d:'Shorter cooldown for the Auto-server. The last upgrade has NO cooldown!', req:'server', costs:[250,400,600,1000], show:cdShow },
+  { k:'oven',     e:'🔥', n:'Hotter oven',   d:'Pizzas bake faster',             costs:[50,100,180,300], show:l => ((420-60*l)/60)+'s bake' },
+  { k:'seats',    e:'🪑', n:'More stools',   d:'Room for more animals',          costs:[100,250],        show:l => (3+l)+' stools' },
+  { k:'patience', e:'🛋️', n:'Comfy stools',  d:'Animals wait longer',            costs:[40,80,140,220],  show:l => '+'+(10*l)+'s patience' },
+  { k:'cups',     e:'🥤', n:'More cups',     d:'Pour more drinks at once',       costs:[40,80,140],      show:l => (3+l)+' cups' },
+  { k:'tips',     e:'🫙', n:'Tip jar',       d:'Bigger tips from happy animals', costs:[60,120,200],     show:l => '+'+(30*l)+'% tips' },
+];
+const DECOS = [
+  { id:'lights', e:'🍁', n:'Leaf garland',  cost:50,  html:'<div class="dec lights">' + '🍂🍁🍃🍁'.repeat(16) + '</div>' },
+  { id:'plant',  e:'🎃', n:'Pumpkins',      cost:40,  html:'<div class="dec" style="left:.5%;top:46%">🎃</div><div class="dec" style="right:.5%;top:46%">🎃</div>' },
+  { id:'clock',  e:'🕰️', n:'Wall clock',    cost:60,  html:'<div class="dec" style="left:24%;top:14%">🕰️</div>' },
+  { id:'poster', e:'🖼️', n:'Posters',       cost:70,  html:'<div class="dec" style="left:68%;top:14%">🖼️</div><div class="dec" style="left:80%;top:44%;font-size:clamp(20px,4vmin,34px)">🎨</div>' },
+  { id:'trophy', e:'🏆', n:'Trophy shelf',  cost:120, html:'<div class="dec shelf" style="left:56%;top:34%">🏆🍕🥇</div>' },
+];
+
+// ---------- save ----------
+const fresh = () => ({ coins:0, day:1, best:0, tops:['cheese','pep','mush'], drinks:['coke'], deco:[],
+  up:{trays:0,oven:0,seats:0,patience:0,cups:0,tips:0,mitts:0,warmers:0,auto:0,autoCd:0,server:0,serverCd:0} });
+let save = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem('pizzapals-save') || 'null');
+    if (s && s.up && s.tops) return Object.assign(fresh(), s, { up:Object.assign(fresh().up, s.up) });
+  } catch (e) {}
+  return fresh();
+})();
+const persist = () => { try { localStorage.setItem('pizzapals-save', JSON.stringify(save)); } catch (e) {} };
+let muted = false;
+try { muted = localStorage.getItem('pizzapals-mute') === '1'; } catch (e) {}
+
+// ---------- derived ----------
+const trayCount = () => 2 + save.up.trays;
+const seatCount = () => 3 + save.up.seats;
+const cupCount  = () => 3 + save.up.cups;
+const bakeTime  = () => 420 - 60 * save.up.oven;
+const readyWin  = () => 1500;   // 25 seconds before a pizza burns (warmers stop it)
+const warmerCount = () => save.up.warmers;
+const patBase   = () => 3600 + 600 * save.up.patience;   // about a minute of waiting, very relaxed
+const tipMult   = () => 1 + 0.3 * save.up.tips + 0.05 * save.deco.length;
+
+// ---------- drawing ----------
+function topSVG(id, x, y, r) {
+  const g = s => '<g transform="translate(' + x + ' ' + y + ') rotate(' + r + ')">' + s + '</g>';
+  switch (id) {
+    case 'cheese': return g('<ellipse rx="9" ry="5.5" fill="#f9dc6e" stroke="#e0b845" stroke-width=".8"/><ellipse cx="-2" cy="-1" rx="3" ry="1.8" fill="#fff3b0" opacity=".85"/>');
+    case 'pep':    return g('<circle r="7" fill="#b7281f" stroke="#86160f" stroke-width="1"/><circle cx="-2" cy="-2" r="1.3" fill="#e2594c"/><circle cx="2" cy="2" r="1" fill="#86160f"/><circle cx="2.5" cy="-2" r=".9" fill="#86160f"/>');
+    case 'mush':   return g('<path d="M-7 1 Q0 -9 7 1 Z" fill="#e8dcc6" stroke="#b0a080" stroke-width=".8"/><rect x="-2" y="1" width="4" height="5" rx="1.5" fill="#f6efe0" stroke="#b0a080" stroke-width=".6"/>');
+    case 'olive':  return g('<circle r="4.6" fill="#2b2b2b"/><circle r="1.8" fill="#d9a35b"/>');
+    case 'carrot': return g('<circle r="5" fill="#f08a1c" stroke="#c96a08" stroke-width=".8"/><circle r="1.8" fill="#ffc46b"/>');
+    case 'pine':   return g('<rect x="-5" y="-5" width="10" height="10" rx="2" fill="#f7d33a" stroke="#d0a516" stroke-width=".8"/><path d="M-3 -2 L3 2" stroke="#e4b01a" stroke-width=".9"/>');
+    case 'fish':   return g('<ellipse rx="7" ry="3.5" fill="#8fb0c8" stroke="#5c7f98" stroke-width=".8"/><path d="M6 0 L11 -4 L11 4 Z" fill="#8fb0c8" stroke="#5c7f98" stroke-width=".8"/><circle cx="-4" cy="-1" r=".9" fill="#222"/>');
+    case 'straw':  return g('<path d="M0 6 C-8 0 -6 -6 0 -5 C6 -6 8 0 0 6Z" fill="#e0243a" stroke="#a8122a" stroke-width=".8"/><path d="M-3 -5 L0 -8 L3 -5Z" fill="#3a9a3a"/>');
+    case 'ham':    return g('<rect x="-7" y="-5" width="14" height="10" rx="4" fill="#f4a0a8" stroke="#d27078" stroke-width=".8"/><rect x="-4" y="-2" width="5" height="2" rx="1" fill="#fbc8cc"/>');
+    case 'corn':   return g('<circle cx="-3" cy="-2" r="2.4" fill="#ffd93a"/><circle cx="2" cy="-3" r="2.4" fill="#ffd93a"/><circle cx="0" cy="2" r="2.4" fill="#f5c71a"/><circle cx="4.5" cy="2" r="2.1" fill="#ffd93a"/>');
+    case 'shrimp': return g('<path d="M-6 3 C-8 -6 4 -8 6 0 C3 -3 -2 -2 -3 3Z" fill="#ff8c5a" stroke="#d65a2a" stroke-width=".8"/>');
+  }
+  return '';
+}
+const iconSVG = id => '<svg class="ic" viewBox="-12 -12 24 24">' + topSVG(id, 0, 0, 0) + '</svg>';
+const bowlSVG = id => {
+  const pts = [[16,15,10],[27,12,80],[39,13,150],[22,17,40],[33,16,120],[45,16,300],[28,15,200],[11,17,260],[50,17,20]];
+  let h = '<svg class="bowl" viewBox="0 0 60 46"><ellipse cx="30" cy="17" rx="28" ry="8" fill="#4a5058"/>';
+  pts.forEach(q => { h += '<g transform="translate(' + q[0] + ' ' + q[1] + ') scale(.6)">' + topSVG(id, 0, 0, q[2]) + '</g>'; });
+  return h + '<path d="M2 17 Q4 45 30 45 Q56 45 58 17 Q30 27 2 17Z" fill="#9aa1ab"/><path d="M2 17 Q4 45 30 45 Q56 45 58 17 L55 17 Q52 40 30 40 Q8 40 5 17Z" fill="#6c737d"/><path d="M8 24 Q10 34 18 38" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-linecap="round"/><ellipse cx="30" cy="17" rx="28" ry="8" fill="none" stroke="#d5dae0" stroke-width="2"/></svg>';
+};
+const cupSVG = c => '<svg viewBox="0 0 24 32"><path d="M4 7 L20 7 L18 30 L6 30Z" fill="#fff" fill-opacity=".25" stroke="#fff" stroke-width="1.5"/><path d="M4.8 13 L19.2 13 L18 29 L6 29Z" fill="' + c + '"/><path d="M14 7 L18 0" stroke="#e33" stroke-width="2.2"/></svg>';
+const SPOTS = Array.from({ length:24 }, (_, i) => {
+  const a = i * 2.4, r = 8 + 28 * Math.sqrt(i / 24);
+  return [50 + r * Math.cos(a), 50 + r * Math.sin(a), (i * 47) % 360];
+});
+function pizzaSVG(t) {
+  if (t.st === 'empty') return '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#ffffff55" stroke-width="3" stroke-dasharray="8 6"/><text x="50" y="62" text-anchor="middle" font-size="36" fill="#ffffff66">+</text></svg>';
+  const st = t.st;
+  const crust = st === 'raw' ? ['#f2d9a4', '#d9b377'] : st === 'baking' ? ['#e9bf6e', '#c6923c'] : st === 'ready' ? ['#d9a04a', '#a56a24'] : ['#33261b', '#1a120b'];
+  const sauce = st === 'burnt' ? '#2a1812' : st === 'raw' ? '#d6402a' : '#bd2f1a';
+  const hasCheese = t.tops.includes('cheese');
+  const cheese = st === 'raw' ? '#f6e7a6' : st === 'burnt' ? '#4a3a22' : '#f6d462';
+  let h = '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="' + crust[0] + '" stroke="' + crust[1] + '" stroke-width="2"/>' +
+          '<circle cx="50" cy="50" r="40" fill="' + sauce + '"/>';
+  if (hasCheese) h += '<circle cx="50" cy="50" r="38" fill="' + cheese + '" stroke="' + (st === 'raw' ? '#e8d890' : '#e0b030') + '" stroke-width="2.5" stroke-dasharray="16 5"/>';
+  if (st === 'ready' || st === 'burnt') {
+    const bub = st === 'burnt' ? '#120c08' : '#c98a2a';
+    for (let i = 0; i < 9; i++) { const p = SPOTS[(i * 5 + 3) % 24]; h += '<circle cx="' + (50 + (p[0] - 50) * .9) + '" cy="' + (50 + (p[1] - 50) * .9) + '" r="' + (2 + i % 3) + '" fill="' + bub + '" opacity=".5"/>'; }
+  }
+  const T = t.tops.length, per = T <= 2 ? 6 : 4;
+  t.tops.forEach((id, j) => { for (let k = 0; k < per; k++) { const p = SPOTS[(k * T + j) % 24]; h += topSVG(id, p[0].toFixed(1), p[1].toFixed(1), p[2]); } });
+  if (st === 'burnt') h += '<circle cx="50" cy="50" r="47" fill="#000" opacity=".55"/>';
+  if (st === 'ready') for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; h += '<line x1="' + (50 - 45 * Math.cos(a)) + '" y1="' + (50 - 45 * Math.sin(a)) + '" x2="' + (50 + 45 * Math.cos(a)) + '" y2="' + (50 + 45 * Math.sin(a)) + '" stroke="#0000002e" stroke-width="1"/>'; }
+  return h + '</svg>';
+}
+
+// ---------- sound ----------
+let ac = null;
+function tone(f, d, type = 'sine', v = .15, when = 0, to = null) {
+  const t = ac.currentTime + when, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + .02);
+}
+function sfx(n) {
+  if (muted) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    if (n === 'pop')  tone(500, .1, 'sine', .15, 0, 900);
+    if (n === 'pour') tone(300, .6, 'sine', .08, 0, 700);
+    if (n === 'add')  tone(760, .07, 'triangle', .12);
+    if (n === 'bake') { tone(220, .25, 'square', .08); tone(330, .25, 'square', .08, .12); }
+    if (n === 'ding') { tone(1175, .2, 'sine', .18); tone(1568, .35, 'sine', .18, .12); }
+    if (n === 'coin') { tone(988, .1, 'square', .1); tone(1319, .25, 'square', .1, .09); }
+    if (n === 'bad')  tone(260, .25, 'sine', .08, 0, 200);
+    if (n === 'burn') tone(120, .5, 'sawtooth', .12, 0, 60);
+    if (n === 'rush') { tone(600, .25, 'square', .08, 0, 900); tone(900, .25, 'square', .08, .28, 600); }
+    if (n === 'fan')  [523, 659, 784, 1047].forEach((f, i) => tone(f, .25, 'triangle', .15, i * .11));
+  } catch (e) {}
+}
+
+// ---------- effects ----------
+const fx = $('#fx');
+function confetti(n = 24) {
+  const list = ['🎉','🍂','🍕','🍁','🪙','🍃'];
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement('span');
+    s.className = 'fall'; s.textContent = list[rnd(list.length)];
+    s.style.left = Math.random() * 100 + 'vw';
+    s.style.setProperty('--dx', (Math.random() * 200 - 100) + 'px');
+    s.style.animationDelay = Math.random() * .4 + 's';
+    s.addEventListener('animationend', () => s.remove());
+    fx.appendChild(s);
+  }
+}
+function floatText(el, text) {
+  const r = el.getBoundingClientRect(), s = document.createElement('span');
+  s.className = 'float'; s.textContent = text;
+  s.style.left = (r.left + r.width / 2) + 'px'; s.style.top = (r.top + 10) + 'px';
+  s.addEventListener('animationend', () => s.remove());
+  fx.appendChild(s);
+}
+let toastT = 0;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200);
+}
+let bannerT = 0;
+function banner(msg) {
+  const b = $('#banner'); b.textContent = msg; b.classList.add('show');
+  clearTimeout(bannerT); bannerT = setTimeout(() => b.classList.remove('show'), 2600);
+}
+function renderDecor() {
+  const d = $('#decor');
+  d.querySelectorAll('.dec').forEach(e => e.remove());
+  DECOS.filter(x => save.deco.includes(x.id)).forEach(x => d.insertAdjacentHTML('beforeend', x.html));
+}
+
+// ---------- game state ----------
+let phase = 'menu', paused = false, G = null, shopMode = 'free';
+const seatsEl = $('#seats'), traysEl = $('#trays'), bottomEl = $('#bottom'), roomEl = $('#room');
+const newTray = () => ({ st:'empty', tops:[], p:0, w:0 });
+const newCup = () => ({ st:'empty', p:0, type:'coke' });
+const newWarm = () => ({ st:'empty', tops:[] });
+
+function newDay() {
+  G = { target:Math.min(5 + 2 * save.day, 20), spawned:0, vipSeen:false, autoCd:0, srvCd:0, seats:Array(seatCount()).fill(null), trays:[], cups:[], warm:[], sel:-1, selW:-1, cup:-1, spawn:30,
+        combo:0, earned:0, served:0, lost:0 };
+  for (let i = 0; i < trayCount(); i++) G.trays.push(newTray());
+  for (let i = 0; i < cupCount(); i++) G.cups.push(newCup());
+  for (let i = 0; i < warmerCount(); i++) G.warm.push(newWarm());
+  buildSeats(); buildTrays(); buildBottom(); buildWarmers();
+  phase = 'play'; paused = false;
+  ['menu','pause','shop'].forEach(id => $('#' + id).classList.remove('show'));
+  banner('Day ' + save.day + ' — open for business! 🍕');
+}
+function syncShop() {            // apply things bought mid-day
+  while (G.trays.length < trayCount()) G.trays.push(newTray());
+  while (G.seats.length < seatCount()) G.seats.push(null);
+  while (G.cups.length < cupCount()) G.cups.push(newCup());
+  while (G.warm.length < warmerCount()) G.warm.push(newWarm());
+  buildSeats(); buildTrays(); buildBottom(); buildWarmers();
+}
+function buildSeats() {
+  seatsEl.innerHTML = '';
+  G.seats.forEach((_, i) => {
+    const d = document.createElement('div'); d.className = 'seat empty'; d.dataset.i = i; d._sig = 'x';
+    seatsEl.appendChild(d);
+  });
+}
+function buildTrays() {
+  traysEl.innerHTML = '';
+  G.trays.forEach((_, i) => {
+    const d = document.createElement('div'); d.className = 'tray'; d.dataset.i = i; d._sig = 'x';
+    d.innerHTML = '<div class="oven"><div class="chim"></div><div class="dome"><div class="dial"></div></div><div class="arch"><div class="win"></div></div><div class="obase"></div></div><div class="board"><div class="pizza"></div></div><div class="tl"></div><div class="pbar"><i></i></div>';
+    traysEl.appendChild(d);
+  });
+}
+function buildWarmers() {
+  const el = $('#warmers'); el.innerHTML = '';
+  G.warm.forEach((_, i) => {
+    const d = document.createElement('div'); d.className = 'warmer'; d.dataset.i = i; d._sig = 'x';
+    d.innerHTML = '<div class="lamp">🔆</div><div class="wplate"><div class="pizza"></div></div><div class="tl"></div>';
+    el.appendChild(d);
+  });
+}
+function buildBottom() {
+  bottomEl.innerHTML = '';
+  save.tops.forEach((id, i) => {
+    const b = document.createElement('button');
+    b.className = 'tb'; b.dataset.t = id; b.innerHTML = bowlSVG(id) + '<small>' + (KH && i < 9 ? (i + 1) + ' ' : '') + TOP[id].n + '</small>';
+    bottomEl.appendChild(b);
+  });
+  save.drinks.forEach(id => {
+    const d = DRINK[id], b = document.createElement('button');
+    b.className = 'tb drink'; b.dataset.d = id; b.innerHTML = cupSVG(d.c) + '<small>' + (KH ? d.key.toUpperCase() + ' ' : '') + d.n + '</small>';
+    bottomEl.appendChild(b);
+  });
+  let cups = '<div id="cups">';
+  G.cups.forEach((_, i) => { cups += '<div class="cup" data-c="' + i + '"><i></i></div>'; });
+  bottomEl.insertAdjacentHTML('beforeend', cups + '</div>' + (save.up.auto ? '<button class="act" id="auto" style="background:#2a6fdb">🤖 Auto</button>' : '') + (save.up.server ? '<div class="chip" id="srv" style="color:#fff">🧑‍🍳 Server</div>' : '') + '<button class="act" id="bake">🔥 Bake!</button><button class="act" id="bakeall" style="background:#d4380d">🔥🔥 Bake all</button><button class="act" id="trash" style="background:#555">🗑 Toss</button>');
+}
+
+// ---------- orders ----------
+function makeOrder(a) {
+  const un = save.tops, maxN = Math.min(save.day < 3 ? 1 : save.day < 6 ? 2 : 3, un.length);
+  const n = 1 + rnd(maxN), pool = un.slice(), out = [];
+  if (un.includes(a.fav) && Math.random() < .6) { out.push(a.fav); pool.splice(pool.indexOf(a.fav), 1); }
+  while (out.length < n && pool.length) out.push(pool.splice(rnd(pool.length), 1)[0]);
+  return out;
+}
+function spawnCustomer(i) {
+  const vip = save.day >= 2 && !G.vipSeen && Math.random() < .07;      // rare, at most one per day
+  const a = vip ? { e:'🐆', fav:null } : ANIMALS[rnd(ANIMALS.length)];
+  const golden = !vip && save.day >= 2 && Math.random() < .08;
+  const order = makeOrder(a);
+  if (vip) { const pool = save.tops.filter(id => !order.includes(id)); while (order.length < 2 && pool.length) order.push(pool.splice(rnd(pool.length), 1)[0]); }
+  const drink = (vip || Math.random() < (save.day < 2 ? .3 : .5)) ? save.drinks[rnd(save.drinks.length)] : null;
+  // bigger order = more patience
+  const pat = Math.round(patBase() * (1 + .3 * (order.length - 1) + (drink ? .15 : 0)) * (golden ? .7 : vip ? 1.5 : 1));
+  G.seats[i] = { e:a.e, order, drink, gotPizza:false, gotDrink:false, pat, max:pat, golden, vip, leave:0, mood:'' };
+  sfx('pop');
+  if (vip) { G.vipSeen = true; banner('🐆 A VIP Black Jaguar is here! Serve them for 100 coins!'); sfx('rush'); }
+  else if (golden) banner('🌟 A golden customer! Triple coins!');
+}
+const sameOrder = (a, b) => a.length === b.length && a.slice().sort().join() === b.slice().sort().join();
+
+// ---------- actions ----------
+function selTray() { return G.sel >= 0 ? G.trays[G.sel] : null; }
+function selPizza() { return G.selW >= 0 ? G.warm[G.selW] : selTray(); }   // a baked pizza from an oven or a warmer
+function clickTray(i) {
+  const t = G.trays[i]; G.cup = -1; G.selW = -1;
+  if (t.st === 'empty') { t.st = 'raw'; t.tops = []; G.sel = i; sfx('pop'); }
+  else if (t.st === 'burnt') { t.st = 'empty'; t.tops = []; if (G.sel === i) G.sel = -1; sfx('pop'); }
+  else if (t.st === 'ready' && G.sel === i) G.sel = -1;
+  else G.sel = i;
+}
+function addTopping(id) {
+  let t = selTray();
+  if (!t || t.st !== 'raw') {
+    const e = G.trays.findIndex(x => x.st === 'empty');
+    if (e < 0) { toast('All ovens are busy! Serve or toss one 🍕'); return; }
+    G.sel = e; t = G.trays[e]; t.st = 'raw'; t.tops = [];
+  }
+  G.cup = -1; G.selW = -1;
+  if (t.tops.includes(id)) { toast('Already on there! Toppings can not come off 😉'); return; }
+  if (t.tops.length >= 4) { toast('That is plenty of toppings! (max 4)'); return; }
+  t.tops.push(id); sfx('add');
+}
+function autoTop() {
+  const lvl = save.up.auto; if (!lvl) return;
+  if (G.autoCd > 0) { toast('🤖 Recharging... ' + Math.ceil(G.autoCd / 60) + 's'); return; }
+  const made = [...G.trays, ...G.warm].filter(x => x.st !== 'empty' && x.tops.length).map(x => x.tops);
+  const waiting = G.seats.filter(s => s && !s.leave && !s.gotPizza).sort((a, b) => a.pat / a.max - b.pat / b.max);
+  let target = null;
+  for (const c of waiting) {
+    const k = made.findIndex(m => sameOrder(m, c.order));
+    if (k >= 0) made.splice(k, 1); else if (!target) target = c;
+  }
+  if (!target) { toast('🤖 Nobody new needs a pizza right now!'); return; }
+  let t = selTray();
+  if (!(t && t.st === 'raw' && !t.tops.length)) {
+    const e = G.trays.findIndex(x => x.st === 'empty');
+    if (e < 0) { toast('All ovens are busy! Serve or toss one 🍕'); return; }
+    G.sel = e; t = G.trays[e]; t.st = 'raw';
+  }
+  G.cup = -1; G.selW = -1;
+  t.tops = target.order.slice(); sfx('add'); G.autoCd = CD[save.up.autoCd];
+  if (lvl >= 2) { t.st = 'baking'; t.p = 0; sfx('bake'); toast('🤖 Made and baking!'); }
+  else toast('🤖 Toppings done! Tap Bake!');
+}
+function bake() {
+  const t = selTray();
+  if (!t || t.st !== 'raw') { toast('Tap a board with dough first!'); return; }
+  if (!t.tops.length) { toast('Add a topping first! 🧀'); return; }
+  t.st = 'baking'; t.p = 0; sfx('bake');
+}
+function bakeAll() {
+  const raws = G.trays.filter(t => t.st === 'raw' && t.tops.length);
+  if (!raws.length) { toast('No dough with toppings to bake yet! 🍕'); return; }
+  raws.forEach(t => { t.st = 'baking'; t.p = 0; });
+  sfx('bake'); toast('Baking ' + raws.length + ' pizza' + (raws.length > 1 ? 's' : '') + '! 🔥');
+}
+function pour(id) {
+  const i = G.cups.findIndex(c => c.st === 'empty');
+  if (i < 0) { toast('All cups are full or filling! 🥤'); return; }
+  Object.assign(G.cups[i], { st:'fill', p:0, type:id }); sfx('pour');
+}
+function clickCup(i) {
+  const c = G.cups[i];
+  if (c.st === 'ready') { G.cup = G.cup === i ? -1 : i; G.sel = -1; G.selW = -1; }
+  else toast(c.st === 'fill' ? 'Still pouring... 🥤' : 'Tap a drink button to fill a cup!');
+}
+function trash() {
+  if (G.cup >= 0) { G.cups[G.cup].st = 'empty'; G.cup = -1; sfx('pop'); return; }
+  if (G.selW >= 0) { const w = G.warm[G.selW]; w.st = 'empty'; w.tops = []; G.selW = -1; sfx('pop'); return; }
+  const t = selTray();
+  if (!t || t.st === 'empty') { toast('Pick a pizza or drink to toss'); return; }
+  t.st = 'empty'; t.tops = []; G.sel = -1; sfx('pop');
+}
+function clickWarm(i) {
+  const w = G.warm[i], t = selTray();
+  if (w.st === 'empty') {
+    if (t && t.st === 'ready') { w.st = 'ready'; w.tops = t.tops; t.st = 'empty'; t.tops = []; G.sel = -1; sfx('pop'); toast('Nice and warm! 🔆 It will not burn in here.'); }
+    else toast('Tap a baked pizza first, then tap a warmer! 🔆');
+  } else { G.cup = -1; if (G.selW === i) G.selW = -1; else { G.selW = i; G.sel = -1; } }
+}
+function finishCheck(s) {
+  if (s.gotPizza && (!s.drink || s.gotDrink)) {
+    s.leave = 50; s.mood = 'happy';
+    if (s.vip) {
+      save.coins += 100; G.earned += 100; persist(); confetti(40); sfx('fan');
+      const el = seatsEl.children[G.seats.indexOf(s)]; if (el) floatText(el, '+100 🪙 VIP!');
+      banner('🐆 The VIP loved it! +100 coins!');
+    }
+  }
+}
+function rewardPizza(s, el) {
+    const base = 8 + s.order.reduce((a, id) => a + TOP[id].v, 0);
+    const tip = Math.round(base * .5 * (s.pat / s.max) * tipMult());
+    G.combo++;
+    const mult = 1 + Math.min(G.combo - 1, 9) * .1;
+    let gain = Math.round((base + tip) * mult * (s.golden ? 3 : 1));
+    if (G.combo % 5 === 0) { gain += 25; confetti(30); banner('🎉 Combo x' + G.combo + '! +25 bonus!'); sfx('fan'); }
+    save.coins += gain; G.earned += gain; G.served++; persist();
+    s.gotPizza = true; finishCheck(s); sfx('coin');
+    floatText(el, '+' + gain + ' 🪙' + (tip > 3 ? ' 💖' : ''));
+}
+function autoServe() {          // the robot waiter: returns true if it served something
+  const pizzas = [...G.trays.filter(t => t.st === 'ready'), ...G.warm.filter(w => w.st === 'ready')];
+  for (const src of pizzas) {
+    const i = G.seats.findIndex(x => x && !x.leave && !x.gotPizza && sameOrder(src.tops, x.order));
+    if (i < 0) continue;
+    src.st = 'empty'; src.tops = [];
+    if (G.sel >= 0 && G.trays[G.sel] === src) G.sel = -1;
+    if (G.selW >= 0 && G.warm[G.selW] === src) G.selW = -1;
+    rewardPizza(G.seats[i], seatsEl.children[i]); return true;
+  }
+  for (let ci = 0; ci < G.cups.length; ci++) {
+    const c = G.cups[ci]; if (c.st !== 'ready') continue;
+    const i = G.seats.findIndex(x => x && !x.leave && x.drink === c.type && !x.gotDrink);
+    if (i < 0) continue;
+    const x = G.seats[i]; c.st = 'empty'; if (G.cup === ci) G.cup = -1; x.gotDrink = true;
+    const g = Math.round(DRINK[c.type].v * (x.golden ? 3 : 1)); save.coins += g; G.earned += g; persist();
+    sfx('coin'); floatText(seatsEl.children[i], '+' + g + ' 🪙 🥤'); finishCheck(x); return true;
+  }
+  return false;
+}
+function clickSeat(i) {
+  const s = G.seats[i]; if (!s || s.leave) return;
+  const el = seatsEl.children[i];
+  if (G.cup >= 0 && G.cups[G.cup].st === 'ready') {
+    const c = G.cups[G.cup];
+    if (!s.drink || s.gotDrink) { toast(s.gotDrink ? 'They already have a drink! 🥤' : 'They did not order a drink'); return; }
+    if (c.type !== s.drink) { toast('Wrong drink! They want ' + DRINK[s.drink].n + ' 🥤'); return; }
+    c.st = 'empty'; G.cup = -1; s.gotDrink = true;
+    const g = Math.round(DRINK[c.type].v * (s.golden ? 3 : 1)); save.coins += g; G.earned += g; persist();
+    sfx('coin'); floatText(el, '+' + g + ' 🪙 🥤'); finishCheck(s); return;
+  }
+  const t = selPizza();
+  if (!t || t.st !== 'ready') {
+    toast(t && t.st === 'raw' ? 'Bake it first! 🔥' : 'Tap a baked pizza or a drink first!'); return;
+  }
+  if (s.gotPizza) { toast('They already have their pizza! 🍕'); return; }
+  const made = t.tops;
+  if (sameOrder(made, s.order)) {
+    t.st = 'empty'; t.tops = []; G.sel = -1; G.selW = -1;
+    rewardPizza(s, el);
+  } else {
+    sfx('bad');
+    el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+    toast('Hmm, not quite! 🙂 They want: ' + s.order.map(id => TOP[id].n).join(' + ') + '. Tap 🗑 Toss to try again.');
+  }
+}
+
+// ---------- update (fixed step) ----------
+function update() {
+  if (G.autoCd > 0) G.autoCd--;
+  if (G.srvCd > 0) G.srvCd--;
+  if (save.up.server && G.srvCd <= 0 && autoServe()) G.srvCd = CD[save.up.serverCd];
+  if (G.spawned < G.target && --G.spawn <= 0) {
+    const free = [];
+    G.seats.forEach((s, i) => { if (!s) free.push(i); });
+    if (free.length) {
+      spawnCustomer(free[rnd(free.length)]); G.spawned++;
+      if (G.spawned === G.target) banner('🔔 Here comes the last customer!');
+      G.spawn = Math.max(240, 360 + rnd(240) - Math.min(save.day * 10, 120));
+    } else G.spawn = 60;
+  }
+  G.seats.forEach((s, i) => {
+    if (!s) return;
+    if (s.leave) { if (--s.leave <= 0) G.seats[i] = null; return; }
+    if (--s.pat <= 0) {          // they just wander off sleepy, no penalty
+      s.leave = 50; s.mood = 'sleepy'; G.lost++; sfx('bad');
+      floatText(seatsEl.children[i], '😴 See you later!');
+    }
+  });
+  G.cups.forEach(c => { if (c.st === 'fill' && ++c.p >= 60) { c.st = 'ready'; sfx('add'); } });
+  G.trays.forEach(t => {
+    if (t.st === 'baking' && ++t.p >= bakeTime()) { t.st = 'ready'; t.w = readyWin(); sfx('ding'); }
+    else if (t.st === 'ready' && --t.w <= 0) { t.st = 'burnt'; sfx('burn'); toast('Oh no, a pizza burnt! Tap it to toss. 🔥 (Warmers stop this!)'); }
+  });
+  if (G.spawned >= G.target && G.seats.every(s => !s)) endDay();
+}
+
+// ---------- shop ----------
+function endDay() {
+  phase = 'shop';
+  save.best = Math.max(save.best, G.earned); save.day++; persist();
+  sfx('fan'); confetti(40);
+  openShop('day', 'Day ' + (save.day - 1) + ' done! 🎉',
+    '🍕 Served ' + G.served + ' · 🪙 Earned ' + G.earned + ' · 🏆 Best day ' + save.best);
+}
+function openShop(mode, title, text) {
+  shopMode = mode;
+  $('#sumTitle').textContent = title || '🛒 Pizza Shop';
+  $('#sumText').textContent = text || 'Spend your coins on new stuff!';
+  $('#nextBtn').textContent = mode === 'day' ? 'Start Day ' + save.day + ' ▶' : '← Back';
+  if (mode === 'free' && phase === 'play') paused = true;
+  buildShop(); $('#shop').classList.add('show');
+}
+function closeShop() {
+  $('#shop').classList.remove('show');
+  if (phase === 'play') { syncShop(); $('#pause').classList.remove('show'); paused = false; }
+  else { menuInfo(); renderHud(); }
+}
+function buildShop() {
+  $('#shopCoins').textContent = '🪙 ' + save.coins;
+  const list = $('#shopList'); list.innerHTML = '';
+  const head = t => { const h = document.createElement('h3'); h.textContent = t; list.appendChild(h); };
+  const add = (title, desc, price, buy) => {
+    const d = document.createElement('div'); d.className = 'item';
+    d.innerHTML = '<b>' + title + '</b><small>' + desc + '</small>';
+    const b = document.createElement('button');
+    b.textContent = price == null ? '✅ Maxed!' : '🪙 ' + price;
+    b.disabled = price == null || save.coins < price;
+    b.onclick = () => { if (save.coins >= price) { save.coins -= price; buy(); persist(); sfx('coin'); buildShop(); renderHud(); renderDecor(); } };
+    d.appendChild(b); list.appendChild(d);
+  };
+  head('🔧 Upgrades');
+  UPS.filter(u => !u.req || save.up[u.req] > 0).forEach(u => {
+    const l = save.up[u.k], c = u.costs[l];
+    add(u.e + ' ' + u.n, u.d + '<br>Now: ' + u.show(l) + (c != null ? ' → ' + u.show(l + 1) : ''), c == null ? null : c, () => { save.up[u.k]++; });
+  });
+  const lt = TOPS.filter(t => !save.tops.includes(t.id));
+  if (lt.length) head('🍕 Toppings');
+  lt.forEach(t => add(iconSVG(t.id) + ' ' + t.n, 'Animals will start ordering it! Worth ' + t.v + ' coins.', t.cost, () => { save.tops.push(t.id); }));
+  const ld = DRINKS.filter(d => !save.drinks.includes(d.id));
+  if (ld.length) head('🥤 Drinks');
+  ld.forEach(d => add(cupSVG(d.c) + ' ' + d.n, 'Animals will start ordering it! Worth ' + d.v + ' coins.<br>Key: ' + d.key.toUpperCase(), d.cost, () => { save.drinks.push(d.id); }));
+  const lc = DECOS.filter(x => !save.deco.includes(x.id));
+  if (lc.length) head('🏠 Decorations (+5% tips each)');
+  lc.forEach(x => add(x.e + ' ' + x.n, 'Makes your diner look amazing and animals tip more!', x.cost, () => { save.deco.push(x.id); }));
+}
+
+// ---------- render ----------
+function setText(el, v) { if (el.textContent !== v) el.textContent = v; }
+function renderHud() {
+  setText($('#hCoins'), '🪙 ' + save.coins);
+  if (!G) return;
+  setText($('#hDay'), 'Day ' + save.day);
+  setText($('#hClock'), '👥 ' + Math.min(G.served + G.lost, G.target) + ' / ' + G.target);
+  const m = 1 + Math.min(Math.max(G.combo - 1, 0), 9) * .1;
+  setText($('#hCombo'), '🔥 Combo ' + G.combo);
+}
+const LABEL = { empty:'Tap for dough', raw:'Add toppings', baking:'Baking...', ready:'READY! Serve it', burnt:'Burnt! Tap to toss' };
+function bubbleHTML(s) {
+  if (s.leave) return s.mood === 'happy' ? '💖' : '💤';
+  let h = (s.vip ? '<span class="vipchip">VIP</span>' : '') + (s.gotPizza ? '✅' : s.order.map(iconSVG).join(''));
+  if (s.drink) h += '<span class="sep"></span>' + (s.gotDrink ? '✅' : '<svg class="ic" viewBox="0 0 24 32">' + cupSVG(DRINK[s.drink].c).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '') + '</svg>');
+  return h;
+}
+function render() {
+  renderHud();
+  if (!G) return;
+  G.seats.forEach((s, i) => {
+    const el = seatsEl.children[i]; if (!el) return;
+    const sig = s ? [s.e, s.order.join(), s.drink, s.gotPizza, s.gotDrink, s.golden, s.vip, s.leave ? s.mood : '', s.pat < s.max * .33 ? 'mad' : ''].join('|') : '';
+    if (el._sig !== sig) {
+      el._sig = sig;
+      if (!s) { el.className = 'seat empty'; el.innerHTML = '<div class="bubble"></div><div class="animal">🐶</div><div class="counter"><div class="bar"><i></i></div></div><div class="stool"></div>'; }
+      else {
+        const face = s.leave ? (s.mood === 'happy' ? s.e : '😴') : (s.pat < s.max * .25 ? s.e + '🥺' : s.e);
+        el.className = 'seat' + (s.golden ? ' gold' : '') + (s.vip ? ' vip' : '') + (s.leave ? ' leaving' : '');
+        el.innerHTML = '<div class="bubble">' + bubbleHTML(s) + '</div><div class="animal">' + face + '</div>' + (s.golden ? '<div class="crown">👑</div>' : '') +
+          '<div class="counter"><div class="bar"><i></i></div></div><div class="stool"></div>';
+      }
+    }
+    if (s) {
+      const f = Math.max(0, s.pat / s.max), bar = el.querySelector('.bar i');
+      if (bar) { bar.style.width = (f * 100) + '%'; bar.style.background = f > .5 ? '#5bd65b' : f > .25 ? '#ffd24d' : '#ff4d4d'; }
+    }
+  });
+  const selT = selPizza(), selReady = !!selT && selT.st === 'ready', cupReady = G.cup >= 0 && G.cups[G.cup].st === 'ready';
+  G.seats.forEach((s, i) => { const e = seatsEl.children[i]; if (e) e.classList.toggle('want', !!s && !s.leave && ((selReady && !s.gotPizza) || (cupReady && !!s.drink && !s.gotDrink))); });
+  G.trays.forEach((t, i) => {
+    const hot = t.st === 'ready' && t.w < readyWin() * .3;
+    const el = traysEl.children[i], sig = t.st + '|' + t.tops.join() + '|' + hot;
+    if (el._sig !== sig) {
+      el._sig = sig;
+      const pz = el.querySelector('.pizza'); pz.innerHTML = pizzaSVG(t);
+      const inOven = t.st === 'baking' || t.st === 'ready' || t.st === 'burnt';
+      (inOven ? el.querySelector('.win') : el.querySelector('.board')).appendChild(pz);
+      el.querySelector('.oven').className = 'oven ' + t.st;
+      setText(el.querySelector('.tl'), hot ? 'Hurry! Getting hot! 🔥' : LABEL[t.st]);
+    }
+    el.classList.toggle('sel', i === G.sel);
+    el.classList.toggle('nudge', t.st === 'ready' && i !== G.sel);
+    const bar = el.querySelector('.pbar i');
+    let w = 0, burn = false;
+    if (t.st === 'baking') w = t.p / bakeTime();
+    else if (t.st === 'ready') { w = t.w / readyWin(); burn = true; }
+    bar.style.width = (w * 100) + '%'; bar.className = burn ? 'burn' : '';
+  });
+  G.warm.forEach((w, i) => {
+    const el = $('#warmers').children[i]; if (!el) return;
+    const sig = w.st + '|' + w.tops.join();
+    if (el._sig !== sig) {
+      el._sig = sig;
+      el.querySelector('.pizza').innerHTML = pizzaSVG({ st:w.st === 'empty' ? 'empty' : 'ready', tops:w.tops });
+      setText(el.querySelector('.tl'), w.st === 'empty' ? 'Warmer: keep it warm' : 'Warm! Tap to pick up');
+      el.classList.toggle('full', w.st !== 'empty');
+    }
+    el.classList.toggle('sel', i === G.selW);
+  });
+  G.cups.forEach((c, i) => {
+    const ce = bottomEl.querySelector('.cup[data-c="' + i + '"]'); if (!ce) return;
+    const cn = 'cup ' + c.st + (G.cup === i ? ' sel' : ''); if (ce.className !== cn) ce.className = cn;
+    const li = ce.firstChild;
+    li.style.height = (c.st === 'fill' ? c.p / 60 * 100 : c.st === 'ready' ? 100 : 0) + '%';
+    const col = DRINK[c.type].c; if (li._c !== col) { li._c = col; li.style.background = col; }
+  });
+  const st = selTray();
+  bottomEl.querySelectorAll('.tb[data-t]').forEach(b => b.classList.toggle('on', !!st && st.st === 'raw' && st.tops.includes(b.dataset.t)));
+  const au = $('#auto'); if (au) { setText(au, G.autoCd > 0 ? '🤖 Auto ' + Math.ceil(G.autoCd / 60) + 's' : '🤖 Auto'); au.style.opacity = G.autoCd > 0 ? .55 : 1; }
+  const sv = $('#srv'); if (sv) setText(sv, G.srvCd > 0 ? '🧑‍🍳 Server ' + Math.ceil(G.srvCd / 60) + 's' : '🧑‍🍳 Server ready');
+  const bk = $('#bake'); if (bk) bk.classList.toggle('go', !!st && st.st === 'raw' && st.tops.length > 0);
+  const ba = $('#bakeall'); if (ba) ba.classList.toggle('go', G.trays.filter(x => x.st === 'raw' && x.tops.length).length > 1);
+  setText($('#hint'), hintText());
+}
+function hintText() {
+  const waiting = G.seats.filter(s => s && !s.leave && (!s.gotPizza || (s.drink && !s.gotDrink)));
+  const t = selTray();
+  if (G.cup >= 0 && G.cups[G.cup].st === 'ready') return '👆 Tap the animal who wants this drink!';
+  if (G.selW >= 0) return '👆 Tap an animal to give them the pizza!';
+  if (t && t.st === 'ready') return G.warm.some(w => w.st === 'empty') ? '👆 Tap an animal, or tap a warmer 🔆 to keep it warm!' : '👆 Tap an animal to give them the pizza!';
+  if (t && t.st === 'raw') {
+    if (t.tops.length) return G.trays.filter(x => x.st === 'raw' && x.tops.length).length > 1 ? '🔥 Tap Bake all to bake every pizza!' : '🔥 Tap the big Bake button!';
+    const w = waiting.find(x => !x.gotPizza);
+    return w ? '🧀 Add what is in the bubble: ' + w.order.map(id => TOP[id].n).join(' + ') : '🧀 Add some toppings!';
+  }
+  if (t && t.st === 'baking') return '⏳ Yum, it is baking...';
+  if (G.trays.some(x => x.st === 'ready')) return '✨ A pizza is ready! Tap it!';
+  if (G.cups.some(c => c.st === 'ready') && waiting.some(x => x.drink && !x.gotDrink)) return '🥤 Tap a full cup, then an animal!';
+  if (waiting.some(x => !x.gotPizza)) return '👆 Tap a board to make dough!';
+  if (waiting.some(x => x.drink && !x.gotDrink)) return '🥤 Tap a drink button to pour it!';
+  return '😊 Waiting for hungry animals...';
+}
+
+// ---------- loop ----------
+let last = performance.now(), acc = 0;
+function frame(now) {
+  acc += Math.min(now - last, 250); last = now;
+  if (phase === 'play' && !paused) {
+    while (acc >= STEP && phase === 'play') { update(); acc -= STEP; }
+  } else acc = 0;
+  roomEl.classList.toggle('still', paused);
+  render();
+  requestAnimationFrame(frame);
+}
+function buildBackdrop() {
+  const d = $('#decor');
+  const people = ['👧','👦','👵','👴','🧑‍🦱','👩‍🦰','🧔','👩','🧒'], food = ['🍕','🥤','🍕','🍝','🍰'];
+  [17, 27, 70, 80].forEach(x => {
+    d.insertAdjacentHTML('beforeend', '<div class="bgt" style="left:' + x + '%"><span class="pp" style="animation-delay:-' + (Math.random() * 3).toFixed(1) + 's">' + people[rnd(people.length)] + '</span><div class="tb2">' + food[rnd(food.length)] + '</div><div class="leg"></div></div>');
+  });
+  d.insertAdjacentHTML('beforeend', '<div class="beam" style="left:5%"></div><div class="beam" style="right:5%"></div><div class="chalk">MENU<br>🍕 🥤 🍰</div><div class="pend" style="left:28%"></div><div class="pend" style="left:72%"></div>');
+  const says = ['😋','💬','😄','🍕','👍','🎶','Yum!','Hi!'];
+  setInterval(() => {
+    if (paused) return;
+    const ts = d.querySelectorAll('.bgt'), t = ts[rnd(ts.length)]; if (!t) return;
+    const b = document.createElement('span'); b.className = 'say'; b.textContent = says[rnd(says.length)];
+    b.addEventListener('animationend', () => b.remove()); t.appendChild(b);
+  }, 2600);
+}
+
+// ---------- input ----------
+seatsEl.addEventListener('click', e => { const s = e.target.closest('.seat'); if (s && phase === 'play' && !paused) clickSeat(+s.dataset.i); });
+traysEl.addEventListener('click', e => { const t = e.target.closest('.tray'); if (t && phase === 'play' && !paused) clickTray(+t.dataset.i); });
+$('#warmers').addEventListener('click', e => { const w = e.target.closest('.warmer'); if (w && phase === 'play' && !paused) clickWarm(+w.dataset.i); });
+bottomEl.addEventListener('click', e => {
+  if (phase !== 'play' || paused) return;
+  const cup = e.target.closest('.cup');
+  if (cup) { clickCup(+cup.dataset.c); return; }
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.t) addTopping(b.dataset.t);
+  else if (b.dataset.d) pour(b.dataset.d);
+  else if (b.id === 'bake') bake();
+  else if (b.id === 'bakeall') bakeAll();
+  else if (b.id === 'auto') autoTop();
+  else if (b.id === 'trash') trash();
+});
+const shopOpen = () => $('#shop').classList.contains('show');
+function setPause(p) {
+  if (phase !== 'play' || shopOpen()) return;
+  paused = p; $('#pause').classList.toggle('show', p);
+}
+$('#pauseBtn').onclick = () => setPause(!paused);
+$('#resumeBtn').onclick = () => setPause(false);
+let rsure = 0;
+$('#resetBtn').onclick = () => {
+  const btn = $('#resetBtn');
+  if (!rsure) { rsure = 1; btn.textContent = 'Tap again to start this day over'; setTimeout(() => { rsure = 0; btn.textContent = '🔄 Reset day'; }, 3000); return; }
+  rsure = 0; btn.textContent = '🔄 Reset day';
+  if (G) { save.coins = Math.max(0, save.coins - G.earned); persist(); }   // coins from the unfinished day go back
+  sfx('pop'); newDay();
+};
+$('#shopBtn').onclick = () => { if (phase === 'play' && !shopOpen()) { $('#pause').classList.remove('show'); openShop('free'); } else if (phase === 'menu') openShop('free'); };
+$('#menuShopBtn').onclick = () => openShop('free');
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
+window.addEventListener('keydown', e => {
+  if (shopOpen()) return;
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { setPause(!paused); return; }
+  if (phase !== 'play' || paused) return;
+  const k = e.key.toLowerCase();
+  if (k >= '1' && k <= '9') { const id = save.tops[+k - 1]; if (id) addTopping(id); return; }
+  if (k === 'b') bake();
+  else if (k === 'a' && save.up.auto) autoTop();
+  else if (k === 'x') bakeAll();
+  else if (k === 't' || k === 'delete' || k === 'backspace') trash();
+  else { const d = DRINKS.find(x => x.key === k && save.drinks.includes(x.id)); if (d) pour(d.id); }
+});
+$('#mute').textContent = muted ? '🔇' : '🔊';
+$('#mute').onclick = () => {
+  muted = !muted; $('#mute').textContent = muted ? '🔇' : '🔊';
+  try { localStorage.setItem('pizzapals-mute', muted ? '1' : '0'); } catch (e) {}
+};
+function menuInfo() {
+  $('#playBtn').textContent = save.day > 1 ? '▶ Play Day ' + save.day : '▶ Play';
+  $('#menuInfo').textContent = save.day > 1 || save.coins ? '🪙 ' + save.coins + ' coins · 🏆 Best day ' + save.best : '';
+  $('#newBtn').style.display = save.day > 1 || save.coins ? '' : 'none';
+}
+$('#playBtn').onclick = () => { sfx('pop'); newDay(); };
+let sure = 0;
+$('#newBtn').onclick = () => {
+  if (!sure) { sure = 1; $('#newBtn').textContent = 'Really erase everything? Tap again'; setTimeout(() => { sure = 0; $('#newBtn').textContent = 'New game'; }, 3000); return; }
+  save = fresh(); persist(); sure = 0; $('#newBtn').textContent = 'New game'; menuInfo(); renderHud(); renderDecor();
+};
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('pointerdown', () => { try { if (!muted) { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } } catch (e) {} }, { once:true });
+$('#nextBtn').onclick = () => { if (shopMode === 'day') newDay(); else closeShop(); };
+buildBackdrop();
+document.querySelectorAll('.winw').forEach(w => {
+  for (let i = 0; i < 6; i++) {
+    const l = document.createElement('span'); l.className = 'lf'; l.textContent = ['🍂','🍁','🍃'][rnd(3)];
+    l.style.left = rnd(88) + '%'; l.style.animationDuration = (4 + Math.random() * 4) + 's'; l.style.animationDelay = (-Math.random() * 8) + 's';
+    w.appendChild(l);
+  }
+});
+renderDecor(); menuInfo(); renderHud();
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
 </body>
 </html>
