@@ -56,7 +56,6 @@
       <div class="box">
         <h3>🔑 The Code</h3>
         <div class="code" id="theCode"></div>
-        <div class="tiny" id="codeNote"></div>
       </div>
       <div class="box">
         <h3>🎮 Coming Soon</h3>
@@ -71,7 +70,6 @@
 
   <div class="letters">
     <h2>✉️ Letters from Readers</h2>
-    <div class="tiny">Write something silly! No names, places, or personal stuff (that's not safe). Use lowercase letters, except for the word “I”. Your letters only show up on your own device.</div>
     <form id="form" autocomplete="off">
       <input type="text" id="text" maxlength="120" placeholder="Did a goat steal your lunch? Tell us!">
       <button class="send" type="submit">Send ✉️</button>
@@ -84,7 +82,14 @@
 <script>
 // ====== EDIT THE NEWS HERE (or ask your buddy to!) ======
 const CODE = "ASK-DAD-FOR-THE-CODE";   // the code readers see
-const CODE_NOTE = "Shhh! Only readers of The Daily Jaw know this.";
+
+// Letters everyone sees (ask your buddy to add more!)
+const LETTERS = [
+  "dear daily jaw, my pet rock learned to sit. it was already sitting. big win.",
+  "i saw a squirrel wearing tiny sunglasses. i think he is the boss of the park.",
+  "my sandwich said hi to me today. i said hi back. then i ate him. sorry.",
+  "breaking: the moon is just a giant cheese wheel and nobody told us."
+];
 
 const COMING_SOON = [
   { emoji:"🎮", text:"A brand new game is being cooked up in the Jaw kitchen!" },
@@ -112,7 +117,6 @@ const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 $("today").textContent = new Date().toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric" });
 $("theCode").textContent = CODE;
-$("codeNote").textContent = CODE_NOTE;
 $("weather").textContent = WEATHER;
 $("soon").innerHTML = COMING_SOON.map(s => `<p>${s.emoji} ${esc(s.text)}</p>`).join("");
 $("stories").innerHTML = STORIES.map((s,i) =>
@@ -136,10 +140,8 @@ const KEY = "dailyjaw-letters";
 function loadLetters() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
 function saveLetters(l) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch (e) {} }
 function showLetters() {
-  const l = loadLetters();
-  $("letterList").innerHTML = l.length
-    ? l.map(x => `<div class="letter">${esc(x)}<small>— a mysterious reader</small></div>`).join("")
-    : `<div class="tiny">No letters yet. Be the first!</div>`;
+  const l = loadLetters().concat(LETTERS);
+  $("letterList").innerHTML = l.map(x => `<div class="letter">${esc(x)}<small>— a mysterious reader</small></div>`).join("");
 }
 function checkSafe(t) {
   if (t.length < 3) return "Write a little more!";
