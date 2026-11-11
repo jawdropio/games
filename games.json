@@ -22,9 +22,15 @@
   {
     "slug": "news",
     "title": "NEWS",
-    "emoji": "🎮",
+    "emoji": "📰",
+    "description": "Read The Daily Jaw! Arcade news, the daily Jaw Battle code, reader letters, and a spot to request games or report bugs."
+  },
+  {
+    "slug": "lava-runner",
+    "title": "Lava Runner",
+    "emoji": "🔥",
     "description": "Brand new and under construction!",
     "comingSoon": true,
-    "earlyBird": "aee801f1dbb48bc5b53492abe09bb9e0c6bf5a5dbdc787002df3231d6374ddb4"
+    "earlyBird": "2d741a763d6c79ac19cb8b1e9696fb86a859431da7e1f57dde21a6d3981e8d84"
   }
 ]

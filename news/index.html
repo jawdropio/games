@@ -3,15 +3,226 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NEWS</title>
+<title>The Daily Jaw – NEWS</title>
 <style>
-  html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; display:grid; place-items:center; text-align:center; }
-  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
-  h1 { font-size:48px; margin:0 0 12px; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:#d9cfb4; color:#222; font-family:Georgia, "Times New Roman", serif; }
+  .back { position:fixed; top:10px; left:10px; z-index:5; background:#120b2e; color:#fff; padding:6px 12px; border-radius:20px; text-decoration:none; font:700 14px system-ui,sans-serif; }
+  #pauseBtn { position:fixed; top:10px; right:10px; z-index:5; background:#120b2e; color:#fff; border:0; padding:6px 12px; border-radius:20px; font:700 14px system-ui,sans-serif; cursor:pointer; }
+  .paper { max-width:980px; margin:56px auto 30px; background:#f6efd9; padding:20px 26px 30px; box-shadow:0 6px 24px rgba(0,0,0,.35); border:1px solid #b9ad8a; }
+  .masthead { text-align:center; border-bottom:4px double #222; padding-bottom:8px; }
+  .masthead h1 { font:900 clamp(34px,8vw,72px)/1 "Old English Text MT", Georgia, serif; margin:0; letter-spacing:1px; }
+  .dateline { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; border-top:1px solid #222; margin-top:8px; padding-top:4px; font-size:13px; font-style:italic; }
+  .ticker { overflow:hidden; white-space:nowrap; background:#222; color:#ffe27a; margin:10px 0; padding:6px 0; font:700 14px system-ui,sans-serif; }
+  .ticker span { display:inline-block; padding-left:100%; animation:scroll 40s linear infinite; }
+  .paused .ticker span { animation-play-state:paused; }
+  @keyframes scroll { to { transform:translateX(-100%); } }
+  .grid { display:grid; grid-template-columns:2fr 1fr; gap:22px; }
+  @media (max-width:760px){ .grid { grid-template-columns:1fr; } }
+  h2 { font-size:clamp(24px,4vw,38px); line-height:1.1; margin:0 0 6px; }
+  h3 { font-size:20px; margin:0 0 4px; }
+  .story { border-bottom:1px solid #b9ad8a; padding:0 0 12px; margin:0 0 14px; }
+  .story p { margin:6px 0; line-height:1.45; }
+  .story .by { font-size:12px; font-style:italic; color:#666; }
+  .pic { font-size:56px; float:right; margin:0 0 4px 12px; }
+  .box { border:3px double #222; padding:10px 12px; margin-bottom:16px; background:#fffaf0; }
+  .code { font:900 22px/1.2 "Courier New", monospace; text-align:center; background:#222; color:#7dff9b; padding:8px; margin:6px 0; letter-spacing:3px; word-break:break-word; }
+  .tiny { font-size:12px; color:#555; }
+  .letters { margin-top:10px; border-top:4px double #222; padding-top:10px; }
+  .letter { background:#fffaf0; border-left:4px solid #c0392b; padding:6px 10px; margin:6px 0; }
+  .letter small { color:#777; display:block; }
+  form { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  input[type=text] { flex:1 1 240px; padding:8px; font:16px Georgia,serif; border:2px solid #222; background:#fff; }
+  button.del { border:0; background:#eee; cursor:pointer; font-size:11px; margin-left:6px; border-radius:3px; }
+  button.send { padding:8px 14px; font:700 16px system-ui,sans-serif; background:#c0392b; color:#fff; border:0; cursor:pointer; border-radius:4px; }
+  #msg { min-height:20px; font:700 13px system-ui,sans-serif; margin-top:6px; }
+  .err { color:#b00020; } .ok { color:#1b7f3b; }
 </style>
 </head>
 <body>
-<a href="../">← Arcade</a>
-<div><h1>🎮 NEWS</h1><p>🚧 Under construction. Tell your buddy what to build!</p></div>
+<a class="back" href="../">← Arcade</a>
+<button id="pauseBtn" title="Pause the ticker (P or Esc)">⏸ Pause</button>
+
+<div class="paper">
+  <div class="masthead">
+    <h1>The Daily Jaw</h1>
+    <div class="dateline"><span id="today"></span><span>Free for all gamers 🎮</span><span>“All the news from the Jaw Arcade”</span></div>
+  </div>
+
+  <div class="ticker"><span id="tickerText"></span></div>
+
+  <div class="grid">
+    <div id="stories"></div>
+    <aside>
+      <div class="box">
+        <h3>🔑 The Code</h3>
+        <div class="code" id="theCode"></div>
+      </div>
+      <div class="box">
+        <h3>🎮 Coming Soon</h3>
+        <div id="soon"></div>
+      </div>
+      <div class="box">
+        <h3>🌤 Forecast</h3>
+        <div id="weather"></div>
+      </div>
+    <div class="box">
+      <h3>🎮 Requests &amp; Bugs</h3>
+      <form id="reqForm" autocomplete="off" style="flex-direction:column">
+        <select id="reqType" style="padding:8px;font:16px Georgia,serif;border:2px solid #222;background:#fff"><option value="🎮 New game">🎮 New game</option><option value="🔧 Change">🔧 Change</option><option value="🐛 Bug">🐛 Bug</option></select>
+        <input type="text" id="reqText" maxlength="140" placeholder="What do you want or what broke?" style="flex:none">
+        <button class="send" type="submit">Send 📨</button>
+      </form>
+      <div id="reqMsg"></div>
+      <div id="reqList"></div>
+    </div>
+    </aside>
+  </div>
+
+  <div class="letters">
+    <h2>✉️ Letters from Readers</h2>
+    <form id="form" autocomplete="off">
+      <input type="text" id="who" maxlength="16" placeholder="made-up nickname" style="flex:0 1 160px">
+      <input type="text" id="text" maxlength="120" placeholder="Write a letter about the games!">
+      <button class="send" type="submit">Send ✉️</button>
+    </form>
+    <div id="msg"></div>
+    <div id="letterList"></div>
+  </div>
+
+</div>
+
+<script>
+// ====== EDIT THE NEWS HERE (or ask your buddy to!) ======
+// Same code maker as Jaw Battle, so the code works there!
+const SPECIAL_DAYS = {
+  "2026-11-8": "JWTB",
+  "2026-11-9": "JWTB",
+  "2026-11-10": "JWTB"
+};
+function dailyCode() {
+  const d = new Date();
+  const sp = SPECIAL_DAYS[d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate()];
+  if (sp) return sp;
+  const key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  let h = Math.imul(key, 2654435761) >>> 0; h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995) >>> 0; h ^= h >>> 15;
+  return "JAW" + String(1000 + ((h >>> 0) % 9000));
+}
+const CODE = dailyCode();
+
+// Letters everyone sees (ask your buddy to add more!)
+
+const COMING_SOON = [
+  { emoji:"🗺️", text:"More Jaw Battle maps are on the way!" },
+  { emoji:"🔫", text:"New guns are being tested in the practice range." }
+];
+
+const WEATHER = "Crunchy autumn leaves with a chance of ice bullets. ❄️";
+
+const STORIES = [
+  { pic:"🎮", head:"JAW BATTLE IS THE HOTTEST GAME IN THE ARCADE", by:"By the Daily Jaw team",
+    body:"Duels, team battles, Capture the Flag and 500 autumn maps. Players say the bots that dig underground are the sneakiest around." },
+  { pic:"🔥", head:"FIRE VS ICE: WHICH GUN PERK WINS?", by:"By the Daily Jaw team",
+    body:"With 9 guns and fire and ice perks, everybody has a favorite. Burn them or freeze them? The arguments never end." },
+  { pic:"🍬", head:"JAW BREAKER: CAN ANYONE BEAT ALL 100 LEVELS?", by:"By the Daily Jaw team",
+    body:"A boss shows up every 10 levels, and beating one gives you 5 bonus hearts. Hunt for the rainbow brick!" },
+  { pic:"⭐", head:"CATCH THE STAR IS SUPER DUPER HARD", by:"By the Daily Jaw team",
+    body:"Only 3 hearts, a tiny basket, and stars that fall faster and faster. Rare power-ups might save you." }
+];
+// ========================================================
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+$("today").textContent = new Date().toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric" });
+$("theCode").textContent = CODE;
+$("weather").textContent = WEATHER;
+$("soon").innerHTML = COMING_SOON.map(s => `<p>${s.emoji} ${esc(s.text)}</p>`).join("");
+$("stories").innerHTML = STORIES.map((s,i) =>
+  `<div class="story">${i===0 ? "" : ""}<div class="pic">${s.pic}</div>${i===0 ? "<h2>" : "<h3>"}${esc(s.head)}${i===0 ? "</h2>" : "</h3>"}<div class="by">${esc(s.by)}</div><p>${esc(s.body)}</p></div>`
+).join("");
+$("tickerText").textContent = "🚨 BREAKING: " + STORIES.map(s => s.head).join("   ★   ") + "   ★   ";
+
+// ---- pause ----
+function togglePause() {
+  const p = document.body.classList.toggle("paused");
+  $("pauseBtn").textContent = p ? "▶ Play" : "⏸ Pause";
+}
+$("pauseBtn").onclick = togglePause;
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "p" || e.key === "P" || e.key === "Escape") togglePause();
+});
+
+// ---- reader letters (safe: no names!) ----
+const KEY = "dailyjaw-letters";
+const BOSS_HASH = 4108507220;   // the boss code, kept scrambled
+const hashCode = t => { let h = 5381; for (const c of t.toLowerCase().trim()) h = (Math.imul(h, 33) ^ c.charCodeAt(0)) >>> 0; return h; };
+let boss = false;
+function loadLetters() {
+  try { return (JSON.parse(localStorage.getItem(KEY)) || []).map(x => typeof x === "string" ? { who:"a mysterious reader", text:x } : x); }
+  catch (e) { return []; }
+}
+function saveLetters(l) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch (e) {} }
+function showLetters() {
+  const l = loadLetters();
+  $("letterList").innerHTML = l.map((x, i) => `<div class="letter">${esc(x.text)}<small>— ${esc(x.who)}${boss ? ` <button class="del" data-i="${i}">✖ delete</button>` : ""}</small></div>`).join("");
+  if (boss) {
+    document.querySelectorAll(".del").forEach(b => b.onclick = () => { const l2 = loadLetters(); l2.splice(+b.dataset.i, 1); saveLetters(l2); showLetters(); });
+  }
+}
+function checkSafe(t) {
+  if (t.length < 2) return "Write a little more!";
+  if (/\d/.test(t)) return "No numbers please (phone numbers and addresses aren't safe).";
+  if (/@|https?:|www\.|\.com/i.test(t)) return "No emails or links please.";
+  if (/my name|call me|i live|my school|i go to/i.test(t)) return "That sounds like personal info. Keep it silly and secret!";
+  if (/\b(my name is|name's|im called|i am called|my school|my address|my phone)\b/i.test(t)) return "That sounds like personal info. Keep it silly and secret!";
+  return "";
+}
+$("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = $("text").value.trim();
+  if (hashCode(t) === BOSS_HASH) {   // typing the boss code turns boss mode on or off
+    boss = !boss; $("text").value = ""; $("msg").className = "ok";
+    $("msg").textContent = boss ? "🔧 Boss mode ON: you can delete letters." : "Boss mode off.";
+    showLetters(); if (typeof showReqs === "function") showReqs(); return;
+  }
+  const who = $("who").value.trim() || "a mysterious reader";
+  let bad = checkSafe(t);
+  if (!bad && who !== "a mysterious reader") bad = checkSafe(who) && "Use a made-up nickname, not a real name or numbers!";
+  if (bad) { $("msg").className = "err"; $("msg").textContent = "🚫 " + bad; return; }
+  const l = loadLetters(); l.unshift({ who, text:t }); saveLetters(l.slice(0, 30));
+  $("text").value = ""; $("msg").className = "ok"; $("msg").textContent = "✅ Letter published! Stop the presses!";
+  showLetters();
+});
+showLetters();
+
+// ---- game requests (same safety rules, same boss mode) ----
+const REQ_KEY = "dailyjaw-requests";
+function loadReqs() { try { const r = JSON.parse(localStorage.getItem(REQ_KEY)); return Array.isArray(r) ? r.map(x => typeof x === "string" ? { type:"🎮 New game", text:x } : x) : []; } catch (e) { return []; } }
+function saveReqs(r) { try { localStorage.setItem(REQ_KEY, JSON.stringify(r)); } catch (e) {} }
+function showReqs() {
+  const r = loadReqs();
+  $("reqList").innerHTML = r.map((x, i) => `<div class="letter"><b>${esc(x.type)}:</b> ${esc(x.text)}${boss ? ` <button class="del" data-r="${i}">✖ delete</button>` : ""}</div>`).join("");
+  if (boss && r.length) {
+    document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { const r2 = loadReqs(); r2.splice(+b.dataset.r, 1); saveReqs(r2); showReqs(); });
+  }
+}
+$("reqForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = $("reqText").value.trim();
+  if (hashCode(t) === BOSS_HASH) {
+    boss = !boss; $("reqText").value = ""; $("reqMsg").className = "ok";
+    $("reqMsg").textContent = boss ? "🔧 Boss mode ON." : "Boss mode off.";
+    showLetters(); showReqs(); return;
+  }
+  const bad = checkSafe(t);
+  if (bad) { $("reqMsg").className = "err"; $("reqMsg").textContent = "🚫 " + bad; return; }
+  const r = loadReqs(); r.unshift({ type:$("reqType").value, text:t }); saveReqs(r.slice(0, 30));
+  $("reqText").value = ""; $("reqMsg").className = "ok"; $("reqMsg").textContent = "✅ Sent! Thanks!";
+  showReqs();
+});
+showReqs();
+</script>
 </body>
 </html>
