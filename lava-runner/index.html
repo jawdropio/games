@@ -115,7 +115,7 @@
   .ov > :first-child { margin-top:auto; } .ov > :last-child { margin-bottom:auto; }
   .ov h1 { margin:0; font-size:clamp(34px,8vmin,64px); }
   .big { background:#ff8a2b; color:#2b1608; font-weight:900; font-size:22px; padding:12px 30px; box-shadow:0 4px 0 #a04a08; }
-  .alt { background:#3d2210; padding:8px 18px; font-weight:700; }
+  .alt { background:#3d2210; padding:12px 22px; min-height:48px; font-weight:700; font-size:16px; }
   #shopList { display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:10px; width:min(920px,100%); }
   #shopList h3 { grid-column:1/-1; margin:8px 0 0; text-align:left; color:#ffcf8a; border-bottom:2px solid #ffcf8a55; }
   .item { background:#3d2210; border-radius:14px; padding:10px; text-align:left; display:flex; flex-direction:column; gap:4px; }
@@ -145,14 +145,28 @@
 </header>
 <div id="banner"></div>
 <section id="room"><div id="decor"><div class="winw" style="left:4%"></div><div class="winw" style="right:4%"></div>
-  <div class="frame"><svg viewBox="0 0 60 70"><rect width="60" height="70" fill="#ffe6b0"/>
-    <ellipse cx="30" cy="14" rx="13" ry="7" fill="#fff"/><rect x="19" y="14" width="22" height="8" fill="#fff"/><rect x="19" y="20" width="22" height="2" fill="#ddd"/>
-    <circle cx="30" cy="38" r="19" fill="#e0a64e" stroke="#b8721f" stroke-width="2"/><circle cx="30" cy="38" r="15.5" fill="#f6d462"/>
-    <circle cx="19" cy="44" r="4" fill="#c0392b"/><circle cx="41" cy="44" r="4" fill="#c0392b"/>
-    <rect x="16" y="30" width="12" height="7" rx="2" fill="#111"/><rect x="32" y="30" width="12" height="7" rx="2" fill="#111"/><path d="M28 32 H32" stroke="#111" stroke-width="1.5"/>
-    <path d="M19 47 Q25 41 30 46 Q35 41 41 47 Q35 52 30 48 Q25 52 19 47Z" fill="#4a2a12"/>
-    <path d="M24 53 Q30 58 36 53" fill="none" stroke="#7a2a12" stroke-width="1.5"/>
-    <text x="30" y="67" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#5a2a10" font-family="sans-serif">SIR PEPPERONI</text></svg></div></div><div id="seats"></div></section>
+  <div class="frame"><svg viewBox="0 0 60 70">
+    <rect width="60" height="70" fill="#a9b48a"/><rect y="0" width="60" height="24" fill="#c9d3b4"/>
+    <path d="M0 30 Q12 20 22 28 T44 26 T60 30 V70 H0Z" fill="#7f9370"/>
+    <path d="M44 70 Q38 58 50 50 Q56 46 52 40" fill="none" stroke="#e0cf9a" stroke-width="2"/>
+    <path d="M10 70 Q9 48 20 40 L40 40 Q51 48 50 70Z" fill="#2f2a18"/>
+    <ellipse cx="30" cy="33" rx="17" ry="21" fill="#2e1a0c"/>
+    <path d="M15 70 Q18 54 30 52 Q42 54 45 70Z" fill="#3d4a24"/>
+    <path d="M23 52 L30 60 L37 52 Q30 49 23 52Z" fill="#d8b070"/>
+    <ellipse cx="30" cy="34" rx="11" ry="13.5" fill="#ecc89a"/>
+    <path d="M20 25 Q30 16 40 25 Q34 21 30 21 Q26 21 20 25Z" fill="#2e1a0c"/>
+    <path d="M22 29 Q25 27 28 29" fill="none" stroke="#3a2412" stroke-width="1.3"/>
+    <path d="M32 27 Q36 20 40 25" fill="none" stroke="#3a2412" stroke-width="1.3"/>
+    <circle cx="25" cy="31.5" r="2.2" fill="#fff"/><circle cx="25.8" cy="31.8" r="1.1" fill="#222"/>
+    <circle cx="36" cy="31" r="3.4" fill="#fff"/><circle cx="37" cy="30" r="1.6" fill="#222"/>
+    <circle cx="30.5" cy="37" r="3" fill="#c0392b"/><circle cx="29.7" cy="36.2" r=".8" fill="#e2594c"/>
+    <path d="M23.5 42.5 Q30 46 38 41" fill="none" stroke="#8a3a2a" stroke-width="1.4" stroke-linecap="round"/>
+    <path d="M31 44.5 Q30 52 34 55" fill="none" stroke="#f6d462" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M23 56 L37 56 L30 67Z" fill="#f6d462" stroke="#c07a2a" stroke-width="1"/><rect x="22" y="54.5" width="16" height="3" rx="1.5" fill="#d9a04a"/>
+    <circle cx="29" cy="60" r="1.6" fill="#b7281f"/><circle cx="32.5" cy="58.5" r="1.3" fill="#b7281f"/>
+    <rect y="63" width="60" height="7" fill="#000" opacity=".55"/>
+    <text x="30" y="68.2" text-anchor="middle" font-size="5.6" font-weight="bold" fill="#ffe9b0" font-family="sans-serif">MONA PIZZA</text>
+  </svg></div></div><div id="seats"></div></section>
 <section id="mid"><div id="hint"></div><div id="trays"></div></section>
 <section id="bottom"></section>
 <div id="toast"></div>
@@ -171,6 +185,7 @@
 <div class="ov" id="pause">
   <h1>⏸ Paused</h1>
   <button class="big" id="resumeBtn">▶ Resume</button>
+  <button class="alt" id="resetBtn">🔄 Reset day</button>
   <a class="alt" style="color:#fff7ea;text-decoration:none;border-radius:14px" href="../">← Arcade</a>
   <p style="opacity:.7">Keys: 1-9 toppings · B bake · C/L/M/J drinks · T toss · P/Esc pause</p>
 </div>
@@ -714,6 +729,14 @@ function setPause(p) {
 }
 $('#pauseBtn').onclick = () => setPause(!paused);
 $('#resumeBtn').onclick = () => setPause(false);
+let rsure = 0;
+$('#resetBtn').onclick = () => {
+  const btn = $('#resetBtn');
+  if (!rsure) { rsure = 1; btn.textContent = 'Tap again to start this day over'; setTimeout(() => { rsure = 0; btn.textContent = '🔄 Reset day'; }, 3000); return; }
+  rsure = 0; btn.textContent = '🔄 Reset day';
+  if (G) { save.coins = Math.max(0, save.coins - G.earned); persist(); }   // coins from the unfinished day go back
+  sfx('pop'); newDay();
+};
 $('#shopBtn').onclick = () => { if (phase === 'play' && !shopOpen()) { $('#pause').classList.remove('show'); openShop('free'); } else if (phase === 'menu') openShop('free'); };
 $('#menuShopBtn').onclick = () => openShop('free');
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
