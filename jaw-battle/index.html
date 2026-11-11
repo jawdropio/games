@@ -404,8 +404,8 @@
         for (let k = 0; k < count; k++) {
           let w, h, type; const t = rr();
           if ((style === 1 && t < 0.7) || (style === 2 && t < 0.8)) { const horiz = rr() < 0.5, len = 120 + 30 * Math.floor(rr() * 10), thick = rr() < 0.5 ? 22 : 30; w = horiz ? len : thick; h = horiz ? thick : len; type = 'w'; }
-          else if (style === 3 && t < 0.7) { w = 40 * (1 + Math.floor(rr() * 3)); h = 40 * (1 + Math.floor(rr() * 2)); type = 'c'; }
-          else { w = 40 + 20 * Math.floor(rr() * 4); h = 40 + 20 * Math.floor(rr() * 4); type = rr() < 0.6 ? 'w' : 'c'; }
+          else if (style === 3 && t < 0.4) { w = 40 * (1 + Math.floor(rr() * 3)); h = 40 * (1 + Math.floor(rr() * 2)); type = 'c'; }
+          else { w = 40 + 20 * Math.floor(rr() * 4); h = 40 + 20 * Math.floor(rr() * 4); type = rr() < 0.85 ? 'w' : 'c'; }
           const x = Math.round((220 + rr() * (W2 - 20 - 220 - w)) / 10) * 10, y = Math.min(MAP_H - h, Math.round((rr() * (MAP_H - h)) / 10) * 10);
           add(x, y, w, h, type); add(MAP_W - x - w, y, w, h, type);
           if (vm) { add(x, MAP_H - y - h, w, h, type); add(MAP_W - x - w, MAP_H - y - h, w, h, type); }
@@ -427,7 +427,7 @@
       const a = { x: Math.round(MAP_W * ax), y: Math.round(MAP_H * ay), pid }, b = { x: Math.round(MAP_W * bx), y: Math.round(MAP_H * by), pid };
       a.to = b; b.to = a; clear(a.x, a.y, 64, 64); clear(b.x, b.y, 64, 64); portals.push(a, b);
     }
-    for (const [hx, hy] of [[0.40, 0.14], [0.60, 0.14], [0.40, 0.86], [0.60, 0.86], [0.50, 0.34], [0.50, 0.66]]) {
+    for (const [hx, hy] of [[0.40, 0.14], [0.60, 0.14], [0.40, 0.86], [0.60, 0.86]]) {
       const cx = Math.round(MAP_W * hx), cy = Math.round(MAP_H * hy); clear(cx, cy, 70, 70); hides.push({ x: cx - 38, y: cy - 38, w: 76, h: 76 });
     }
     if (md !== 'ctf') for (const team of [0, 1]) for (const fy of [0.30, 0.70]) { const cx = Math.round(MAP_W * (team ? 0.80 : 0.20)), cy = Math.round(MAP_H * fy); clear(cx, cy, 52, 52); cpads.push({ x: cx, y: cy, team }); }
@@ -445,8 +445,8 @@
       const e = makeFighter(W - 80, ys(order[i]), ENEMY_COLORS[(i - 1) % 3], true); e.team = 1; fighters.push(e);
     }
   }
-  const nearestFoe = f => { let best = null, bd = 1e9; for (const o of fighters) { if (o.team === f.team || o.dead) continue; const d = Math.hypot(o.x - f.x, o.y - f.y); if (o.hidden && d > 130) continue; if (d < bd) { bd = d; best = o; } } return best; };
-  const foeNear = (team, x, y) => { let best = null, bd = 1e9; for (const o of fighters) { if (o.team === team || o.dead) continue; const d = Math.hypot(o.x - x, o.y - y); if (o.hidden && d > 130) continue; if (d < bd) { bd = d; best = o; } } return best; };
+  const nearestFoe = f => { let best = null, bd = 1e9; for (const o of fighters) { if (o.team === f.team || o.dead) continue; const d = Math.hypot(o.x - f.x, o.y - f.y); if ((o.hidden && d > 130) || o.digging) continue; if (d < bd) { bd = d; best = o; } } return best; };
+  const foeNear = (team, x, y) => { let best = null, bd = 1e9; for (const o of fighters) { if (o.team === team || o.dead) continue; const d = Math.hypot(o.x - x, o.y - y); if ((o.hidden && d > 130) || o.digging) continue; if (d < bd) { bd = d; best = o; } } return best; };
   const startGun = () => { const g = gunOrder.find(i => own(i)); return g === undefined ? 0 : g; }; // slot 1 (or the first gun you own)
   // ---------- Capture the Flag: fortify your towers, and a prettier dirt layer ----------
   const TOWER_COST = [100, 250, 450], TOWER_HP = [6, 10, 16], TOWER_NAMES = ['Stone Tower', 'Cannon Tower', 'Fortress'];
@@ -457,6 +457,7 @@
   }
   function upgradePad(pad, who) {
     if (pad.lvl >= 3 || (pad.ob && pad.ob.dead)) return false;
+    if (who === 'p' && fighterOnBox({ x: pad.x - 20, y: pad.y - 20, w: 40, h: 40 })) { toast = { text: 'Step off the spot first!', t: 70 }; return false; }
     const free = who === 'p' && aimbot, cost = TOWER_COST[pad.lvl];
     if (!free && cash[who] < cost) { if (who === 'p') beep(200, 0.12, 'sawtooth', 0.06); return false; }
     if (!free) cash[who] -= cost;
@@ -482,7 +483,7 @@
       if (o.type !== 't' || o.lvl < 2 || o.dead) continue;
       if (--o.cd > 0) continue;
       const cx = o.x + 20, cy = o.y + 20; let best = null, bd = 400;
-      for (const f of fighters) { if (f.team === o.team || f.dead || f.hidden || f.invuln > 0) continue; const d = Math.hypot(f.x - cx, f.y - cy); if (d < bd && lineClear(cx + (f.x - cx) / d * 26, cy + (f.y - cy) / d * 26, f.x, f.y)) { bd = d; best = f; } }
+      for (const f of fighters) { if (f.team === o.team || f.dead || f.hidden || f.digging || f.invuln > 0) continue; const d = Math.hypot(f.x - cx, f.y - cy); if (d < bd && lineClear(cx + (f.x - cx) / d * 26, cy + (f.y - cy) / d * 26, f.x, f.y)) { bd = d; best = f; } }
       if (best) {
         const a = Math.atan2(best.y - cy, best.x - cx); o.aim = a;
         bullets.push({ x: cx + Math.cos(a) * 24, y: cy + Math.sin(a) * 24, vx: Math.cos(a) * 9.5, vy: Math.sin(a) * 9.5, owner: 't', team: o.team, life: 55, dmg: o.lvl === 2 ? 1.5 : 2.6, color: o.team === 0 ? '#8fe3ff' : '#ff9ec0', r: 5, bounce: 0, obs: 1, gi: -1 });
@@ -570,22 +571,50 @@
       if (p.team === 0 && !(p.ob && !p.ob.dead)) { ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('＋ Build a cannon', p.x, p.y - 44); ctx.fillStyle = '#ffd23a'; ctx.fillText(aimbot ? 'FREE' : '🪙100 (back if you win!)', p.x, p.y + 46); }
     }
   }
+  function drawJaguar(x, y, dir, tm, sc) { // a spotted jaguar that runs
+    const run = tm / 85, bob = Math.abs(Math.sin(run)) * 2.5;
+    ctx.save(); ctx.translate(x, y - bob); ctx.scale(dir * sc, sc); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // tail
+    ctx.strokeStyle = '#d98a26'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-32, -4); ctx.quadraticCurveTo(-52, -10 + Math.sin(run * 0.8) * 7, -58, -26 + Math.sin(run) * 6); ctx.stroke();
+    ctx.strokeStyle = '#2a1608'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-54, -22 + Math.sin(run) * 5); ctx.lineTo(-58, -26 + Math.sin(run) * 6); ctx.stroke();
+    // far legs (darker), then body, then near legs
+    const leg = (lx, ph, col) => { const sw = Math.sin(run + ph) * 9, lift = Math.max(0, Math.cos(run + ph)) * 4; ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(lx, 8); ctx.lineTo(lx + sw * 0.5, 15 - lift); ctx.lineTo(lx + sw, 22 - lift); ctx.stroke(); ctx.fillStyle = '#3a2410'; ctx.beginPath(); ctx.ellipse(lx + sw + 2, 23 - lift, 5, 3, 0, 0, 6.283); ctx.fill(); };
+    leg(-22, 0.4, '#b9701a'); leg(24, 3.5, '#b9701a');
+    const bg = ctx.createLinearGradient(0, -18, 0, 18); bg.addColorStop(0, '#f0b04a'); bg.addColorStop(0.6, '#e09a30'); bg.addColorStop(1, '#f6d894');
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(0, 0, 38, 17, 0, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(70,35,5,.9)'; ctx.lineWidth = 2.2;
+    for (const [rx, ry] of [[-26, -6], [-14, -9], [-2, -7], [10, -9], [22, -5], [-20, 5], [-8, 3], [5, 4], [17, 4], [-30, 2]]) { ctx.beginPath(); ctx.arc(rx, ry, 4.2, 0.3, 6.0); ctx.stroke(); ctx.fillStyle = 'rgba(60,30,5,.85)'; ctx.beginPath(); ctx.arc(rx + 0.5, ry, 1.4, 0, 6.283); ctx.fill(); }
+    leg(-14, 3.5, '#e09a30'); leg(30, 0.4, '#e09a30');
+    // head
+    ctx.fillStyle = '#e8a236'; ctx.beginPath(); ctx.arc(40, -6, 13, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(30, -15); ctx.lineTo(31, -27); ctx.lineTo(39, -19); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(44, -18); ctx.lineTo(49, -27); ctx.lineTo(51, -14); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#6a3a1c'; ctx.beginPath(); ctx.moveTo(32, -17); ctx.lineTo(32.5, -24); ctx.lineTo(37, -19); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f6dfa8'; ctx.beginPath(); ctx.ellipse(48, -2, 8, 6, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#3a1a14'; ctx.beginPath(); ctx.moveTo(52, -6); ctx.lineTo(57, -5); ctx.lineTo(54, -2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#3a1a14'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(54, -2); ctx.lineTo(54, 1); ctx.moveTo(54, 1); ctx.quadraticCurveTo(50, 4, 46, 2); ctx.stroke();
+    ctx.fillStyle = '#d6e24a'; ctx.beginPath(); ctx.ellipse(42, -9, 3.6, 3, 0.2, 0, 6.283); ctx.fill(); ctx.fillStyle = '#120804'; ctx.fillRect(41.3, -11.6, 1.5, 5);
+    ctx.fillStyle = 'rgba(70,35,5,.85)'; for (const [dx, dy] of [[34, -4], [38, 1], [44, -14], [36, -10]]) { ctx.beginPath(); ctx.arc(dx, dy, 1.1, 0, 6.283); ctx.fill(); }
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 0.9; for (const dy of [-1, 1.5]) { ctx.beginPath(); ctx.moveTo(52, dy); ctx.lineTo(64, dy - 3 + dy * 2); ctx.stroke(); }
+    ctx.restore();
+  }
   function drawCats() {
     for (const c of cats) {
       const bob = Math.sin(Date.now() / 90) * 3;
       ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(c.x, c.y + 24, 22, 7, 0, 0, 6.283); ctx.fill();
-      ctx.save(); ctx.translate(c.x, c.y + bob); ctx.scale(c.dir * -1, 1); ctx.font = '54px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🐆', 0, 0); ctx.restore();
+      drawJaguar(c.x, c.y + bob, c.dir, Date.now(), 1.5);
       ctx.strokeStyle = 'rgba(255,200,60,' + (0.3 + 0.2 * Math.sin(Date.now() / 120)) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(c.x, c.y, 290, 0, 6.283); ctx.setLineDash([10, 10]); ctx.stroke(); ctx.setLineDash([]);
     }
   }
-  function drawHides() { // cardboard hiding boxes (drawn over fighters so they look like they are inside)
+  function drawHides() { // hay-stack hiding spots (drawn over fighters so they look like they are inside)
     for (const h of hides) {
-      ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(h.x + 5, h.y + 8, h.w, h.h);
-      ctx.fillStyle = 'rgba(196,140,80,.92)'; ctx.fillRect(h.x, h.y, h.w, h.h);
-      ctx.strokeStyle = '#7a4f1f'; ctx.lineWidth = 3; ctx.strokeRect(h.x + 1.5, h.y + 1.5, h.w - 3, h.h - 3);
-      ctx.fillStyle = 'rgba(140,95,45,.95)'; ctx.fillRect(h.x, h.y, h.w, 14); ctx.fillRect(h.x, h.y + h.h - 14, h.w, 14);
-      ctx.fillStyle = '#e8d3a0'; ctx.fillRect(h.x + h.w / 2 - 6, h.y, 12, h.h);
-      ctx.font = '700 20px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#5a3a14'; ctx.fillText('📦', h.x + h.w / 2, h.y + h.h / 2);
+      const cx = h.x + h.w / 2, cy = h.y + h.h / 2;
+      ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(cx + 4, cy + h.h * 0.36, h.w * 0.56, h.h * 0.22, 0, 0, 6.283); ctx.fill();
+      const gr = ctx.createRadialGradient(cx - 10, cy - 14, 6, cx, cy, h.w * 0.62); gr.addColorStop(0, '#f2d36a'); gr.addColorStop(0.7, '#cfa63a'); gr.addColorStop(1, '#9a7420');
+      ctx.globalAlpha = 0.93; ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(cx, cy, h.w * 0.52, h.h * 0.46, 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(120,85,20,.55)'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+      for (let i = 0; i < 16; i++) { const a = i * 0.41, x1 = cx + Math.cos(a) * h.w * 0.18, y1 = cy + Math.sin(a) * h.h * 0.16, x2 = cx + Math.cos(a + 0.2) * h.w * 0.46, y2 = cy + Math.sin(a + 0.2) * h.h * 0.42; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+      ctx.strokeStyle = '#7a4f1f'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(cx, cy + 2, h.w * 0.52, h.h * 0.12, 0, 0.1, 3.04); ctx.stroke();
+      ctx.font = '16px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🌾', cx, cy - h.h * 0.32);
     }
   }
   function drawIce(f) {
@@ -711,7 +740,7 @@
     if (banner && banner.t > 0) banner.t--;
     const sides = [[player, flags.p, flags.b, BASE_P, 'p'], [bot, flags.b, flags.p, BASE_B, 'b']];
     for (const [f, mine, theirs, base, who] of sides) {
-      if (f.dead) continue;
+      if (f.dead || f.digging) continue;
       if (!theirs.carrier && Math.hypot(f.x - theirs.x, f.y - theirs.y) < f.r + 14) { theirs.carrier = f; beep(740, 0.12, 'square', 0.06); }
       if (!mine.carrier && !atBase(mine, base) && Math.hypot(f.x - mine.x, f.y - mine.y) < f.r + 14) { mine.x = base.x; mine.y = base.y; beep(500, 0.12, 'triangle', 0.07); }
       if (theirs.carrier === f && Math.hypot(f.x - base.x, f.y - base.y) < BASE_R) { ctfScore(who); return; }
@@ -1108,8 +1137,17 @@
     if (f.bonusHp > 0) { const a = Math.min(f.bonusHp, amt); f.bonusHp -= a; amt -= a; }
     f.hp -= amt;
   }
+  const fighterOnBox = box => fighters.some(f => !f.dead && circleHitsRect(f.x, f.y, f.r + 6, box));
+  function unstickAll() { // if anything ends up inside a wall or tower, pop it out to the nearest free spot
+    for (const f of fighters) {
+      if (f.dead || f.digging || f.ghosting || !blocked(f.x, f.y, f.r - 2)) continue;
+      let done = false;
+      for (const rad of [8, 16, 24, 32, 48, 64, 96, 128, 180]) { for (let k = 0; k < 16 && !done; k++) { const a = k * Math.PI / 8, x = f.x + Math.cos(a) * rad, y = f.y + Math.sin(a) * rad; if (!blocked(x, y, f.r)) { f.x = x; f.y = y; done = true; } } if (done) break; }
+    }
+  }
   function buildCannon(pad, who) { // costs real coins: you get them back if you win the game, lose them if you lose
     if (pad.ob && !pad.ob.dead) return false;
+    if (who === 'p' && fighterOnBox({ x: pad.x - 20, y: pad.y - 20, w: 40, h: 40 })) { toast = { text: 'Step off the spot first!', t: 70 }; return false; }
     if (who === 'p') {
       const cost = 100;
       if (!aimbot && coins < cost) { beep(200, 0.12, 'sawtooth', 0.06); toast = { text: 'You need 🪙100 to build a cannon!', t: 80 }; return false; }
@@ -1136,7 +1174,7 @@
   function useJagwire() { // V: 3 extra hearts + your Jagwire pet that scares enemies into hiding
     if (!own(9) || player.gun !== 9 || player.dead || jagCd > 0) return false;
     if (mode === 'ctf' && ctfPhase > 0) return false;
-    jagCd = 2400; player.bonusHp = 12; player.bonusT = 1800; cats.push({ x: player.x, y: player.y, t: 900, dir: 1 });
+    jagCd = 1500; player.bonusHp = 12; player.bonusT = 1800; cats.push({ x: player.x, y: player.y, t: 1200, dir: 1 });
     burst(player.x, player.y, '#ffcc33', 26); toast = { text: '🐆 Your Jagwire is on the hunt! +3 hearts', t: 110 };
     [500, 700, 1000, 1400].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'triangle', 0.08), i * 70));
     return true;
@@ -1149,8 +1187,50 @@
     }
     cats = cats.filter(c => c.t > 0);
   }
+  // enemies can dig into the ground and come up somewhere else (Godlike ones can pop up right next to you)
+  function pickBurrowSpot(b, fo, near) {
+    for (let tries = 0; tries < 50; tries++) {
+      let x, y;
+      if (near) { const a = Math.random() * 6.283, d = 150 + Math.random() * 90; x = fo.x + Math.cos(a) * d; y = fo.y + Math.sin(a) * d; }
+      else { x = 60 + Math.random() * (W - 120); y = 60 + Math.random() * (H - 120); }
+      if (x < 40 || y < 40 || x > W - 40 || y > H - 40) continue;
+      if (fighters.some(o => o.team !== b.team && !o.dead && !o.digging && Math.hypot(o.x - x, o.y - y) < (near ? 70 : 520))) continue; // not too close to you
+      if (blocked(x, y, b.r) && !(near && diffName === 'godlike')) continue;
+      return [x, y];
+    }
+    return null;
+  }
+  function startBurrow(b, fo, near) {
+    const spot = pickBurrowSpot(b, fo, near); if (!spot) return false;
+    b.burrow = { ph: 'down', t: 0, T: 0, sx: b.x, sy: b.y, tx: spot[0], ty: spot[1] }; b.digging = true; b.burrowCd = 900;
+    burst(b.x, b.y, '#7a5230', 16); beep(120, 0.15, 'triangle', 0.07);
+    return true;
+  }
+  function burrowTick(b) {
+    const br = b.burrow; br.t++;
+    if (br.ph === 'down') { if (br.t % 4 === 0) burst(b.x, b.y, '#7a5230', 3); if (br.t >= 36) { br.ph = 'under'; br.t = 0; br.T = Math.max(50, Math.hypot(br.tx - br.sx, br.ty - br.sy) / 7); } }
+    else if (br.ph === 'under') {
+      const p = Math.min(1, br.t / br.T); b.x = br.sx + (br.tx - br.sx) * p; b.y = br.sy + (br.ty - br.sy) * p; if (br.t % 5 === 0) burst(b.x, b.y, '#8a5e34', 2);
+      if (br.t >= br.T) { br.ph = 'up'; br.t = 0; b.x = br.tx; b.y = br.ty; if (blocked(b.x, b.y, b.r)) carve(b.x, b.y, 30); burst(b.x, b.y, '#9a7040', 24); beep(170, 0.12, 'triangle', 0.07); }
+    } else if (br.t >= 30) { b.burrow = null; b.digging = false; }
+  }
+  function drawBurrow(f, t) {
+    const br = f.burrow;
+    const hole = (r) => { ctx.fillStyle = '#7a5230'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 8, r + 5, (r + 5) * 0.55, 0, 0, 6.283); ctx.fill(); ctx.fillStyle = '#1e1008'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 8, r, r * 0.55, 0, 0, 6.283); ctx.fill(); };
+    if (br.ph === 'down' || br.ph === 'up') {
+      const p = Math.min(1, br.t / (br.ph === 'down' ? 36 : 30)), k = br.ph === 'down' ? 1 - p : p;
+      hole(8 + 22 * (br.ph === 'down' ? p : 1 - p * 0.7));
+      ctx.save(); ctx.beginPath(); ctx.rect(f.x - 60, f.y - 70, 120, 70 + 10); ctx.clip(); // only the part above the ground shows
+      ctx.translate(f.x, f.y + 26 * (1 - k)); ctx.scale(0.35 + 0.65 * k, 0.35 + 0.65 * k); ctx.translate(-f.x, -f.y); drawFighter(f, t); ctx.restore();
+    } else {
+      ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 10, 22, 8, 0, 0, 6.283); ctx.fill();
+      ctx.fillStyle = '#8a5e34'; ctx.beginPath(); ctx.ellipse(f.x, f.y + 4, 21, 11, 0, 0, 6.283); ctx.fill(); ctx.fillStyle = '#a77a48'; ctx.beginPath(); ctx.ellipse(f.x - 3, f.y + 1, 12, 6, 0, 0, 6.283); ctx.fill();
+      ctx.strokeStyle = 'rgba(60,35,12,.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(f.x - 14, f.y + 5); ctx.lineTo(f.x - 5, f.y - 2); ctx.moveTo(f.x + 4, f.y + 1); ctx.lineTo(f.x + 14, f.y + 6); ctx.stroke();
+    }
+  }
   function botScared(b) {
     b.scared--;
+    if (!b.burrow && diffName !== 'easy' && (b.scT = (b.scT || 0) + 1) > 80) { b.scT = 0; if (startBurrow(b, nearestFoe(b) || player, false)) return; } // chased by the Jagwire: dig away (no cooldown)
     let hz = null, bd = 1e9; for (const h of hides) { const d = Math.hypot(h.x + h.w / 2 - b.x, h.y + h.h / 2 - b.y); if (d < bd) { bd = d; hz = h; } }
     let v;
     if (hz) {
@@ -1217,6 +1297,7 @@
     for (const f of fighters) {
       if (f.dead) { f.burn = 0; f.slow = 0; continue; }
       if (f.invuln > 0) f.invuln--;
+      if (f.hurtT > 0) f.hurtT--;
       if (f === player && f.rainCd > 0) f.rainCd--;
       if (f === player && f.bonusT > 0 && --f.bonusT === 0) f.bonusHp = 0;
       if (f === player && f.skin === 'leaves' && (f.regT = (f.regT || 0) + 1) >= 60) { f.regT = 0; f.hp = Math.min(f.maxHp, f.hp + 1); } // autumn: heal 1 hp per second
@@ -1238,7 +1319,7 @@
   }
   function explode(x, y, R, dmg, team, hitFighter) {
     burst(x, y, '#ff9a4d', 26); burst(x, y, '#ffd24d', 12); shake = Math.max(shake, 12); beep(90, 0.22, 'sawtooth', 0.09, -50);
-    if (!hitFighter) for (const tg of fighters) if (tg.team !== team && !tg.dead && !tg.hidden && Math.hypot(tg.x - x, tg.y - y) < R + tg.r) { hurt(tg, dmg); tg.flash = 10; }
+    if (!hitFighter) for (const tg of fighters) if (tg.team !== team && !tg.dead && !tg.hidden && !tg.digging && Math.hypot(tg.x - x, tg.y - y) < R + tg.r) { hurt(tg, dmg); tg.flash = 10; }
     for (const o of obstacles) {
       if (o.dead || (o.type !== 'c' && o.type !== 'b' && o.type !== 't')) continue;
       const cx = Math.max(o.x, Math.min(x, o.x + o.w)), cy = Math.max(o.y, Math.min(y, o.y + o.h));
@@ -1286,7 +1367,7 @@
     for (const tr of trails) { tr.x += tr.vx; tr.y += tr.vy; tr.life--; }
     for (const r of rainFx) r.t--; rainFx = rainFx.filter(r => r.t > 0);
     for (const z of zaps) z.t--; zaps = zaps.filter(z => z.t > 0);
-    hideTick(); portalTick(); catTick(); if (jagCd > 0) jagCd--; if (mode !== 'ctf') turretTick();
+    unstickAll(); hideTick(); portalTick(); catTick(); if (jagCd > 0) jagCd--; if (mode !== 'ctf') turretTick();
     if (player.dashT > 0) { player.dashT--; for (let i = 0; i < 3; i++) trails.push({ k: 'rainbow', x: player.x + (Math.random() - 0.5) * 14, y: player.y + (Math.random() - 0.5) * 14, vx: 0, vy: 0, life: 24, max: 50, ph: Math.random() * 6.283 }); }
     if (player.storm > 0) { player.storm--; player.invuln = Math.max(player.invuln || 0, 3); }
     for (const h of holes) { h.t--; for (const o of fighters) { if (o.team === player.team || o.dead) continue; const dx = h.x - o.x, dy = h.y - o.y, d = Math.hypot(dx, dy); if (d < h.R && d > 28) { moveFighter(o, dx / d * 3.4, dy / d * 3.4); o.slow = Math.max(o.slow || 0, 20); } } }
@@ -1346,7 +1427,7 @@
       else if (ctfPhase <= 0) turretTick();
       if (dirtDirty && ++dirtTick % 20 === 0) mergeDirt();
     }
-    if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) { if (f.stun > 0) { f.stun--; continue; } if (mode === 'ctf' && ctfPhase > 0) { botFortify(f); continue; } updateBot(f); }
+    if (mode === '2p') updateP2(); else for (const f of fighters) if (f !== player && f.isBot && !f.dead) { if (f.burrow) { burrowTick(f); continue; } if (f.stun > 0) { f.stun--; continue; } if (mode === 'ctf' && ctfPhase > 0) { botFortify(f); continue; } updateBot(f); }
     for (const f of fighters) if (f !== player && f.blocks < MAX_BLOCKS && ++f.blockT >= 150) { f.blocks++; f.blockT = 0; }
 
     // bullets
@@ -1374,13 +1455,13 @@
       if (b.dead && b.boom) explode(b.x, b.y, b.boom, b.dmg * 0.5, b.team, false);
       if (b.dead) continue;
       let target = null;
-      for (const f of fighters) if (f.team !== b.team && !f.dead && !f.hidden && !(f.invuln > 0) && Math.hypot(b.x - f.x, b.y - f.y) < f.r + b.r - 1) { target = f; break; }
+      for (const f of fighters) if (f.team !== b.team && !f.dead && !f.hidden && !f.digging && !(f.invuln > 0) && Math.hypot(b.x - f.x, b.y - f.y) < f.r + b.r - 1) { target = f; break; }
       if (target) {
         b.dead = true;
         if (target.skin === 'galaxy' && target.shield > 0) { // star shield soaks up the hit
           target.shield = 0; target.shT2 = 900; burst(b.x, b.y, '#c9a6ff', 16); beep(500, 0.15, 'sine', 0.08);
         } else {
-          hurt(target, b.dmg * (target.skin === 'tux' ? 0.6 : target.skin === 'leaves' ? 0.75 : 1)); target.flash = 10; shake = 8;
+          hurt(target, b.dmg * (target.skin === 'tux' ? 0.6 : target.skin === 'leaves' ? 0.75 : 1)); target.flash = 10; target.hurtT = 90; shake = 8;
           if (b.fire) ignite(target, b.fire);
           if (b.slow) target.slow = Math.max(target.slow || 0, 90 * b.slow);
           if (b.freeze) { target.stun = Math.max(target.stun || 0, b.freeze); target.frozen = true; burst(target.x, target.y, '#bfeaff', 8); }
@@ -1571,10 +1652,15 @@
   function updateBot(b) {
     const fo = mode === 'ctf' ? player : nearestFoe(b);
     if (!fo) return;
+    if (b.burrowCd > 0) b.burrowCd--;
     if (b.cd > 0) b.cd--;
     const dx = fo.x - b.x, dy = fo.y - b.y, dist = Math.hypot(dx, dy) || 1;
     if (b.scared > 0) { botScared(b); return; }
     const los = !fo.dead && !(fo.hidden && Math.hypot(fo.x - b.x, fo.y - b.y) > 130) && lineClear(b.x, b.y, fo.x, fo.y);
+    if (diffName !== 'easy' && mode !== '2p' && !fo.dead) { // dig away when hurt; Godlike also digs right up to you
+      if (b.hurtT > 0 && b.hp <= b.maxHp * 0.45 && !(b.burrowCd > 0) && startBurrow(b, fo, false)) return;
+      if (diffName === 'godlike' && !los && Math.hypot(fo.x - b.x, fo.y - b.y) > 520 && !(b.burrowCd > 0) && startBurrow(b, fo, true)) return;
+    }
     const goal = mode === 'ctf' ? botGoal() : null;
     if (b.burn > 0 && diffName !== 'easy' && b.water > 0) { b.burnAge = (b.burnAge || 0) + 1; if (b.burnAge > ({ medium: 90, hard: 50, insane: 25, godlike: 15 }[diffName] || 90)) { placePuddle(b); b.burnAge = 0; } } else b.burnAge = 0;
     const speed = Math.min(3.4, diff().speed + round * 0.04) * (mode === 'ctf' && flags.p.carrier === b ? 0.85 : 1) * (b.slow > 0 ? 0.5 : 1);
@@ -1982,7 +2068,7 @@
         drawFlag(flags.p.x, flags.p.y, '#4fd1ff', !!flags.p.carrier);
         drawFlag(flags.b.x, flags.b.y, '#ff6b9a', !!flags.b.carrier);
       }
-      for (const f of fighters) { if (f.dead) continue; const flick = (f.invuln > 0 && Math.floor(Date.now() / 90) % 2 ? 0.35 : 1) * (f.hidden ? 0.4 : 1); if (f === player) { ctx.globalAlpha = player.ghosting ? 0.45 : flick; drawFighter(player, t); ctx.globalAlpha = 1; } else { ctx.globalAlpha = flick; drawFighter(f, t); ctx.globalAlpha = 1; } }
+      for (const f of fighters) { if (f.dead) continue; if (f.digging && f.burrow) { if (f.burrow.ph !== 'under') drawBurrow(f, t); else drawBurrow(f, t); continue; } const flick = (f.invuln > 0 && Math.floor(Date.now() / 90) % 2 ? 0.35 : 1) * (f.hidden ? 0.4 : 1); if (f === player) { ctx.globalAlpha = player.ghosting ? 0.45 : flick; drawFighter(player, t); ctx.globalAlpha = 1; } else { ctx.globalAlpha = flick; drawFighter(f, t); ctx.globalAlpha = 1; } }
       if (player.storm > 0 && !player.dead) { ctx.save(); ctx.translate(player.x, player.y); for (let i = 0; i < 10; i++) { const a = Date.now() / 160 + i * 0.628; ctx.fillStyle = ['#ffb02e', '#e8731a', '#c9411f', '#f2d04a'][i % 4]; ctx.save(); ctx.translate(Math.cos(a) * 40, Math.sin(a) * 40); ctx.rotate(a * 2); ctx.beginPath(); ctx.ellipse(0, 0, 7, 3, 0, 0, 6.283); ctx.fill(); ctx.restore(); } ctx.restore(); }
       for (const f of fighters) if (!f.dead && f.shield > 0) { ctx.strokeStyle = 'rgba(200,160,255,' + (0.55 + 0.25 * Math.sin(Date.now() / 200)) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, f.r + 8, 0, 6.283); ctx.stroke(); }
       if (mode === 'team' && !player.dead) { ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#4fd1ff'; ctx.fillText('▼', player.x, player.y - 36); }
