@@ -42,7 +42,7 @@ const POWERS = {
 };
 const POWER_KEYS = Object.keys(POWERS);
 
-function reset() { stars = []; score = 0; lives = 3; over = false; spawnTimer = 30; fx = {}; basket.w = BASE_W; toast = null; }
+function reset() { stars = []; score = 0; lives = 3; over = false; spawnTimer = 30; fx = {}; basket.w = W; toast = null; }
 reset();
 
 // little sounds (made with the Web Audio API)
@@ -93,7 +93,7 @@ function update() {
   if (keys.ArrowLeft || keys.a) basket.x -= basket.speed;
   if (keys.ArrowRight || keys.d) basket.x += basket.speed;
   for (const k in fx) if (fx[k] > 0) fx[k]--;
-  basket.w = BASE_W * (fx.wide > 0 ? 2 : 1);
+  basket.w = W; // the basket is as wide as the whole screen
   basket.x = Math.max(basket.w / 2, Math.min(W - basket.w / 2, basket.x));
   if (toast && toast.t > 0) toast.t--;
 
