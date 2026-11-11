@@ -66,6 +66,16 @@
         <h3>🌤 Forecast</h3>
         <div id="weather"></div>
       </div>
+    <div class="box">
+      <h3>🎮 Requests &amp; Bugs</h3>
+      <form id="reqForm" autocomplete="off" style="flex-direction:column">
+        <select id="reqType" style="padding:8px;font:16px Georgia,serif;border:2px solid #222;background:#fff"><option value="🎮 New game">🎮 New game</option><option value="🔧 Change">🔧 Change</option><option value="🐛 Bug">🐛 Bug</option></select>
+        <input type="text" id="reqText" maxlength="140" placeholder="What do you want or what broke?" style="flex:none">
+        <button class="send" type="submit">Send 📨</button>
+      </form>
+      <div id="reqMsg"></div>
+      <div id="reqList"></div>
+    </div>
     </aside>
   </div>
 
@@ -80,16 +90,6 @@
     <div id="letterList"></div>
   </div>
 
-  <div class="letters">
-    <h2>🎮 Requests and Bug Reports</h2>
-    <form id="reqForm" autocomplete="off">
-      <select id="reqType" style="padding:8px;font:16px Georgia,serif;border:2px solid #222;background:#fff"><option value="🎮 New game">🎮 New game</option><option value="🔧 Change">🔧 Change</option><option value="🐛 Bug">🐛 Bug</option></select>
-      <input type="text" id="reqText" maxlength="140" placeholder="Tell us what you want or what broke!">
-      <button class="send" type="submit">Send 📨</button>
-    </form>
-    <div id="reqMsg"></div>
-    <div id="reqList"></div>
-  </div>
 </div>
 
 <script>
