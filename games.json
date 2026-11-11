@@ -26,5 +26,11 @@
     "description": "Read The Daily Jaw, a silly fake newspaper with made-up stories, secret codes, and reader letters!",
     "comingSoon": true,
     "earlyBird": "aee801f1dbb48bc5b53492abe09bb9e0c6bf5a5dbdc787002df3231d6374ddb4"
+  },
+  {
+    "slug": "lava-runner",
+    "title": "Lava Runner",
+    "emoji": "🔥",
+    "description": "Brand new and under construction!"
   }
 ]
