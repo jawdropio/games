@@ -163,15 +163,11 @@ function showLetters() {
   }
 }
 function checkSafe(t) {
-  if (t.length < 3) return "Write a little more!";
+  if (t.length < 2) return "Write a little more!";
   if (/\d/.test(t)) return "No numbers please (phone numbers and addresses aren't safe).";
   if (/@|https?:|www\.|\.com/i.test(t)) return "No emails or links please.";
   if (/my name|call me|i live|my school|i go to/i.test(t)) return "That sounds like personal info. Keep it silly and secret!";
-  const words = t.split(/\s+/);
-  for (const w of words) {
-    const clean = w.replace(/[^A-Za-z']/g, "");
-    if (/^[A-Z]/.test(clean) && !/^I('[a-z]+)?$/.test(clean)) return "Capital letters might be a name! Use lowercase (except “I”).";
-  }
+  if (/\b(my name is|name's|im called|i am called|my school|my address|my phone)\b/i.test(t)) return "That sounds like personal info. Keep it silly and secret!";
   return "";
 }
 $("form").addEventListener("submit", e => {
@@ -184,7 +180,7 @@ $("form").addEventListener("submit", e => {
   }
   const who = $("who").value.trim() || "a mysterious reader";
   let bad = checkSafe(t);
-  if (!bad && who !== "a mysterious reader") bad = checkSafe(who) && "That nickname might be a real name. Use a made-up lowercase one!";
+  if (!bad && who !== "a mysterious reader") bad = checkSafe(who) && "Use a made-up nickname, not a real name or numbers!";
   if (bad) { $("msg").className = "err"; $("msg").textContent = "🚫 " + bad; return; }
   const l = loadLetters(); l.unshift({ who, text:t }); saveLetters(l.slice(0, 30));
   $("text").value = ""; $("msg").className = "ok"; $("msg").textContent = "✅ Letter published! Stop the presses!";
