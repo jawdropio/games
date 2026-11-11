@@ -167,6 +167,45 @@
   .tb:active, .act:active { transform:translateY(4px); box-shadow:0 1px 0 #1a0c04; }
   .animal { filter:drop-shadow(0 8px 4px #0007); }
   .bubble { box-shadow:0 5px 0 #0003, 0 8px 10px #0004; }
+
+  /* ---- brick pizza ovens ---- */
+  .oven { position:relative; background:none; border:0; padding:0; box-shadow:none; border-radius:0; height:clamp(96px,16vw,142px); }
+  .oven::before, .oven::after { display:none; }
+  .chim { position:absolute; left:64%; top:0; width:15%; height:34%; background:repeating-linear-gradient(0deg,#0000 0 6px,#0005 6px 7px), linear-gradient(90deg,#7a2c18,#c86040 45%,#7a2c18); border-radius:3px 3px 0 0; box-shadow:inset 0 4px 0 #3a1208, 3px 0 6px #0006; }
+  .dome { position:absolute; left:0; right:0; top:14%; bottom:14%; border-radius:50% 50% 8px 8px / 64% 64% 8px 8px;
+    background:repeating-linear-gradient(0deg,#0000 0 9px,#4a1a0c 9px 11px), repeating-linear-gradient(90deg,#0000 0 17px,#4a1a0c 17px 19px), radial-gradient(ellipse at 35% 25%,#e88a60,#b84e2c 55%,#7a2a16);
+    box-shadow:inset -10px -12px 18px #0009, inset 8px 8px 14px #ffb08a55, 0 8px 10px #0009; }
+  .dial { position:absolute; left:13%; top:30%; width:15%; aspect-ratio:1; border-radius:50%; background:radial-gradient(#fff,#d4d4d4); border:2px solid #666; box-shadow:0 2px 3px #0007; }
+  .dial::after { content:''; position:absolute; left:47%; top:12%; width:2px; height:40%; background:#c00; transform-origin:50% 100%; transform:rotate(40deg); }
+  .arch { position:absolute; left:20%; right:20%; bottom:12%; height:58%; border-radius:50% 50% 0 0 / 72% 72% 0 0; border:4px solid #4a2214; border-bottom:0; box-shadow:inset 0 8px 16px #000, 0 0 0 3px #2e140c; overflow:hidden; background:radial-gradient(ellipse at 50% 100%,#5a1e0a,#140806 72%); }
+  .oven.baking .arch { background:radial-gradient(ellipse at 50% 100%,#ffd36a,#ff7a1f 42%,#7a1a08 85%); box-shadow:inset 0 8px 16px #0008, 0 0 14px #ff7a1f88, 0 0 0 3px #2e140c; }
+  .oven.ready .arch { background:radial-gradient(ellipse at 50% 100%,#ffe9a0,#ffa21f 45%,#6a2a0a 88%); box-shadow:inset 0 8px 16px #0006, 0 0 18px #ffb347, 0 0 0 3px #2e140c; }
+  .oven.burnt .arch { background:radial-gradient(ellipse at 50% 100%,#555,#111 72%); }
+  .obase { position:absolute; left:-4%; right:-4%; bottom:0; height:16%; background:linear-gradient(#bfb2a2,#7c7266); border-radius:4px; box-shadow:inset 0 3px 0 #e6dccd, 0 5px 0 #4a443c, 0 9px 8px #0009; }
+  .oven .win, .oven.baking .win, .oven.ready .win, .oven.burnt .win { margin:0; width:100%; height:100%; aspect-ratio:auto; background:none; border:0; border-radius:0; box-shadow:none; animation:none; display:grid; place-items:end center; padding-bottom:6%; }
+  .oven .win .pizza { width:64%; transform:perspective(160px) rotateX(52deg); transform-origin:50% 70%; }
+
+  /* ---- prep counter (like a real kitchen) ---- */
+  #trays { gap:0; }
+  .tray { background:none; border:0; border-radius:0; box-shadow:none; padding:0 2px; width:clamp(92px,16vw,150px); }
+  .tray.sel { box-shadow:none; }
+  .tray.sel .board { outline:3px solid #ffe14d; outline-offset:-3px; }
+  .tray.nudge .oven { filter:drop-shadow(0 0 8px #ffb347); }
+  .board { background:radial-gradient(circle at 20% 30%,#fff9 0 1px,#0000 2px) 0 0/9px 9px, radial-gradient(circle at 70% 60%,#0003 0 1px,#0000 2px) 0 0/13px 13px, linear-gradient(#e6e1d7,#b4aea3);
+    border:0; border-top:4px solid #fffc; border-radius:0; margin-top:0; position:relative; padding:6px 4px; box-shadow:inset 0 -4px 0 #8a857b, 0 6px 8px #0006; }
+  .board::before { content:''; position:absolute; left:50%; top:52%; width:78%; aspect-ratio:1; border-radius:50%; background:radial-gradient(circle,#e0ac68,#b98040); box-shadow:0 4px 0 #7a4a1c, 0 8px 6px #0006; transform:translate(-50%,-50%) perspective(240px) rotateX(50deg); transform-origin:50% 55%; }
+  .board .pizza { position:relative; z-index:1; }
+  .tray .tl { background:linear-gradient(#6a4a2a,#3a2816); margin:0; padding:4px 2px; border-top:3px solid #8a6a3a; }
+  .tray .pbar { margin:0; border-radius:0; height:7px; }
+
+  /* ---- ingredient station ---- */
+  #bottom { background:radial-gradient(circle at 20% 30%,#fff9 0 1px,#0000 2px) 0 0/9px 9px, radial-gradient(circle at 70% 60%,#0003 0 1px,#0000 2px) 0 0/13px 13px, linear-gradient(#e6e1d7,#a8a297); border-top:4px solid #fffc; border-bottom:10px solid #6a655c; box-shadow:0 -6px 12px #0006; }
+  .tb[data-t] { background:none; border:0; box-shadow:none; padding:2px 4px; min-width:86px; min-height:0; }
+  .tb[data-t]:active { transform:translateY(3px); box-shadow:none; }
+  .tb svg.bowl { width:clamp(52px,8.4vmin,74px); height:auto; filter:drop-shadow(0 4px 3px #0006); }
+  .tb[data-t] small { background:#3a2a1c; color:#fff; border-radius:8px; padding:1px 7px; margin-top:2px; display:inline-block; }
+  .tb[data-t].on { background:#ffe14d66; border-radius:16px; box-shadow:0 0 0 3px #ffe14d; }
+  #bakeall.go { transform:scale(1.06); box-shadow:0 0 16px #ffd24d, 0 3px 0 #0006; }
 </style>
 </head>
 <body>
@@ -333,6 +372,12 @@ function topSVG(id, x, y, r) {
   return '';
 }
 const iconSVG = id => '<svg class="ic" viewBox="-12 -12 24 24">' + topSVG(id, 0, 0, 0) + '</svg>';
+const bowlSVG = id => {
+  const pts = [[16,15,10],[27,12,80],[39,13,150],[22,17,40],[33,16,120],[45,16,300],[28,15,200],[11,17,260],[50,17,20]];
+  let h = '<svg class="bowl" viewBox="0 0 60 46"><ellipse cx="30" cy="17" rx="28" ry="8" fill="#4a5058"/>';
+  pts.forEach(q => { h += '<g transform="translate(' + q[0] + ' ' + q[1] + ') scale(.6)">' + topSVG(id, 0, 0, q[2]) + '</g>'; });
+  return h + '<path d="M2 17 Q4 45 30 45 Q56 45 58 17 Q30 27 2 17Z" fill="#9aa1ab"/><path d="M2 17 Q4 45 30 45 Q56 45 58 17 L55 17 Q52 40 30 40 Q8 40 5 17Z" fill="#6c737d"/><path d="M8 24 Q10 34 18 38" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-linecap="round"/><ellipse cx="30" cy="17" rx="28" ry="8" fill="none" stroke="#d5dae0" stroke-width="2"/></svg>';
+};
 const cupSVG = c => '<svg viewBox="0 0 24 32"><path d="M4 7 L20 7 L18 30 L6 30Z" fill="#fff" fill-opacity=".25" stroke="#fff" stroke-width="1.5"/><path d="M4.8 13 L19.2 13 L18 29 L6 29Z" fill="' + c + '"/><path d="M14 7 L18 0" stroke="#e33" stroke-width="2.2"/></svg>';
 const SPOTS = Array.from({ length:24 }, (_, i) => {
   const a = i * 2.4, r = 8 + 28 * Math.sqrt(i / 24);
@@ -459,7 +504,7 @@ function buildTrays() {
   traysEl.innerHTML = '';
   G.trays.forEach((_, i) => {
     const d = document.createElement('div'); d.className = 'tray'; d.dataset.i = i; d._sig = 'x';
-    d.innerHTML = '<div class="oven"><div class="win"></div></div><div class="board"><div class="pizza"></div></div><div class="tl"></div><div class="pbar"><i></i></div>';
+    d.innerHTML = '<div class="oven"><div class="chim"></div><div class="dome"><div class="dial"></div></div><div class="arch"><div class="win"></div></div><div class="obase"></div></div><div class="board"><div class="pizza"></div></div><div class="tl"></div><div class="pbar"><i></i></div>';
     traysEl.appendChild(d);
   });
 }
@@ -475,7 +520,7 @@ function buildBottom() {
   bottomEl.innerHTML = '';
   save.tops.forEach((id, i) => {
     const b = document.createElement('button');
-    b.className = 'tb'; b.dataset.t = id; b.innerHTML = iconSVG(id) + '<small>' + (KH && i < 9 ? (i + 1) + ' ' : '') + TOP[id].n + '</small>';
+    b.className = 'tb'; b.dataset.t = id; b.innerHTML = bowlSVG(id) + '<small>' + (KH && i < 9 ? (i + 1) + ' ' : '') + TOP[id].n + '</small>';
     bottomEl.appendChild(b);
   });
   save.drinks.forEach(id => {
@@ -485,7 +530,7 @@ function buildBottom() {
   });
   let cups = '<div id="cups">';
   G.cups.forEach((_, i) => { cups += '<div class="cup" data-c="' + i + '"><i></i></div>'; });
-  bottomEl.insertAdjacentHTML('beforeend', cups + '</div>' + (save.up.auto ? '<button class="act" id="auto" style="background:#2a6fdb">🤖 Auto</button>' : '') + '<button class="act" id="bake">🔥 Bake!</button><button class="act" id="trash" style="background:#555">🗑 Toss</button>');
+  bottomEl.insertAdjacentHTML('beforeend', cups + '</div>' + (save.up.auto ? '<button class="act" id="auto" style="background:#2a6fdb">🤖 Auto</button>' : '') + '<button class="act" id="bake">🔥 Bake!</button><button class="act" id="bakeall" style="background:#d4380d">🔥🔥 Bake all</button><button class="act" id="trash" style="background:#555">🗑 Toss</button>');
 }
 
 // ---------- orders ----------
@@ -555,6 +600,12 @@ function bake() {
   if (!t || t.st !== 'raw') { toast('Tap a board with dough first!'); return; }
   if (!t.tops.length) { toast('Add a topping first! 🧀'); return; }
   t.st = 'baking'; t.p = 0; sfx('bake');
+}
+function bakeAll() {
+  const raws = G.trays.filter(t => t.st === 'raw' && t.tops.length);
+  if (!raws.length) { toast('No dough with toppings to bake yet! 🍕'); return; }
+  raws.forEach(t => { t.st = 'baking'; t.p = 0; });
+  sfx('bake'); toast('Baking ' + raws.length + ' pizza' + (raws.length > 1 ? 's' : '') + '! 🔥');
 }
 function pour(id) {
   const i = G.cups.findIndex(c => c.st === 'empty');
@@ -775,6 +826,7 @@ function render() {
   const st = selTray();
   bottomEl.querySelectorAll('.tb[data-t]').forEach(b => b.classList.toggle('on', !!st && st.st === 'raw' && st.tops.includes(b.dataset.t)));
   const bk = $('#bake'); if (bk) bk.classList.toggle('go', !!st && st.st === 'raw' && st.tops.length > 0);
+  const ba = $('#bakeall'); if (ba) ba.classList.toggle('go', G.trays.filter(x => x.st === 'raw' && x.tops.length).length > 1);
   setText($('#hint'), hintText());
 }
 function hintText() {
@@ -784,7 +836,7 @@ function hintText() {
   if (G.selW >= 0) return '👆 Tap an animal to give them the pizza!';
   if (t && t.st === 'ready') return G.warm.some(w => w.st === 'empty') ? '👆 Tap an animal, or tap a warmer 🔆 to keep it warm!' : '👆 Tap an animal to give them the pizza!';
   if (t && t.st === 'raw') {
-    if (t.tops.length) return '🔥 Tap the big Bake button!';
+    if (t.tops.length) return G.trays.filter(x => x.st === 'raw' && x.tops.length).length > 1 ? '🔥 Tap Bake all to bake every pizza!' : '🔥 Tap the big Bake button!';
     const w = waiting.find(x => !x.gotPizza);
     return w ? '🧀 Add what is in the bubble: ' + w.order.map(id => TOP[id].n).join(' + ') : '🧀 Add some toppings!';
   }
@@ -835,6 +887,7 @@ bottomEl.addEventListener('click', e => {
   if (b.dataset.t) addTopping(b.dataset.t);
   else if (b.dataset.d) pour(b.dataset.d);
   else if (b.id === 'bake') bake();
+  else if (b.id === 'bakeall') bakeAll();
   else if (b.id === 'auto') autoTop();
   else if (b.id === 'trash') trash();
 });
@@ -864,6 +917,7 @@ window.addEventListener('keydown', e => {
   if (k >= '1' && k <= '9') { const id = save.tops[+k - 1]; if (id) addTopping(id); return; }
   if (k === 'b') bake();
   else if (k === 'a' && save.up.auto) autoTop();
+  else if (k === 'x') bakeAll();
   else if (k === 't' || k === 'delete' || k === 'backspace') trash();
   else { const d = DRINKS.find(x => x.key === k && save.drinks.includes(x.id)); if (d) pour(d.id); }
 });
