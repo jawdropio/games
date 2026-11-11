@@ -21,9 +21,8 @@
   /* ---- diner room ---- */
   #room { position:relative; flex:1.1; min-height:0; overflow:hidden; border-bottom:8px solid #3b2210;
     background:
-      linear-gradient(#0000 0 38%, #0003 38% 39%, #0000 39%),
-      linear-gradient(#f7d9a0 0 38%, #8a4a22 38% 79%, #0000 79%),
-      conic-gradient(#f3e0bc 25%, #c8622a 0 50%, #f3e0bc 0 75%, #c8622a 0) 0 0/46px 46px; }
+      repeating-linear-gradient(90deg, #0000 0 78px, #0004 78px 80px) 0 34% / 100% 28% no-repeat,
+      linear-gradient(#f7d9a0 0 33%, #fff0cc 33% 34%, #8a4a22 34% 62%, #3a1d0c 62% 100%); }
   #room::before { content:'🍂 PIZZA PALS 🍂'; position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:2; font-weight:900; font-size:clamp(13px,2.8vmin,22px); color:#fff6b0; text-shadow:0 0 6px #ff3d3d, 0 0 14px #ff3d3d; border:3px solid #ff9a9a; border-radius:12px; padding:2px 14px; background:#2b1608cc; white-space:nowrap; }
   @keyframes neon { 0%,92%,100%{opacity:1} 94%{opacity:.5} 96%{opacity:1} 98%{opacity:.6} }
   #decor { position:absolute; inset:0; pointer-events:none; z-index:0; }
@@ -100,13 +99,6 @@
   .cup.ready { border-color:#fff; cursor:pointer; box-shadow:0 0 10px #fffb; }
   .cup.sel { border-color:#ffe14d; box-shadow:0 0 12px #ffe14d; transform:translateY(-3px); }
   #bake { background:#ff5a1f; }
-  #walkers { position:absolute; left:0; right:0; bottom:1%; height:40px; z-index:2; pointer-events:none; }
-  .walker { position:absolute; bottom:0; font-size:clamp(22px,4.4vmin,34px); animation:walkL 40s linear infinite; }
-  .walker.right { animation-name:walkR; transform:scaleX(-1); }
-  .walker i { display:block; font-style:normal; animation:bob .5s ease-in-out infinite; }
-  @keyframes walkL { from { left:108%; } to { left:-8%; } }
-  @keyframes walkR { from { left:-8%; } to { left:108%; } }
-  @keyframes bob { 50% { transform:translateY(-4px); } }
   .bgt { position:absolute; top:41%; width:clamp(42px,7vw,66px); text-align:center; }
   .bgt .pp { display:block; font-size:clamp(22px,4.4vmin,34px); line-height:1; animation:eat 3.4s ease-in-out infinite; }
   .bgt .tb2 { height:clamp(14px,2.8vmin,22px); margin-top:-3px; background:linear-gradient(#e8b676,#b97b3c); border-radius:50%; border-bottom:3px solid #7a4a22; display:grid; place-items:center; font-size:clamp(10px,2vmin,15px); }
@@ -154,6 +146,27 @@
   @keyframes fall { to { transform:translate(var(--dx),110vh) rotate(540deg); } }
   .float { position:absolute; font-weight:900; font-size:22px; color:#ffe14d; text-shadow:0 2px 0 #000a; transform:translateX(-50%); animation:up 1.1s ease-out forwards; white-space:nowrap; }
   @keyframes up { to { transform:translate(-50%,-70px); opacity:0; } }
+  /* ---- 3D look ---- */
+  #floorwrap { position:absolute; left:0; right:0; top:67%; bottom:0; perspective:360px; perspective-origin:50% 0; overflow:hidden; z-index:0; }
+  #floor { position:absolute; left:-70%; right:-70%; top:0; height:230px; transform-origin:50% 0; transform:rotateX(62deg); background:conic-gradient(#f3e0bc 25%, #c8622a 0 50%, #f3e0bc 0 75%, #c8622a 0) 0 0/64px 64px; box-shadow:inset 0 30px 40px #0005; }
+  #room::after { content:''; position:absolute; inset:0; pointer-events:none; z-index:3; background:radial-gradient(ellipse at 50% 35%, #0000 45%, #0008 110%); }
+  .beam { position:absolute; top:26%; width:14%; height:62%; background:linear-gradient(#fff6c855,#fff6c800); clip-path:polygon(0 0,100% 0,150% 100%,50% 100%); pointer-events:none; }
+  .counter::before { content:''; position:absolute; left:0; right:0; bottom:100%; height:9px; background:linear-gradient(#fff0cc,#f0c890); transform-origin:50% 100%; transform:perspective(40px) rotateX(40deg); }
+  .stool::before { content:''; position:absolute; left:-25%; right:-25%; top:calc(100% + clamp(14px,3vmin,24px) - 2px); height:9px; background:radial-gradient(ellipse,#0007,#0000 70%); }
+  #trays, #warmers { perspective:800px; }
+  .tray { transform:rotateX(9deg); box-shadow:0 2px 0 #2a120a, 0 4px 0 #2a120a, 0 6px 0 #22100a, 0 14px 14px #000a; }
+  .tray.sel { transform:rotateX(9deg) translateY(-4px); box-shadow:0 0 16px #ffe14d, 0 2px 0 #2a120a, 0 4px 0 #2a120a, 0 6px 0 #22100a, 0 16px 14px #000a; }
+  .warmer { transform:rotateX(9deg); box-shadow:0 2px 0 #4a3010, 0 4px 0 #4a3010, 0 6px 0 #3a2408, 0 12px 12px #000a; }
+  .warmer.sel { box-shadow:0 0 16px #ffe14d, 0 2px 0 #4a3010, 0 4px 0 #4a3010, 0 6px 0 #3a2408, 0 14px 12px #000a; }
+  .oven { box-shadow:inset 0 3px 0 #e8845c, inset 0 -8px 12px #0007, 0 5px 0 #4a1c10; }
+  .board { box-shadow:inset 0 2px 4px #0005, 0 3px 0 #6a3f18; }
+  .board .pizza, .wplate .pizza { transform:perspective(240px) rotateX(50deg); transform-origin:50% 55%; }
+  .board .pizza svg, .wplate .pizza svg { filter:drop-shadow(0 3px 0 #a87530) drop-shadow(0 7px 3px #0008); }
+  .tray.sel .board .pizza svg { filter:drop-shadow(0 3px 0 #a87530) drop-shadow(0 0 6px #ffe14d); }
+  .tb, .act { box-shadow:0 2px 0 #1a0c04, 0 5px 0 #1a0c04, 0 8px 8px #0008; }
+  .tb:active, .act:active { transform:translateY(4px); box-shadow:0 1px 0 #1a0c04; }
+  .animal { filter:drop-shadow(0 8px 4px #0007); }
+  .bubble { box-shadow:0 5px 0 #0003, 0 8px 10px #0004; }
 </style>
 </head>
 <body>
@@ -169,7 +182,7 @@
   <button class="hbtn" id="pauseBtn">⏸ Pause</button>
 </header>
 <div id="banner"></div>
-<section id="room"><div id="decor"><div class="winw" style="left:4%"></div><div class="winw" style="right:4%"></div>
+<section id="room"><div id="floorwrap"><div id="floor"></div></div><div id="decor"><div class="winw" style="left:4%"></div><div class="winw" style="right:4%"></div>
   <div class="frame"><svg viewBox="0 0 60 70">
     <rect width="60" height="70" fill="#a9b48a"/><rect y="0" width="60" height="24" fill="#c9d3b4"/>
     <path d="M0 30 Q12 20 22 28 T44 26 T60 30 V70 H0Z" fill="#7f9370"/>
@@ -191,7 +204,7 @@
     <circle cx="29" cy="60" r="1.6" fill="#b7281f"/><circle cx="32.5" cy="58.5" r="1.3" fill="#b7281f"/>
     <rect y="63" width="60" height="7" fill="#000" opacity=".55"/>
     <text x="30" y="68.2" text-anchor="middle" font-size="5.6" font-weight="bold" fill="#ffe9b0" font-family="sans-serif">MONA PIZZA</text>
-  </svg></div></div><div id="seats"></div><div id="walkers"></div></section>
+  </svg></div></div><div id="seats"></div></section>
 <section id="mid"><div id="hint"></div><div id="trays"></div><div id="warmers"></div></section>
 <section id="bottom"></section>
 <div id="toast"></div>
@@ -800,11 +813,7 @@ function buildBackdrop() {
   [17, 27, 70, 80].forEach(x => {
     d.insertAdjacentHTML('beforeend', '<div class="bgt" style="left:' + x + '%"><span class="pp" style="animation-delay:-' + (Math.random() * 3).toFixed(1) + 's">' + people[rnd(people.length)] + '</span><div class="tb2">' + food[rnd(food.length)] + '</div><div class="leg"></div></div>');
   });
-  d.insertAdjacentHTML('beforeend', '<div class="chalk">MENU<br>🍕 🥤 🍰</div><div class="pend" style="left:28%"></div><div class="pend" style="left:72%"></div>');
-  const w = $('#walkers');
-  ['🐕','🐈','🐇','🦆','🐢','🐿️'].forEach((e, i) => {
-    w.insertAdjacentHTML('beforeend', '<span class="walker' + (i % 2 ? ' right' : '') + '" style="animation-duration:' + (30 + rnd(30)) + 's;animation-delay:-' + rnd(40) + 's"><i>' + e + '</i></span>');
-  });
+  d.insertAdjacentHTML('beforeend', '<div class="beam" style="left:5%"></div><div class="beam" style="right:5%"></div><div class="chalk">MENU<br>🍕 🥤 🍰</div><div class="pend" style="left:28%"></div><div class="pend" style="left:72%"></div>');
   const says = ['😋','💬','😄','🍕','👍','🎶','Yum!','Hi!'];
   setInterval(() => {
     if (paused) return;
