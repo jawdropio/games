@@ -314,10 +314,15 @@ const ANIMALS = [
   { e:'🐵', fav:'pine' }, { e:'🐼', fav:'olive' }, { e:'🦊', fav:'straw' }, { e:'🐷', fav:'ham' },
   { e:'🐻', fav:'cheese' }, { e:'🐨', fav:'corn' }, { e:'🦁', fav:'pep' }, { e:'🐮', fav:'cheese' },
 ];
+const CD = [600, 420, 240, 120, 0];    // robot cooldowns in ticks: 10s, 7s, 4s, 2s, none
+const cdShow = l => l >= 4 ? 'NO cooldown!' : (CD[l] / 60) + 's cooldown';
 const UPS = [
   { k:'trays',    e:'🍕', n:'More ovens',    d:'More ovens and prep boards',     costs:[60,120,200,320], show:l => (2+l)+' ovens' },
   { k:'warmers',  e:'🔆', n:'Pizza warmer',  d:'Keeps a baked pizza warm and never burns it', costs:[70,140,220,320], show:l => l + (l === 1 ? ' warmer' : ' warmers') },
   { k:'auto',     e:'🤖', n:'Auto-topper',   d:'A robot adds the toppings for the next customer! Level 2 bakes it too.', costs:[1500,4000], show:l => l === 0 ? 'off' : l === 1 ? 'adds toppings' : 'toppings + baking' },
+  { k:'autoCd',   e:'⏱️', n:'Topper speed',  d:'Shorter cooldown for the Auto-topper. The last upgrade has NO cooldown!', req:'auto', costs:[250,400,600,1000], show:cdShow },
+  { k:'server',   e:'🧑‍🍳', n:'Auto-server',   d:'A robot waiter serves ready pizzas and drinks to the right animals for you!', costs:[2500], show:l => l ? 'on' : 'off' },
+  { k:'serverCd', e:'⏱️', n:'Server speed',  d:'Shorter cooldown for the Auto-server. The last upgrade has NO cooldown!', req:'server', costs:[250,400,600,1000], show:cdShow },
   { k:'oven',     e:'🔥', n:'Hotter oven',   d:'Pizzas bake faster',             costs:[50,100,180,300], show:l => ((420-60*l)/60)+'s bake' },
   { k:'seats',    e:'🪑', n:'More stools',   d:'Room for more animals',          costs:[100,250],        show:l => (3+l)+' stools' },
   { k:'patience', e:'🛋️', n:'Comfy stools',  d:'Animals wait longer',            costs:[40,80,140,220],  show:l => '+'+(10*l)+'s patience' },
@@ -334,7 +339,7 @@ const DECOS = [
 
 // ---------- save ----------
 const fresh = () => ({ coins:0, day:1, best:0, tops:['cheese','pep','mush'], drinks:['coke'], deco:[],
-  up:{trays:0,oven:0,seats:0,patience:0,cups:0,tips:0,mitts:0,warmers:0,auto:0} });
+  up:{trays:0,oven:0,seats:0,patience:0,cups:0,tips:0,mitts:0,warmers:0,auto:0,autoCd:0,server:0,serverCd:0} });
 let save = (() => {
   try {
     const s = JSON.parse(localStorage.getItem('pizzapals-save') || 'null');
@@ -479,7 +484,7 @@ const newCup = () => ({ st:'empty', p:0, type:'coke' });
 const newWarm = () => ({ st:'empty', tops:[] });
 
 function newDay() {
-  G = { target:Math.min(5 + 2 * save.day, 20), spawned:0, vipSeen:false, seats:Array(seatCount()).fill(null), trays:[], cups:[], warm:[], sel:-1, selW:-1, cup:-1, spawn:30,
+  G = { target:Math.min(5 + 2 * save.day, 20), spawned:0, vipSeen:false, autoCd:0, srvCd:0, seats:Array(seatCount()).fill(null), trays:[], cups:[], warm:[], sel:-1, selW:-1, cup:-1, spawn:30,
         combo:0, earned:0, served:0, lost:0 };
   for (let i = 0; i < trayCount(); i++) G.trays.push(newTray());
   for (let i = 0; i < cupCount(); i++) G.cups.push(newCup());
@@ -533,7 +538,7 @@ function buildBottom() {
   });
   let cups = '<div id="cups">';
   G.cups.forEach((_, i) => { cups += '<div class="cup" data-c="' + i + '"><i></i></div>'; });
-  bottomEl.insertAdjacentHTML('beforeend', cups + '</div>' + (save.up.auto ? '<button class="act" id="auto" style="background:#2a6fdb">🤖 Auto</button>' : '') + '<button class="act" id="bake">🔥 Bake!</button><button class="act" id="bakeall" style="background:#d4380d">🔥🔥 Bake all</button><button class="act" id="trash" style="background:#555">🗑 Toss</button>');
+  bottomEl.insertAdjacentHTML('beforeend', cups + '</div>' + (save.up.auto ? '<button class="act" id="auto" style="background:#2a6fdb">🤖 Auto</button>' : '') + (save.up.server ? '<div class="chip" id="srv" style="color:#fff">🧑‍🍳 Server</div>' : '') + '<button class="act" id="bake">🔥 Bake!</button><button class="act" id="bakeall" style="background:#d4380d">🔥🔥 Bake all</button><button class="act" id="trash" style="background:#555">🗑 Toss</button>');
 }
 
 // ---------- orders ----------
@@ -584,6 +589,7 @@ function addTopping(id) {
 }
 function autoTop() {
   const lvl = save.up.auto; if (!lvl) return;
+  if (G.autoCd > 0) { toast('🤖 Recharging... ' + Math.ceil(G.autoCd / 60) + 's'); return; }
   const made = [...G.trays, ...G.warm].filter(x => x.st !== 'empty' && x.tops.length).map(x => x.tops);
   const waiting = G.seats.filter(s => s && !s.leave && !s.gotPizza).sort((a, b) => a.pat / a.max - b.pat / b.max);
   let target = null;
@@ -599,7 +605,7 @@ function autoTop() {
     G.sel = e; t = G.trays[e]; t.st = 'raw';
   }
   G.cup = -1; G.selW = -1;
-  t.tops = target.order.slice(); sfx('add');
+  t.tops = target.order.slice(); sfx('add'); G.autoCd = CD[save.up.autoCd];
   if (lvl >= 2) { t.st = 'baking'; t.p = 0; sfx('bake'); toast('🤖 Made and baking!'); }
   else toast('🤖 Toppings done! Tap Bake!');
 }
@@ -649,6 +655,37 @@ function finishCheck(s) {
     }
   }
 }
+function rewardPizza(s, el) {
+    const base = 8 + s.order.reduce((a, id) => a + TOP[id].v, 0);
+    const tip = Math.round(base * .5 * (s.pat / s.max) * tipMult());
+    G.combo++;
+    const mult = 1 + Math.min(G.combo - 1, 9) * .1;
+    let gain = Math.round((base + tip) * mult * (s.golden ? 3 : 1));
+    if (G.combo % 5 === 0) { gain += 25; confetti(30); banner('🎉 Combo x' + G.combo + '! +25 bonus!'); sfx('fan'); }
+    save.coins += gain; G.earned += gain; G.served++; persist();
+    s.gotPizza = true; finishCheck(s); sfx('coin');
+    floatText(el, '+' + gain + ' 🪙' + (tip > 3 ? ' 💖' : ''));
+}
+function autoServe() {          // the robot waiter: returns true if it served something
+  const pizzas = [...G.trays.filter(t => t.st === 'ready'), ...G.warm.filter(w => w.st === 'ready')];
+  for (const src of pizzas) {
+    const i = G.seats.findIndex(x => x && !x.leave && !x.gotPizza && sameOrder(src.tops, x.order));
+    if (i < 0) continue;
+    src.st = 'empty'; src.tops = [];
+    if (G.sel >= 0 && G.trays[G.sel] === src) G.sel = -1;
+    if (G.selW >= 0 && G.warm[G.selW] === src) G.selW = -1;
+    rewardPizza(G.seats[i], seatsEl.children[i]); return true;
+  }
+  for (let ci = 0; ci < G.cups.length; ci++) {
+    const c = G.cups[ci]; if (c.st !== 'ready') continue;
+    const i = G.seats.findIndex(x => x && !x.leave && x.drink === c.type && !x.gotDrink);
+    if (i < 0) continue;
+    const x = G.seats[i]; c.st = 'empty'; if (G.cup === ci) G.cup = -1; x.gotDrink = true;
+    const g = Math.round(DRINK[c.type].v * (x.golden ? 3 : 1)); save.coins += g; G.earned += g; persist();
+    sfx('coin'); floatText(seatsEl.children[i], '+' + g + ' 🪙 🥤'); finishCheck(x); return true;
+  }
+  return false;
+}
 function clickSeat(i) {
   const s = G.seats[i]; if (!s || s.leave) return;
   const el = seatsEl.children[i];
@@ -668,15 +705,7 @@ function clickSeat(i) {
   const made = t.tops;
   if (sameOrder(made, s.order)) {
     t.st = 'empty'; t.tops = []; G.sel = -1; G.selW = -1;
-    const base = 8 + s.order.reduce((a, id) => a + TOP[id].v, 0);
-    const tip = Math.round(base * .5 * (s.pat / s.max) * tipMult());
-    G.combo++;
-    const mult = 1 + Math.min(G.combo - 1, 9) * .1;
-    let gain = Math.round((base + tip) * mult * (s.golden ? 3 : 1));
-    if (G.combo % 5 === 0) { gain += 25; confetti(30); banner('🎉 Combo x' + G.combo + '! +25 bonus!'); sfx('fan'); }
-    save.coins += gain; G.earned += gain; G.served++; persist();
-    s.gotPizza = true; finishCheck(s); sfx('coin');
-    floatText(el, '+' + gain + ' 🪙' + (tip > 3 ? ' 💖' : ''));
+    rewardPizza(s, el);
   } else {
     sfx('bad');
     el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
@@ -686,6 +715,9 @@ function clickSeat(i) {
 
 // ---------- update (fixed step) ----------
 function update() {
+  if (G.autoCd > 0) G.autoCd--;
+  if (G.srvCd > 0) G.srvCd--;
+  if (save.up.server && G.srvCd <= 0 && autoServe()) G.srvCd = CD[save.up.serverCd];
   if (G.spawned < G.target && --G.spawn <= 0) {
     const free = [];
     G.seats.forEach((s, i) => { if (!s) free.push(i); });
@@ -746,7 +778,7 @@ function buildShop() {
     d.appendChild(b); list.appendChild(d);
   };
   head('🔧 Upgrades');
-  UPS.forEach(u => {
+  UPS.filter(u => !u.req || save.up[u.req] > 0).forEach(u => {
     const l = save.up[u.k], c = u.costs[l];
     add(u.e + ' ' + u.n, u.d + '<br>Now: ' + u.show(l) + (c != null ? ' → ' + u.show(l + 1) : ''), c == null ? null : c, () => { save.up[u.k]++; });
   });
@@ -840,6 +872,8 @@ function render() {
   });
   const st = selTray();
   bottomEl.querySelectorAll('.tb[data-t]').forEach(b => b.classList.toggle('on', !!st && st.st === 'raw' && st.tops.includes(b.dataset.t)));
+  const au = $('#auto'); if (au) { setText(au, G.autoCd > 0 ? '🤖 Auto ' + Math.ceil(G.autoCd / 60) + 's' : '🤖 Auto'); au.style.opacity = G.autoCd > 0 ? .55 : 1; }
+  const sv = $('#srv'); if (sv) setText(sv, G.srvCd > 0 ? '🧑‍🍳 Server ' + Math.ceil(G.srvCd / 60) + 's' : '🧑‍🍳 Server ready');
   const bk = $('#bake'); if (bk) bk.classList.toggle('go', !!st && st.st === 'raw' && st.tops.length > 0);
   const ba = $('#bakeall'); if (ba) ba.classList.toggle('go', G.trays.filter(x => x.st === 'raw' && x.tops.length).length > 1);
   setText($('#hint'), hintText());
