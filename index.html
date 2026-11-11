@@ -20,11 +20,12 @@
   .title { font-family:"Press Start 2P", monospace; font-size:14px; line-height:1.5; margin:14px 0 8px; color:var(--cool); }
   .desc { color:var(--muted); margin:0; }
   .empty { grid-column:1/-1; text-align:center; color:var(--muted); }
-  a.game.soon { position:relative; border-style:dashed; border-color:#6b5a1a; }
-  a.game.soon:hover { border-color:var(--pop); }
-  a.game.soon .emoji { filter:grayscale(.6); }
-  .badge { position:absolute; top:14px; right:14px; background:var(--pop); color:#2a1a00; font-weight:800; font-size:12px; padding:4px 10px; border-radius:999px; }
-  a.game.soon.unlocked .badge { background:var(--cool); color:#00261d; }
+  a.game.soon { position:relative; overflow:hidden; }
+  a.game.soon.locked > :not(.lock) { opacity:.3; filter:grayscale(.7); }
+  a.game.soon.locked:hover { transform:none; border-color:#5a4aa8; }
+  .lock { position:absolute; inset:0; display:grid; place-items:center; font-size:96px; opacity:.55; pointer-events:none; text-shadow:0 6px 24px rgba(0,0,0,.5); }
+  a.game.soon.locked:hover .lock { opacity:.8; }
+  .unlocked-mark { position:absolute; top:14px; right:16px; font-size:20px; opacity:.6; }
   dialog { background:var(--card); color:var(--ink); border:3px solid #33267a; border-radius:20px; padding:24px; width:min(380px, calc(100vw - 32px)); text-align:center; }
   dialog::backdrop { background:rgba(8,4,24,.8); }
   dialog h2 { font-family:"Press Start 2P", monospace; font-size:15px; line-height:1.6; color:var(--pop); margin:4px 0 12px; }
@@ -49,12 +50,12 @@
 <footer>Made at the JawDrop studio 🕹️</footer>
 <dialog id="early">
   <form method="dialog" id="eb-form">
-    <div class="emoji" id="eb-emoji">🐣</div>
-    <h2 id="eb-title">COMING SOON</h2>
-    <p>This game isn't out yet. Know the <b>Early Bird Code</b>? Type it in to play early!</p>
-    <input id="eb-code" autocomplete="off" maxlength="30" placeholder="Early Bird Code" aria-label="Early Bird Code">
+    <div class="emoji">🔒</div>
+    <h2 id="eb-title">LOCKED</h2>
+    <p>This game isn't out yet. Know the code?</p>
+    <input id="eb-code" autocomplete="off" maxlength="30" placeholder="Secret code" aria-label="Secret code">
     <p id="eb-msg"></p>
-    <div class="row"><button type="button" id="eb-cancel">Back</button><button class="go" type="submit">Let me in 🐣</button></div>
+    <div class="row"><button type="button" id="eb-cancel">Back</button><button class="go" type="submit">Unlock 🔓</button></div>
   </form>
 </dialog>
 <script>
@@ -87,8 +88,7 @@ function sha256(str) {
   let pending = null;
   function askCode(g) {
     pending = g;
-    document.getElementById('eb-emoji').textContent = g.emoji || '🐣';
-    document.getElementById('eb-title').textContent = g.title.toUpperCase() + ': COMING SOON';
+    document.getElementById('eb-title').textContent = g.title.toUpperCase() + ': LOCKED';
     document.getElementById('eb-code').value = '';
     document.getElementById('eb-msg').textContent = '';
     document.getElementById('early').showModal();
@@ -100,12 +100,12 @@ function sha256(str) {
     if (code && sha256(g.slug + ':' + code) === g.earlyBird) {
       try { localStorage.setItem('earlybird:' + g.slug, g.earlyBird); } catch {}
       document.getElementById('eb-msg').style.color = 'var(--cool)';
-      document.getElementById('eb-msg').textContent = 'You\'re in! 🎉';
+      document.getElementById('eb-msg').textContent = 'Unlocked 🔓';
       setTimeout(() => { location.href = g.slug + '/'; }, 600);
     } else {
       const f = document.getElementById('eb-form');
       f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
-      document.getElementById('eb-msg').textContent = code ? 'Nope! That\'s not it 🥚' : 'Type the code first!';
+      document.getElementById('eb-msg').textContent = code ? 'Nope, that\'s not it.' : 'Type the code first!';
     }
   });
 
@@ -127,16 +127,15 @@ function sha256(str) {
           a.classList.add('soon');
           const open = unlocked(g);
           if (open) a.classList.add('unlocked');
+          a.classList.toggle('locked', !open);
           const b = document.createElement('span');
-          b.className = 'badge';
-          b.textContent = open ? '🐣 Early bird' : '🐣 Coming soon';
+          b.className = open ? 'unlocked-mark' : 'lock';
+          b.textContent = open ? '🔓' : '🔒';
+          b.title = open ? 'You unlocked this one' : 'Locked: coming soon';
           a.appendChild(b);
           if (!open) a.addEventListener('click', (e) => { e.preventDefault(); askCode(g); });
         }
         el.appendChild(a);
       }
     })
-    .catch(() => { document.getElementById('games').innerHTML = '<p class="empty">Couldn\'t load the game list.</p>'; });
-</script>
-</body>
-</html>
+    .catch(() => { document.getElementById('games').innerHTML = '<p class="empty">Couldn\'t load t
