@@ -7,31 +7,67 @@
 <style>
   html, body { margin:0; height:100%; background:#120b2e; overflow:hidden; font-family:system-ui, sans-serif; }
   canvas { display:block; width:100vw; height:100vh; touch-action:none; }
-  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
+  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; z-index:5; }
+  #pauseBtn { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:5; font:inherit; font-weight:800; background:#6c4cff; color:#fff; border:0; border-radius:10px; padding:6px 14px; cursor:pointer; }
 </style>
 </head>
 <body>
 <a href="../">← Arcade</a>
+<button id="pauseBtn">⏸ Pause</button>
 <canvas id="c"></canvas>
 <script>
 // Catch the Star: move the basket (mouse, touch, or arrow keys) and catch falling stars.
-// Miss 3 and it's game over. Click or press space to play again.
+// Gold stars are points. Special colored stars give POWER-UPS! Miss a gold star and you lose a heart.
+// Click or press space to play again. Pause with the button, P, or Esc.
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
+const pauseBtn = document.getElementById('pauseBtn');
 let W, H;
 function resize() { W = c.width = innerWidth; H = c.height = innerHeight; }
 addEventListener('resize', resize); resize();
 
-const basket = { x: W / 2, w: 110, h: 18, speed: 9 };
-let stars, score, lives, over, spawnTimer, keys = {};
+const BASE_W = 400, MAX_LIVES = 5;
+const basket = { x: W / 2, w: BASE_W, h: 18, speed: 8 };
+let ticks = 0, stars, score, lives, over, spawnTimer, paused = false, best = 0, toast = null, keys = {};
+let fx = {}; // active power-ups: name -> frames left
+try { best = +localStorage.getItem('catchStarBest') || 0; } catch (e) {}
 
-function reset() { stars = []; score = 0; lives = 3; over = false; spawnTimer = 0; }
+// the special stars
+const POWERS = {
+  heart:  { color: '#4be08a', icon: '💚', text: '💚 Extra heart!' },
+  slow:   { color: '#4aa8ff', icon: '🐢', text: '🐢 Slow-mo! Stars fall slower', secs: 8 },
+  wide:   { color: '#b58cff', icon: '↔️', text: '↔️ Giant basket!', secs: 10 },
+  magnet: { color: '#ff9a3d', icon: '🧲', text: '🧲 Magnet! Stars come to you', secs: 8 },
+  double: { color: '#ff5de0', icon: '✨', text: '✨ Double points!', secs: 10 },
+};
+const POWER_KEYS = Object.keys(POWERS).filter(k => k !== 'slow'); // no slow-mo star
+
+function reset() { ticks = 0; stars = []; score = 0; lives = 3; over = false; spawnTimer = 30; fx = {}; basket.w = W; toast = null; }
 reset();
 
-addEventListener('keydown', e => { keys[e.key] = true; if (over && (e.key === ' ' || e.key === 'Enter')) reset(); });
+// little sounds (made with the Web Audio API)
+let ac = null;
+function beep(freq, dur = 0.1, type = 'sine', vol = 0.06) {
+  try {
+    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq; g.gain.setValueAtTime(vol, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+  } catch (e) {}
+}
+
+function togglePause() { if (!over) paused = !paused; pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause'; }
+pauseBtn.addEventListener('click', e => { e.stopPropagation(); togglePause(); pauseBtn.blur(); });
+addEventListener('keydown', e => {
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { togglePause(); return; }
+  keys[e.key] = true;
+  if (over && (e.key === ' ' || e.key === 'Enter')) reset();
+});
 addEventListener('keyup', e => { keys[e.key] = false; });
-addEventListener('pointermove', e => { basket.x = e.clientX; });
-addEventListener('pointerdown', e => { basket.x = e.clientX; if (over) reset(); });
+addEventListener('pointermove', e => { if (!paused) basket.x = e.clientX; });
+addEventListener('pointerdown', e => { if (e.target === pauseBtn) return; if (!paused) basket.x = e.clientX; if (over) reset(); });
+addEventListener('blur', () => { if (!over && !paused) togglePause(); });
 
 function drawStar(x, y, r, color) {
   ctx.beginPath();
@@ -43,32 +79,71 @@ function drawStar(x, y, r, color) {
   ctx.closePath(); ctx.fillStyle = color; ctx.fill();
 }
 
+function giveScore(n) { score += n * 100000000 * (fx.double > 0 ? 2 : 1); if (score > best) { best = score; try { localStorage.setItem('catchStarBest', best); } catch (e) {} } }
+
+function catchPower(type) {
+  const p = POWERS[type];
+  if (type === 'heart') lives = Math.min(MAX_LIVES, lives + 1); else fx[type] = p.secs * 60;
+  toast = { text: p.text, t: 120 };
+  beep(660, 0.08, 'square'); setTimeout(() => beep(990, 0.12, 'square'), 80);
+}
+
 function update() {
-  if (over) return;
-  if (keys.ArrowLeft) basket.x -= basket.speed;
-  if (keys.ArrowRight) basket.x += basket.speed;
+  if (over || paused) return;
+  ticks++;
+  if (keys.ArrowLeft || keys.a) basket.x -= basket.speed;
+  if (keys.ArrowRight || keys.d) basket.x += basket.speed;
+  for (const k in fx) if (fx[k] > 0) fx[k]--;
+  basket.w = W; // the basket is as wide as the whole screen
   basket.x = Math.max(basket.w / 2, Math.min(W - basket.w / 2, basket.x));
+  if (toast && toast.t > 0) toast.t--;
 
   if (--spawnTimer <= 0) {
-    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: 2.5 + Math.random() * 2 + score * 0.08, r: 16 });
-    spawnTimer = Math.max(22, 60 - score);
+    const special = Math.random() < 0.08; // power-ups are rare now
+    stars.push({ x: 30 + Math.random() * (W - 60), y: -20, vy: (24 + Math.random() * 8) * Math.min(1 + ticks / 3600, 3), r: special ? 20 : 16, type: special ? POWER_KEYS[Math.floor(Math.random() * POWER_KEYS.length)] : null, spin: Math.random() * 6 });
+    spawnTimer = Math.max(14, 40 - score * 0.6); // stars come faster and faster
   }
-  const by = H - 50;
+  const by = H - 50, slow = fx.slow > 0 ? 0.45 : 1;
   for (const s of stars) {
-    s.y += s.vy;
-    if (!s.done && s.y + s.r > by && s.y < by + basket.h && Math.abs(s.x - basket.x) < basket.w / 2 + s.r / 2) { s.done = true; score++; }
-    else if (!s.done && s.y - s.r > H) { s.done = true; if (--lives <= 0) over = true; }
+    if (fx.magnet > 0 && !s.done) { const dx = basket.x - s.x, dy = by - s.y, d = Math.hypot(dx, dy); if (d < 330 && d > 1) { s.x += dx / d * 3.2; } }
+    s.py = s.y; s.y += s.vy * slow; s.spin += 0.05;
+    if (!s.done && s.y + s.r > by && s.py < by + basket.h && Math.abs(s.x - basket.x) < basket.w / 2 + s.r / 2) {
+      s.done = true;
+      if (s.type) catchPower(s.type); else { giveScore(1); beep(880, 0.05, 'triangle'); }
+    } else if (!s.done && s.y - s.r > H) {
+      s.done = true;
+      if (!s.type) beep(200, 0.15, 'sawtooth'); // infinite hearts: missing never ends the game
+    }
   }
   stars = stars.filter(s => !s.done);
 }
 
 function draw() {
   ctx.fillStyle = '#120b2e'; ctx.fillRect(0, 0, W, H);
-  for (const s of stars) drawStar(s.x, s.y, s.r, '#ffd23f');
-  ctx.fillStyle = '#3ee6c1';
+  for (const s of stars) {
+    if (s.type) {
+      const p = POWERS[s.type], col = s.type === 'double' ? 'hsl(' + ((Date.now() / 6) % 360) + ',90%,65%)' : p.color;
+      ctx.globalAlpha = 0.3 + 0.15 * Math.sin(Date.now() / 150); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(s.x, s.y, s.r + 12, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
+      drawStar(s.x, s.y, s.r, col);
+      ctx.font = '16px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(p.icon, s.x, s.y + 1);
+    } else drawStar(s.x, s.y, s.r, '#ffd23f');
+  }
+  ctx.fillStyle = fx.wide > 0 ? '#b58cff' : '#3ee6c1';
   ctx.fillRect(basket.x - basket.w / 2, H - 50, basket.w, basket.h);
+  if (fx.magnet > 0) { ctx.strokeStyle = 'rgba(255,154,61,.5)'; ctx.lineWidth = 3; ctx.setLineDash([8, 8]); ctx.beginPath(); ctx.arc(basket.x, H - 50, 330, Math.PI, 0); ctx.stroke(); ctx.setLineDash([]); }
+  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#f4f1ff'; ctx.font = 'bold 22px system-ui'; ctx.textAlign = 'right';
-  ctx.fillText('⭐ ' + score + '   ' + '❤️'.repeat(lives), W - 16, 34);
+  ctx.fillText('⭐ ' + score + '   ' + '♾️❤️', W - 16, 34);
+  ctx.font = '600 14px system-ui'; ctx.fillStyle = '#a99ee0'; ctx.fillText('Best: ' + best, W - 16, 56);
+  // active power-ups
+  let x = 16, y = 62; ctx.textAlign = 'left'; ctx.font = '700 15px system-ui';
+  for (const k of POWER_KEYS) if (fx[k] > 0) { ctx.fillStyle = POWERS[k].color; ctx.fillText(POWERS[k].icon + ' ' + Math.ceil(fx[k] / 60) + 's', x, y); y += 22; }
+  if (toast && toast.t > 0) { ctx.textAlign = 'center'; ctx.globalAlpha = Math.min(1, toast.t / 30); ctx.font = 'bold 30px system-ui'; ctx.fillStyle = '#ffd23f'; ctx.fillText(toast.text, W / 2, 110); ctx.globalAlpha = 1; }
+  if (paused) {
+    ctx.fillStyle = 'rgba(10,6,30,.6)'; ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center'; ctx.font = 'bold 48px system-ui'; ctx.fillStyle = '#f4f1ff'; ctx.fillText('⏸ Paused', W / 2, H / 2 - 10);
+    ctx.font = 'bold 20px system-ui'; ctx.fillText('Press P, Esc or the button to keep playing', W / 2, H / 2 + 30);
+  }
   if (over) {
     ctx.textAlign = 'center'; ctx.font = 'bold 48px system-ui'; ctx.fillStyle = '#ff5d8f';
     ctx.fillText('GAME OVER', W / 2, H / 2 - 10);

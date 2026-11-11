@@ -8,7 +8,8 @@
   html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; overflow:hidden; touch-action:none; user-select:none; }
   body { display:grid; place-items:center; }
   canvas { background:#1d1445; border:3px solid #4b3a9e; border-radius:12px; cursor:crosshair; touch-action:none; }
-  .top { position:fixed; top:10px; left:12px; right:12px; display:flex; justify-content:space-between; align-items:center; pointer-events:none; }
+  .top { position:fixed; top:10px; left:12px; right:12px; display:flex; justify-content:space-between; align-items:center; pointer-events:none; z-index:50; }
+  .top a { background:rgba(10,6,30,.7); padding:6px 12px; border-radius:10px; border:2px solid #4b3a9e; }
   .top > * { pointer-events:auto; }
   a { color:#a99ee0; text-decoration:none; font-weight:700; }
   button { font:inherit; font-weight:800; background:#6c4cff; color:#fff; border:0; border-radius:10px; padding:8px 16px; cursor:pointer; }
@@ -66,7 +67,7 @@
 </head>
 <body>
 <div class="top">
-  <a href="../">← Arcade</a>
+  <a id="arcadeLink" href="../">← Arcade</a>
   <button id="pauseBtn">⏸ Pause</button>
 </div>
 <canvas id="c" width="960" height="600"></canvas>
@@ -883,7 +884,7 @@
     dr.appendChild(db); p.appendChild(dr);
     const row = document.createElement('div'); row.className = 'row';
     const mk = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = fn; return b; };
-    row.append(mk('💎 Armory', () => { shopTab = 'guns'; showShop(); }), mk('❓ How to play', showHowTo));
+    row.append(mk('💎 Armory', () => { shopTab = 'guns'; showShop(); }), mk('❓ How to play', showHowTo), mk('🕹️ Arcade', goArcade));
     p.appendChild(row);
   }
 
@@ -990,7 +991,8 @@
       const row = document.createElement('div'); row.className = 'row';
       const a = document.createElement('button'); a.textContent = '🔧 Arrange my guns'; a.onclick = () => showArrange(showPauseScreen);
       const l = document.createElement('button'); l.textContent = '🚪 Leave match'; l.onclick = () => leaveMatch(false);
-      row.append(a, l); p.appendChild(row);
+      const ar = document.createElement('button'); ar.textContent = '🕹️ Arcade'; ar.onclick = goArcade;
+      row.append(a, l, ar); p.appendChild(row);
     });
   }
   function leaveMatch(sure) {
@@ -1003,6 +1005,8 @@
     roundSpent = 0; state = 'menu'; for (const k in keys) keys[k] = false; mouse.down = false; touch.fire = false; touch.dx = touch.dy = 0;
     sfx.lose(); showMenu('🚪 You left the match.');
   }
+  document.getElementById('arcadeLink').addEventListener('click', e => { if (roundSpent > 0 && (state === 'play' || state === 'paused')) { e.preventDefault(); if (state === 'play') pause(); leaveMatch(false); } });
+  function goArcade() { if (roundSpent > 0 && (state === 'play' || state === 'paused')) { if (state === 'play') pause(); leaveMatch(false); return; } location.href = '../'; }
   function resume() { if (state === 'paused') { state = 'play'; showOverlay(false); } }
   pauseBtn.addEventListener('click', () => state === 'paused' ? resume() : pause());
 

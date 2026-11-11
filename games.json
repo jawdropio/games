@@ -3,7 +3,9 @@
     "slug": "catch-the-star",
     "title": "Catch the Star",
     "emoji": "⭐",
-    "description": "Move the basket and catch the falling stars. Miss 3 and it's over!"
+    "description": "SUPER DUPER HARD star catching! Only 3 hearts, a tiny basket, and stars that fall faster and faster. Rare power-ups might save you.",
+    "comingSoon": true,
+    "earlyBird": "931fb5d2179f319fc3ec02a87776d4f164130b8f6fd2231cf924b01aedeb6275"
   },
   {
     "slug": "jaw-breaker",
@@ -15,8 +17,6 @@
     "slug": "jaw-battle",
     "title": "JAW BATTLE",
     "emoji": "🎮",
-    "description": "Shoot it out with a sneaky bot! Duels, 2v2 to 4v4 team battles, Capture the Flag, 500 autumn maps, 9 guns with fire and ice perks, skins with real powers, a freezing secret gun, teleports, bots that dig underground, a practice range, and phone controls!",
-    "comingSoon": true,
-    "earlyBird": "3fa81de289092244b715dbc60a26c7e31e9f2c6b171263d6e5463fb0b9a3fca8"
+    "description": "Shoot it out with a sneaky bot! Duels, 2v2 to 4v4 team battles, Capture the Flag, 500 autumn maps, 9 guns with fire and ice perks, skins with real powers, a freezing secret gun, teleports, bots that dig underground, a practice range, and phone controls!"
   }
 ]
