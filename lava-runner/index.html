@@ -206,6 +206,9 @@
   .tb[data-t] small { background:#3a2a1c; color:#fff; border-radius:8px; padding:1px 7px; margin-top:2px; display:inline-block; }
   .tb[data-t].on { background:#ffe14d66; border-radius:16px; box-shadow:0 0 0 3px #ffe14d; }
   #bakeall.go { transform:scale(1.06); box-shadow:0 0 16px #ffd24d, 0 3px 0 #0006; }
+  .seat.vip .animal { position:relative; filter:brightness(.28) contrast(1.4) drop-shadow(0 0 10px gold); }
+  .seat.vip .animal::after { content:'🕶️'; position:absolute; left:50%; top:16%; transform:translateX(-50%); font-size:.5em; }
+  .vipchip { background:linear-gradient(#ffe27a,#d9a21a); color:#4a2a00; font-weight:900; font-size:11px; border-radius:8px; padding:1px 6px; margin-right:3px; }
 </style>
 </head>
 <body>
@@ -314,7 +317,7 @@ const ANIMALS = [
 const UPS = [
   { k:'trays',    e:'🍕', n:'More ovens',    d:'More ovens and prep boards',     costs:[60,120,200,320], show:l => (2+l)+' ovens' },
   { k:'warmers',  e:'🔆', n:'Pizza warmer',  d:'Keeps a baked pizza warm and never burns it', costs:[70,140,220,320], show:l => l + (l === 1 ? ' warmer' : ' warmers') },
-  { k:'auto',     e:'🤖', n:'Auto-topper',   d:'A robot adds the toppings for the next customer! Level 2 bakes it too.', costs:[500,1200], show:l => l === 0 ? 'off' : l === 1 ? 'adds toppings' : 'toppings + baking' },
+  { k:'auto',     e:'🤖', n:'Auto-topper',   d:'A robot adds the toppings for the next customer! Level 2 bakes it too.', costs:[1500,4000], show:l => l === 0 ? 'off' : l === 1 ? 'adds toppings' : 'toppings + baking' },
   { k:'oven',     e:'🔥', n:'Hotter oven',   d:'Pizzas bake faster',             costs:[50,100,180,300], show:l => ((420-60*l)/60)+'s bake' },
   { k:'seats',    e:'🪑', n:'More stools',   d:'Room for more animals',          costs:[100,250],        show:l => (3+l)+' stools' },
   { k:'patience', e:'🛋️', n:'Comfy stools',  d:'Animals wait longer',            costs:[40,80,140,220],  show:l => '+'+(10*l)+'s patience' },
@@ -476,7 +479,7 @@ const newCup = () => ({ st:'empty', p:0, type:'coke' });
 const newWarm = () => ({ st:'empty', tops:[] });
 
 function newDay() {
-  G = { target:Math.min(5 + 2 * save.day, 20), spawned:0, seats:Array(seatCount()).fill(null), trays:[], cups:[], warm:[], sel:-1, selW:-1, cup:-1, spawn:30,
+  G = { target:Math.min(5 + 2 * save.day, 20), spawned:0, vipSeen:false, seats:Array(seatCount()).fill(null), trays:[], cups:[], warm:[], sel:-1, selW:-1, cup:-1, spawn:30,
         combo:0, earned:0, served:0, lost:0 };
   for (let i = 0; i < trayCount(); i++) G.trays.push(newTray());
   for (let i = 0; i < cupCount(); i++) G.cups.push(newCup());
@@ -542,13 +545,18 @@ function makeOrder(a) {
   return out;
 }
 function spawnCustomer(i) {
-  const a = ANIMALS[rnd(ANIMALS.length)], golden = save.day >= 2 && Math.random() < .08;
-  const order = makeOrder(a), drink = Math.random() < (save.day < 2 ? .3 : .5) ? save.drinks[rnd(save.drinks.length)] : null;
+  const vip = save.day >= 2 && !G.vipSeen && Math.random() < .07;      // rare, at most one per day
+  const a = vip ? { e:'🐆', fav:null } : ANIMALS[rnd(ANIMALS.length)];
+  const golden = !vip && save.day >= 2 && Math.random() < .08;
+  const order = makeOrder(a);
+  if (vip) { const pool = save.tops.filter(id => !order.includes(id)); while (order.length < 2 && pool.length) order.push(pool.splice(rnd(pool.length), 1)[0]); }
+  const drink = (vip || Math.random() < (save.day < 2 ? .3 : .5)) ? save.drinks[rnd(save.drinks.length)] : null;
   // bigger order = more patience
-  const pat = Math.round(patBase() * (1 + .3 * (order.length - 1) + (drink ? .15 : 0)) * (golden ? .7 : 1));
-  G.seats[i] = { e:a.e, order, drink, gotPizza:false, gotDrink:false, pat, max:pat, golden, leave:0, mood:'' };
+  const pat = Math.round(patBase() * (1 + .3 * (order.length - 1) + (drink ? .15 : 0)) * (golden ? .7 : vip ? 1.5 : 1));
+  G.seats[i] = { e:a.e, order, drink, gotPizza:false, gotDrink:false, pat, max:pat, golden, vip, leave:0, mood:'' };
   sfx('pop');
-  if (golden) banner('🌟 A golden customer! Triple coins!');
+  if (vip) { G.vipSeen = true; banner('🐆 A VIP Black Jaguar is here! Serve them for 100 coins!'); sfx('rush'); }
+  else if (golden) banner('🌟 A golden customer! Triple coins!');
 }
 const sameOrder = (a, b) => a.length === b.length && a.slice().sort().join() === b.slice().sort().join();
 
@@ -632,7 +640,14 @@ function clickWarm(i) {
   } else { G.cup = -1; if (G.selW === i) G.selW = -1; else { G.selW = i; G.sel = -1; } }
 }
 function finishCheck(s) {
-  if (s.gotPizza && (!s.drink || s.gotDrink)) { s.leave = 50; s.mood = 'happy'; }
+  if (s.gotPizza && (!s.drink || s.gotDrink)) {
+    s.leave = 50; s.mood = 'happy';
+    if (s.vip) {
+      save.coins += 100; G.earned += 100; persist(); confetti(40); sfx('fan');
+      const el = seatsEl.children[G.seats.indexOf(s)]; if (el) floatText(el, '+100 🪙 VIP!');
+      banner('🐆 The VIP loved it! +100 coins!');
+    }
+  }
 }
 function clickSeat(i) {
   const s = G.seats[i]; if (!s || s.leave) return;
@@ -759,7 +774,7 @@ function renderHud() {
 const LABEL = { empty:'Tap for dough', raw:'Add toppings', baking:'Baking...', ready:'READY! Serve it', burnt:'Burnt! Tap to toss' };
 function bubbleHTML(s) {
   if (s.leave) return s.mood === 'happy' ? '💖' : '💤';
-  let h = s.gotPizza ? '✅' : s.order.map(iconSVG).join('');
+  let h = (s.vip ? '<span class="vipchip">VIP</span>' : '') + (s.gotPizza ? '✅' : s.order.map(iconSVG).join(''));
   if (s.drink) h += '<span class="sep"></span>' + (s.gotDrink ? '✅' : '<svg class="ic" viewBox="0 0 24 32">' + cupSVG(DRINK[s.drink].c).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '') + '</svg>');
   return h;
 }
@@ -768,13 +783,13 @@ function render() {
   if (!G) return;
   G.seats.forEach((s, i) => {
     const el = seatsEl.children[i]; if (!el) return;
-    const sig = s ? [s.e, s.order.join(), s.drink, s.gotPizza, s.gotDrink, s.golden, s.leave ? s.mood : '', s.pat < s.max * .33 ? 'mad' : ''].join('|') : '';
+    const sig = s ? [s.e, s.order.join(), s.drink, s.gotPizza, s.gotDrink, s.golden, s.vip, s.leave ? s.mood : '', s.pat < s.max * .33 ? 'mad' : ''].join('|') : '';
     if (el._sig !== sig) {
       el._sig = sig;
       if (!s) { el.className = 'seat empty'; el.innerHTML = '<div class="bubble"></div><div class="animal">🐶</div><div class="counter"><div class="bar"><i></i></div></div><div class="stool"></div>'; }
       else {
         const face = s.leave ? (s.mood === 'happy' ? s.e : '😴') : (s.pat < s.max * .25 ? s.e + '🥺' : s.e);
-        el.className = 'seat' + (s.golden ? ' gold' : '') + (s.leave ? ' leaving' : '');
+        el.className = 'seat' + (s.golden ? ' gold' : '') + (s.vip ? ' vip' : '') + (s.leave ? ' leaving' : '');
         el.innerHTML = '<div class="bubble">' + bubbleHTML(s) + '</div><div class="animal">' + face + '</div>' + (s.golden ? '<div class="crown">👑</div>' : '') +
           '<div class="counter"><div class="bar"><i></i></div></div><div class="stool"></div>';
       }
