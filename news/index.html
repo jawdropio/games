@@ -33,6 +33,7 @@
   .letter small { color:#777; display:block; }
   form { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   input[type=text] { flex:1 1 240px; padding:8px; font:16px Georgia,serif; border:2px solid #222; background:#fff; }
+  button.del { border:0; background:#eee; cursor:pointer; font-size:11px; margin-left:6px; border-radius:3px; }
   button.send { padding:8px 14px; font:700 16px system-ui,sans-serif; background:#c0392b; color:#fff; border:0; cursor:pointer; border-radius:4px; }
   #msg { min-height:20px; font:700 13px system-ui,sans-serif; margin-top:6px; }
   .err { color:#b00020; } .ok { color:#1b7f3b; }
@@ -71,6 +72,7 @@
   <div class="letters">
     <h2>✉️ Letters from Readers</h2>
     <form id="form" autocomplete="off">
+      <input type="text" id="who" maxlength="16" placeholder="made-up nickname" style="flex:0 1 160px">
       <input type="text" id="text" maxlength="120" placeholder="Write a letter about the games!">
       <button class="send" type="submit">Send ✉️</button>
     </form>
@@ -98,7 +100,6 @@ function dailyCode() {
 const CODE = dailyCode();
 
 // Letters everyone sees (ask your buddy to add more!)
-const LETTERS = [];
 
 const COMING_SOON = [
   { emoji:"🗺️", text:"More Jaw Battle maps are on the way!" },
@@ -144,11 +145,22 @@ addEventListener("keydown", e => {
 
 // ---- reader letters (safe: no names!) ----
 const KEY = "dailyjaw-letters";
-function loadLetters() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+const BOSS_HASH = 4108507220;   // the boss code, kept scrambled
+const hashCode = t => { let h = 5381; for (const c of t.toLowerCase().trim()) h = (Math.imul(h, 33) ^ c.charCodeAt(0)) >>> 0; return h; };
+let boss = false;
+function loadLetters() {
+  try { return (JSON.parse(localStorage.getItem(KEY)) || []).map(x => typeof x === "string" ? { who:"a mysterious reader", text:x } : x); }
+  catch (e) { return []; }
+}
 function saveLetters(l) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch (e) {} }
 function showLetters() {
-  const l = loadLetters().concat(LETTERS);
-  $("letterList").innerHTML = l.map(x => `<div class="letter">${esc(x)}<small>— a mysterious reader</small></div>`).join("");
+  const l = loadLetters();
+  $("letterList").innerHTML = (boss ? `<button class="send" id="wipe">🧹 Wipe all letters</button>` : "") +
+    l.map((x, i) => `<div class="letter">${esc(x.text)}<small>— ${esc(x.who)}${boss ? ` <button class="del" data-i="${i}">✖ delete</button>` : ""}</small></div>`).join("");
+  if (boss) {
+    $("wipe").onclick = () => { if (confirm("Wipe ALL letters?")) { saveLetters([]); showLetters(); } };
+    document.querySelectorAll(".del").forEach(b => b.onclick = () => { const l2 = loadLetters(); l2.splice(+b.dataset.i, 1); saveLetters(l2); showLetters(); });
+  }
 }
 function checkSafe(t) {
   if (t.length < 3) return "Write a little more!";
@@ -165,9 +177,16 @@ function checkSafe(t) {
 $("form").addEventListener("submit", e => {
   e.preventDefault();
   const t = $("text").value.trim();
-  const bad = checkSafe(t);
+  if (hashCode(t) === BOSS_HASH) {   // typing the boss code turns boss mode on or off
+    boss = !boss; $("text").value = ""; $("msg").className = "ok";
+    $("msg").textContent = boss ? "🔧 Boss mode ON: you can delete letters." : "Boss mode off.";
+    showLetters(); return;
+  }
+  const who = $("who").value.trim() || "a mysterious reader";
+  let bad = checkSafe(t);
+  if (!bad && who !== "a mysterious reader") bad = checkSafe(who) && "That nickname might be a real name. Use a made-up lowercase one!";
   if (bad) { $("msg").className = "err"; $("msg").textContent = "🚫 " + bad; return; }
-  const l = loadLetters(); l.unshift(t); saveLetters(l.slice(0, 20));
+  const l = loadLetters(); l.unshift({ who, text:t }); saveLetters(l.slice(0, 30));
   $("text").value = ""; $("msg").className = "ok"; $("msg").textContent = "✅ Letter published! Stop the presses!";
   showLetters();
 });
