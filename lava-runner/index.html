@@ -21,12 +21,18 @@
   #room { position:relative; flex:1.1; min-height:0; overflow:hidden; border-bottom:8px solid #3b2210;
     background:
       linear-gradient(#0000 0 38%, #0003 38% 39%, #0000 39%),
-      linear-gradient(#f2e6c9 0 38%, #8a5632 38% 79%, #0000 79%),
-      conic-gradient(#f1ead8 25%, #a82d2d 0 50%, #f1ead8 0 75%, #a82d2d 0) 0 0/46px 46px; }
-  #room::before { content:'🍕 PIZZA PALS 🍕'; position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:2; font-weight:900; font-size:clamp(13px,2.8vmin,22px); color:#fff6b0; text-shadow:0 0 6px #ff3d3d, 0 0 14px #ff3d3d; border:3px solid #ff9a9a; border-radius:12px; padding:2px 14px; background:#2b1608cc; white-space:nowrap; animation:neon 3s infinite; }
+      linear-gradient(#f7d9a0 0 38%, #8a4a22 38% 79%, #0000 79%),
+      conic-gradient(#f3e0bc 25%, #c8622a 0 50%, #f3e0bc 0 75%, #c8622a 0) 0 0/46px 46px; }
+  #room::before { content:'🍂 PIZZA PALS 🍂'; position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:2; font-weight:900; font-size:clamp(13px,2.8vmin,22px); color:#fff6b0; text-shadow:0 0 6px #ff3d3d, 0 0 14px #ff3d3d; border:3px solid #ff9a9a; border-radius:12px; padding:2px 14px; background:#2b1608cc; white-space:nowrap; animation:neon 3s infinite; }
   @keyframes neon { 0%,92%,100%{opacity:1} 94%{opacity:.5} 96%{opacity:1} 98%{opacity:.6} }
   #decor { position:absolute; inset:0; pointer-events:none; z-index:0; }
-  .winw { position:absolute; top:16%; width:clamp(50px,10vw,100px); aspect-ratio:1.1; background:linear-gradient(#7cc8ff,#d8f1ff 70%,#b9e3a0 70%); border:5px solid #fff; outline:3px solid #a58a62; box-shadow:0 3px 8px #0005; }
+  .winw { position:absolute; top:16%; width:clamp(50px,10vw,100px); aspect-ratio:1.1; overflow:hidden; background:linear-gradient(#ffc27a,#ffe6bd 66%,#b8651f 66%); border:5px solid #fff3dc; outline:3px solid #8a5a2c; box-shadow:0 3px 8px #0005; }
+  .winw::before, .winw::after { z-index:2; }
+  .winw .lf { position:absolute; top:-20%; font-size:clamp(10px,2vmin,16px); z-index:1; animation:leaf 6s linear infinite; }
+  @keyframes leaf { 0% { top:-20%; transform:translateX(0) rotate(0); } 50% { transform:translateX(14px) rotate(200deg); } 100% { top:105%; transform:translateX(-8px) rotate(400deg); } }
+  .frame { position:absolute; left:50%; top:20%; width:clamp(54px,9vw,88px); aspect-ratio:60/70; border:5px solid #7a4a1a; outline:2px solid #d2a35a; box-shadow:0 3px 6px #0006; background:#ffe6b0; transform:translateX(-50%); transform-origin:50% 0; animation:wob 5s ease-in-out infinite; }
+  .frame svg { display:block; width:100%; height:100%; }
+  @keyframes wob { 0%,100% { transform:translateX(-50%) rotate(-2deg); } 50% { transform:translateX(-50%) rotate(2deg); } }
   .winw::before, .winw::after { content:''; position:absolute; background:#fff; }
   .winw::before { left:50%; top:0; bottom:0; width:4px; margin-left:-2px; }
   .winw::after { top:50%; left:0; right:0; height:4px; margin-top:-2px; }
@@ -131,14 +137,23 @@
   <button class="hbtn" id="pauseBtn">⏸ Pause</button>
 </header>
 <div id="banner"></div>
-<section id="room"><div id="decor"><div class="winw" style="left:4%"></div><div class="winw" style="right:4%"></div></div><div id="seats"></div></section>
+<section id="room"><div id="decor"><div class="winw" style="left:4%"></div><div class="winw" style="right:4%"></div>
+  <div class="frame"><svg viewBox="0 0 60 70"><rect width="60" height="70" fill="#ffe6b0"/>
+    <ellipse cx="30" cy="14" rx="13" ry="7" fill="#fff"/><rect x="19" y="14" width="22" height="8" fill="#fff"/><rect x="19" y="20" width="22" height="2" fill="#ddd"/>
+    <circle cx="30" cy="38" r="19" fill="#e0a64e" stroke="#b8721f" stroke-width="2"/><circle cx="30" cy="38" r="15.5" fill="#f6d462"/>
+    <circle cx="19" cy="44" r="4" fill="#c0392b"/><circle cx="41" cy="44" r="4" fill="#c0392b"/>
+    <rect x="16" y="30" width="12" height="7" rx="2" fill="#111"/><rect x="32" y="30" width="12" height="7" rx="2" fill="#111"/><path d="M28 32 H32" stroke="#111" stroke-width="1.5"/>
+    <path d="M19 47 Q25 41 30 46 Q35 41 41 47 Q35 52 30 48 Q25 52 19 47Z" fill="#4a2a12"/>
+    <path d="M24 53 Q30 58 36 53" fill="none" stroke="#7a2a12" stroke-width="1.5"/>
+    <text x="30" y="67" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#5a2a10" font-family="sans-serif">SIR PEPPERONI</text></svg></div></div><div id="seats"></div></section>
 <section id="mid"><div id="trays"></div></section>
 <section id="bottom"></section>
 <div id="toast"></div>
 <div id="fx"></div>
 
 <div class="ov show" id="menu">
-  <h1>🍕 Pizza Pals</h1>
+  <h1>🍕 Pizza Pals 🍂</h1>
+  <p style="margin:0;color:#ffb066;font-weight:800">Fall Edition 🍁</p>
   <p style="max-width:440px">Hungry animals want pizza! Tap dough, add the toppings they ask for (no taking them off!), bake it in the oven, pour drinks, and serve before they get grumpy. Big orders wait longer.</p>
   <button class="big" id="playBtn">▶ Play</button>
   <button class="alt" id="menuShopBtn">🛒 Shop</button>
@@ -206,8 +221,8 @@ const UPS = [
   { k:'mitts',    e:'🧤', n:'Oven mitts',    d:'Pizza takes longer to burn',     costs:[40,90,150],      show:l => '+'+(3*l)+'s before burning' },
 ];
 const DECOS = [
-  { id:'lights', e:'💡', n:'String lights', cost:50,  html:'<div class="dec lights">' + '🔴🟡🟢🔵'.repeat(16) + '</div>' },
-  { id:'plant',  e:'🪴', n:'Plants',        cost:40,  html:'<div class="dec" style="left:.5%;top:46%">🪴</div><div class="dec" style="right:.5%;top:46%">🪴</div>' },
+  { id:'lights', e:'🍁', n:'Leaf garland',  cost:50,  html:'<div class="dec lights">' + '🍂🍁🍃🍁'.repeat(16) + '</div>' },
+  { id:'plant',  e:'🎃', n:'Pumpkins',      cost:40,  html:'<div class="dec" style="left:.5%;top:46%">🎃</div><div class="dec" style="right:.5%;top:46%">🎃</div>' },
   { id:'clock',  e:'🕰️', n:'Wall clock',    cost:60,  html:'<div class="dec" style="left:24%;top:14%">🕰️</div>' },
   { id:'poster', e:'🖼️', n:'Posters',       cost:70,  html:'<div class="dec" style="left:68%;top:14%">🖼️</div><div class="dec" style="left:80%;top:44%;font-size:clamp(20px,4vmin,34px)">🎨</div>' },
   { id:'trophy', e:'🏆', n:'Trophy shelf',  cost:120, html:'<div class="dec shelf" style="left:56%;top:34%">🏆🍕🥇</div>' },
@@ -311,7 +326,7 @@ function sfx(n) {
 // ---------- effects ----------
 const fx = $('#fx');
 function confetti(n = 24) {
-  const list = ['🎉','🧀','🍕','⭐','🪙','✨'];
+  const list = ['🎉','🍂','🍕','🍁','🪙','🍃'];
   for (let i = 0; i < n; i++) {
     const s = document.createElement('span');
     s.className = 'fall'; s.textContent = list[rnd(list.length)];
@@ -704,6 +719,13 @@ $('#newBtn').onclick = () => {
   save = fresh(); persist(); sure = 0; $('#newBtn').textContent = 'New game'; menuInfo(); renderHud(); renderDecor();
 };
 $('#nextBtn').onclick = () => { if (shopMode === 'day') newDay(); else closeShop(); };
+document.querySelectorAll('.winw').forEach(w => {
+  for (let i = 0; i < 6; i++) {
+    const l = document.createElement('span'); l.className = 'lf'; l.textContent = ['🍂','🍁','🍃'][rnd(3)];
+    l.style.left = rnd(88) + '%'; l.style.animationDuration = (4 + Math.random() * 4) + 's'; l.style.animationDelay = (-Math.random() * 8) + 's';
+    w.appendChild(l);
+  }
+});
 renderDecor(); menuInfo(); renderHud();
 requestAnimationFrame(t => { last = t; frame(t); });
 })();
