@@ -29,6 +29,8 @@
     "slug": "lava-runner",
     "title": "Lava Runner",
     "emoji": "🔥",
-    "description": "Brand new and under construction!"
+    "description": "Brand new and under construction!",
+    "comingSoon": true,
+    "earlyBird": "2d741a763d6c79ac19cb8b1e9696fb86a859431da7e1f57dde21a6d3981e8d84"
   }
 ]
