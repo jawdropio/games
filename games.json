@@ -23,9 +23,7 @@
     "slug": "news",
     "title": "NEWS",
     "emoji": "📰",
-    "description": "Read The Daily Jaw! Arcade news, the daily Jaw Battle code, reader letters, and a spot to request games or report bugs.",
-    "comingSoon": true,
-    "earlyBird": "aee801f1dbb48bc5b53492abe09bb9e0c6bf5a5dbdc787002df3231d6374ddb4"
+    "description": "Read The Daily Jaw! Arcade news, the daily Jaw Battle code, reader letters, and a spot to request games or report bugs."
   },
   {
     "slug": "lava-runner",
