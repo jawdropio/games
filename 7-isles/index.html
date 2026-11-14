@@ -676,7 +676,7 @@
       s.style.setProperty('--own', I.owner >= 0 ? G.players[I.owner].color : ''); if (I.owner < 0) s.style.removeProperty('--own');
       s.classList.toggle('sel', selected === nm);
       var cr = s.querySelector('.crown'); if (!cr) { cr = document.createElement('div'); cr.className = 'crown'; cr.textContent = '👑'; s.appendChild(cr); }
-      var who = G.capital.indexOf(nm), show = who >= 0 && !G.choosing;   // no crowns until you have picked yours
+      var who = G.capital.indexOf(nm), show = who === 0 && !G.choosing;   // only YOUR capital shows a crown
       cr.classList.toggle('on', show); cr.classList.toggle('me', who === 0); s.classList.toggle('cap', show);
       if (show) cr.style.filter = 'drop-shadow(0 0 5px ' + G.players[who].color + ') drop-shadow(0 0 2px #000)';
     });
@@ -684,7 +684,7 @@
   function renderInfo() {
     var box = $('info'); if (!selected) { box.style.display = 'none'; return; }
     var D = ISL[selected], I = G.isl[selected], last = G.dice[0] ? G.dice[0] + G.dice[1] : 0;
-    var h = '<button class="btn" id="infoX" style="float:right;padding:2px 9px">✖</button><h3>' + D.icon + ' ' + selected + '</h3><div>Owner: ' + ownerName(I.owner) + '</div>' + (G.capital.indexOf(selected) >= 0 ? '<div>👑 Capital of ' + ownerName(G.capital.indexOf(selected)) + '</div>' : '') + '<div>❤️ Health: <b>' + I.hp + '</b></div>';
+    var h = '<button class="btn" id="infoX" style="float:right;padding:2px 9px">✖</button><h3>' + D.icon + ' ' + selected + '</h3><div>Owner: ' + ownerName(I.owner) + '</div>' + (G.capital[0] === selected ? '<div>👑 Your capital</div>' : '') + '<div>❤️ Health: <b>' + I.hp + '</b></div>';
     h += '<div>👥 People: <b>' + I.people + '</b> / ' + I.housing + ' housing</div>';
     if (I.drought) h += '<div>☀️ Drought: ' + I.drought + ' turn' + (I.drought > 1 ? 's' : '') + ' left</div>';
     if (I.owner === 0 && I.people && D.spaces && Object.keys(D.spaces).length) h += '<div style="margin-top:6px">Workers collect: <select id="focusSel">' + Object.keys(D.spaces).map(function (r) { return '<option' + (I.focus === r ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></div>';
