@@ -14,6 +14,9 @@
           display:grid; place-items:center; text-align:center; font-weight:800; font-size:clamp(10px, 1.9vmin, 20px); text-shadow:0 1px 3px rgba(0,0,0,.5); }
   .spot.sand { background:rgba(236,200,120,.55); border-color:#f3d98b; }
   .spot span { display:block; font-size:2.6em; line-height:1; }
+  /* A real island picture: no oval, no border, just the island */
+  .spot.pic { width:31%; height:auto; border:0; border-radius:0; background:none; display:block; }
+  .spot.pic canvas { display:block; width:100%; height:auto; pointer-events:none; }
   .bar { position:fixed; z-index:5; top:12px; }
   #left { left:12px; } #right { right:12px; }
   .btn, .bar a { display:inline-block; background:rgba(18,11,46,.78); color:#fff; border:2px solid rgba(255,255,255,.35); border-radius:12px;
@@ -33,7 +36,7 @@
 (function () {
   // One spot per island, placed around a circle (first one at the top)
   var ISLANDS = [
-    { name: 'Goldenfield', icon: '🌾' },
+    { name: 'Goldenfield', icon: '🌾', pic: 'assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg' },
     { name: 'Bluewater',   icon: '🌊' },
     { name: 'Wildheart',   icon: '🐎' },
     { name: 'Timberroot',  icon: '🌲' },
@@ -41,12 +44,53 @@
     { name: 'Skyreach',    icon: '☁️' },
     { name: 'Duneshade',   icon: '🏜️', sand: true }
   ];
-  var board = document.getElementById('board'), R = 36;
+  // Spots of the picture (x, y, w, h in %) that hold writing or the compass: they get erased
+  var ERASE = [[-2,91,104,11], [-2,74,24,22], [22,81,20,12], [86,49,18,14], [95,61,4,5], [88,74,11,17]];
+
+  // Turn a picture into "just the island": the blue water becomes see-through, the writing is erased
+  function cutOut(img, spot) {
+    var w = img.naturalWidth, h = img.naturalHeight;
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    var d = g.getImageData(0, 0, w, h), px = d.data, i;
+    for (i = 0; i < px.length; i += 4) {
+      var r = px[i], gr = px[i + 1], b = px[i + 2];
+      var blue = (b - r - 25) / 30;                      // how water-ish is this pixel?
+      if (gr > b + 3) blue = 0;                          // greens and yellows are land
+      px[i + 3] = 255 * (1 - Math.max(0, Math.min(1, blue)));
+    }
+    ERASE.forEach(function (e) {
+      var x0 = Math.max(0, Math.round(e[0] * w / 100)), x1 = Math.min(w, Math.round((e[0] + e[2]) * w / 100));
+      var y0 = Math.max(0, Math.round(e[1] * h / 100)), y1 = Math.min(h, Math.round((e[1] + e[3]) * h / 100));
+      for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) px[(y * w + x) * 4 + 3] = 0;
+    });
+    // Trim the empty edges so the island sits neatly in its spot
+    var minX = w, minY = h, maxX = 0, maxY = 0;
+    for (var y2 = 0; y2 < h; y2++) for (var x2 = 0; x2 < w; x2++) {
+      if (px[(y2 * w + x2) * 4 + 3] > 40) { if (x2 < minX) minX = x2; if (x2 > maxX) maxX = x2; if (y2 < minY) minY = y2; if (y2 > maxY) maxY = y2; }
+    }
+    g.putImageData(d, 0, 0);
+    var out = document.createElement('canvas'); out.width = maxX - minX + 1; out.height = maxY - minY + 1;
+    out.getContext('2d').drawImage(c, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
+    spot.appendChild(out);
+  }
+
+  var board = document.getElementById('board'), R = 38;
   ISLANDS.forEach(function (isl, i) {
     var a = -Math.PI / 2 + i * 2 * Math.PI / ISLANDS.length;
-    var s = document.createElement('div'); s.className = 'spot' + (isl.sand ? ' sand' : '');
+    var s = document.createElement('div');
+    s.className = 'spot' + (isl.sand ? ' sand' : '') + (isl.pic ? ' pic' : '');
     s.style.left = (50 + R * Math.cos(a)) + '%'; s.style.top = (50 + R * Math.sin(a)) + '%';
-    s.innerHTML = '<div><span>' + isl.icon + '</span>' + isl.name + '</div>';
+    if (isl.pic) {
+      var im = new Image();
+      im.onload = function () {
+        try { cutOut(im, s); }
+        catch (err) { s.innerHTML = '<img src="' + isl.pic + '" style="width:100%">'; }   // fallback: show the plain picture
+      };
+      im.src = isl.pic;
+    } else {
+      s.innerHTML = '<div><span>' + isl.icon + '</span>' + isl.name + '</div>';
+    }
     board.appendChild(s);
   });
 
