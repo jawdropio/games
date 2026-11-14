@@ -7,10 +7,9 @@
 <style>
   html, body { margin:0; height:100%; overflow:hidden; color:#fff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none;
     /* the old water, borrowed from the Goldenfield picture */
-    background:#2a7bad; }
+    background:#2a7bad url("assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg") 0 0 / 17600px auto; }
   html, body { touch-action:none; }
-  #sea { position:fixed; inset:0; width:100%; height:100%; z-index:0; }
-  #zoom { z-index:1; position:fixed; inset:0; transform-origin:0 0; }
+  #zoom { position:fixed; inset:0; transform-origin:0 0; }
   #board { position:fixed; left:50%; top:50%; width:100vmin; height:100vmin; transform:translate(-50%,-50%); }
   .spot { position:absolute; width:27%; height:17%; transform:translate(-50%,-50%); box-sizing:border-box;
           border:3px dashed rgba(255,255,255,.7); border-radius:50%; background:rgba(255,255,255,.12);
@@ -38,7 +37,6 @@
 </style>
 </head>
 <body>
-<canvas id="sea"></canvas>
 <div id="zoom"><div id="board"></div></div>
 <div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
 <div class="bar" id="right">
@@ -265,34 +263,6 @@
     if (!confirm('Put back everything you erased?')) return;
     strokes = {}; history = []; saveStrokes(); Object.keys(views).forEach(redraw);
   };
-
-  // ---- The sea: gentle drifting waves, updated 60 times a second no matter the screen ----
-  var sea = document.getElementById('sea'), sg = sea.getContext('2d'), waves = [], dpr = 1;
-  function sizeSea() { dpr = Math.min(2, devicePixelRatio || 1); sea.width = innerWidth * dpr; sea.height = innerHeight * dpr; }
-  sizeSea(); addEventListener('resize', sizeSea);
-  for (var wi = 0; wi < 110; wi++) waves.push({ x: Math.random(), y: Math.random(), len: 30 + Math.random() * 70, sp: 0.00012 + Math.random() * 0.00022, ph: Math.random() * 6.28 });
-  function seaStep() { waves.forEach(function (w) { w.x += w.sp; w.ph += 0.025; if (w.x > 1.1) { w.x = -0.1; w.y = Math.random(); } }); }
-  function seaDraw() {
-    var W = sea.width, H = sea.height, gr = sg.createRadialGradient(W / 2, H * 0.4, 0, W / 2, H / 2, Math.max(W, H) * 0.75);
-    gr.addColorStop(0, '#37a0c9'); gr.addColorStop(0.55, '#2f8ebb'); gr.addColorStop(1, '#2573a6');
-    sg.fillStyle = gr; sg.fillRect(0, 0, W, H);
-    sg.lineCap = 'round'; sg.lineWidth = 2 * dpr;
-    waves.forEach(function (w) {
-      var x = w.x * W, y = w.y * H, L = w.len * dpr;
-      sg.strokeStyle = 'rgba(255,255,255,' + (0.10 + 0.12 * Math.sin(w.ph)).toFixed(3) + ')';
-      sg.beginPath(); sg.moveTo(x, y);
-      sg.quadraticCurveTo(x + L / 4, y - 5 * dpr, x + L / 2, y); sg.quadraticCurveTo(x + L * 0.75, y + 5 * dpr, x + L, y);
-      sg.stroke();
-    });
-  }
-  var seaLast = 0, seaAcc = 0;
-  function seaLoop(t) {
-    if (seaLast) { seaAcc += Math.min(100, t - seaLast); }
-    seaLast = t;
-    while (seaAcc >= 1000 / 60) { if (!on) seaStep(); seaAcc -= 1000 / 60; }   // fixed 60 steps per second; frozen while paused
-    seaDraw(); requestAnimationFrame(seaLoop);
-  }
-  requestAnimationFrame(seaLoop);
 
   // ---- Zoom and move around: scroll wheel, pinch, + / − buttons, and drag the background ----
   var zoomEl = document.getElementById('zoom'), zs = 1, zx = 0, zy = 0, ZMAX = 8;
