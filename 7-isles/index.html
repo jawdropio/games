@@ -116,6 +116,16 @@
   .spot.sel canvas { filter:drop-shadow(0 0 .8vmin #fff) drop-shadow(0 0 1.6vmin var(--own, #ffd84a)); }
   .spot:not(.pic) { border-color:var(--own, rgba(255,255,255,.7)); }
   .spot.sel:not(.pic) { border-style:solid; border-color:#fff; }
+  /* ---- island info card (shows when you press an island) ---- */
+  #isleCard { position:fixed; top:56px; right:12px; width:min(330px,86vw); max-height:calc(100vh - 80px); overflow:auto; z-index:6; display:none;
+              background:rgba(18,11,46,.94); color:#fff; border:2px solid rgba(255,255,255,.3); border-radius:16px; padding:12px 14px 14px; font:500 14px/1.4 system-ui, sans-serif; }
+  #isleCard.on { display:block; }
+  #isleCard h2 { margin:0 0 2px; font-size:24px; }
+  #isleCard .sub { opacity:.75; font-size:13px; margin-bottom:6px; }
+  #isleCard .row { margin-top:8px; }
+  #isleCard .row b { display:block; color:#ffd84a; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
+  #isleCard ul { margin:2px 0 0; padding-left:18px; }
+  #isleCard .x { position:absolute; top:8px; right:10px; background:rgba(255,255,255,.15); color:#fff; border:0; border-radius:8px; font:700 16px system-ui; padding:2px 9px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -937,6 +947,72 @@
     var nm = islandAt(e.clientX, e.clientY);
     if (G.choosing && nm && G.isl[nm] && G.isl[nm].owner === 0) { G.capital[0] = nm; G.choosing = false; say('👑 ' + nm + ' is your capital!'); }
     selected = nm; refresh();
+  });
+})();
+</script>
+<div id="isleCard"></div>
+<script>
+(function () {
+  // What shows when you press each island. Change the words here!
+  var ISLES = {
+    Skyreach:    { icon: '☁️', title: 'Skyreach (Floating Isles)', main: 'Floating islands held up by the Heart Crystal', strength: 'Air travel + strategic control', resources: 'Sky routes, rare wind herbs, crystal energy',
+                   culture: ['Highly organized and disciplined', 'Strong focus on engineering and trade control', 'Bridges connect every floating island'], place: 'The Heart Crystal Chamber',
+                   extra: ['Secret weakness', 'If the crystal is damaged, the entire world balance is threatened'] },
+    Ironhold:    { icon: '⛰️', title: 'Ironhold', main: 'Mountain ranges full of deep mines', strength: 'Metal and weapon production', resources: 'Iron, copper, silver, and rare ores',
+                   culture: ['Tough, direct, and proud', 'Respect strength and craftsmanship', 'Kids learn forging early'], place: 'The Great Forge City',
+                   extra: ['Story role', 'Supplies weapons to almost every island (huge political power)'] },
+    Goldenfield: { icon: '🌾', title: 'Goldenfield', main: 'Endless farmland and rivers', strength: 'Food production', resources: 'Wheat, fruit, livestock, and crops',
+                   culture: ['Peaceful, community-focused', 'Festivals and harvest celebrations', 'Values stability above conflict'], place: 'The Grand Grain Markets',
+                   extra: ['Story role', 'If Goldenfield stops trading, every island suffers from starvation fears'] },
+    Timberroot:  { icon: '🌲', title: 'Timberroot', main: 'Massive ancient forests', strength: 'Wood, ships, construction', resources: 'Timber, herbs, wildlife materials',
+                   culture: ['Independent and resourceful', 'Skilled in hunting and survival', 'Strong family clans'], place: 'The Living Forest City',
+                   extra: ['Story role', 'Builds ships used in trade and war (very important in conflict escalation)'] },
+    Bluewater:   { icon: '🌊', title: 'Bluewater', main: 'Ocean-based cities and ports', strength: 'Sea trade and fishing', resources: 'Fish, pearls, salt, sea routes',
+                   culture: ['Free-spirited and adventurous', 'Sailors, traders, explorers', 'Very connected to other islands'], place: 'The Endless Harbor',
+                   extra: ['Story role', 'Controls most trade routes — if they stop ships, everything collapses'] },
+    Wildheart:   { icon: '🐎', title: 'Wildheart', main: 'Open plains and grasslands', strength: 'Animals and mobility', resources: 'Horses, cattle, leather, hunting goods',
+                   culture: ['Nomadic traditions mixed with small towns', 'Strong bond with animals', 'Skilled riders and messengers'], place: 'The Great Stampede Plains',
+                   extra: ['Story role', 'Their cavalry becomes important once conflict starts spreading'] },
+    Duneshade:   { icon: '🏜️', title: 'Duneshade', soon: true }
+  };
+  var card = document.getElementById('isleCard'), current = null;
+  function esc(t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function show(name) {
+    current = name;
+    document.querySelectorAll('.spot').forEach(function (s) { s.classList.toggle('sel', s.dataset.name === name); });
+    if (!name || !ISLES[name]) { card.classList.remove('on'); return; }
+    var d = ISLES[name], h = '<button class="x" id="cardX">✖</button><h2>' + d.icon + ' ' + esc(d.title) + '</h2>';
+    if (d.soon) h += '<div class="row">Details coming soon!</div>';
+    else {
+      h += '<div class="row"><b>Main feature</b>' + esc(d.main) + '</div><div class="row"><b>Strength</b>' + esc(d.strength) + '</div><div class="row"><b>Resources</b>' + esc(d.resources) + '</div>' +
+           '<div class="row"><b>Culture</b><ul>' + d.culture.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>' +
+           '<div class="row"><b>Important place</b>' + esc(d.place) + '</div><div class="row"><b>' + esc(d.extra[0]) + '</b>' + esc(d.extra[1]) + '</div>';
+    }
+    card.innerHTML = h; card.classList.add('on'); card.scrollTop = 0;
+  }
+  card.addEventListener('click', function (e) { if (e.target.id === 'cardX') show(null); });
+  // Which island is under the mouse? Look at the real picture pixels so see-through corners do not steal the press.
+  function islandAt(x, y) {
+    var spots = [].slice.call(document.querySelectorAll('.spot')).reverse();
+    for (var i = 0; i < spots.length; i++) {
+      var sp = spots[i], c = sp.querySelector('canvas'), r = (c || sp).getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom || !r.width || !r.height) continue;
+      if (!c) return sp.dataset.name;
+      try {
+        var a = c.getContext('2d').getImageData(Math.floor((x - r.left) / r.width * c.width), Math.floor((y - r.top) / r.height * c.height), 1, 1).data[3];
+        if (a > 25) return sp.dataset.name;
+      } catch (err) { return sp.dataset.name; }
+    }
+    return null;
+  }
+  var down = null;
+  addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
+  addEventListener('pointerup', function (e) {
+    if (!down) return;
+    var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
+    if (moved > 6 || (e.target.closest && e.target.closest('.bar, #pause, #isleCard'))) return;
+    var n = islandAt(e.clientX, e.clientY);
+    show(n === current ? null : n);          // press the same island again to close
   });
 })();
 </script>
