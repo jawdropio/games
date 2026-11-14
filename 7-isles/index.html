@@ -488,7 +488,7 @@
     Skyreach:    { icon:'☁️', hp:20, spaces:{ 'Bird Feathers':[3,10], 'Crystal Shards':[5,9], 'Wind Iron':[4,11] } },
     Ironhold:    { icon:'⛰️', hp:20, spaces:{ 'Iron':[6,8], 'Stone':[4,10], 'Gold':[2,12] } },
     Goldenfield: { icon:'🌾', hp:20, spaces:{ 'Wheat':[5,9], 'Fruit':[4,10] } },
-    Timberroot:  { icon:'🌲', hp:20, spaces:{ 'Wood':[4,6,8,9] } },
+    Timberroot:  { icon:'🌲', hp:20, min:{ 'Wood':2 }, spaces:{ 'Wood':[4,6,8,9] } },
     Bluewater:   { icon:'🌊', hp:20, spaces:{ 'Pearls':[3,11], 'Fish':[5,9] } },
     Wildheart:   { icon:'🐎', hp:20, spaces:{ 'Horses':[3,10], 'Leather':[6,8], 'Arrows':[4,9] } },
     Duneshade:   { icon:'🏜️', hp:50, spaces:{} }
@@ -500,7 +500,7 @@
   var DICE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
   // The crafting recipes (only what is on your recipe list!)
   var RECIPES = [
-    { g:'Boats', name:'Trade Boat', icon:'⛵', cost:{ 'Wood':8, 'Stone':3, 'Leather':3 }, use:'Holds 10 resources. Reusable.' },
+    { g:'Boats', name:'Trade Boat', icon:'⛵', cost:{ 'Wood':8, 'Stone':3, 'Leather':3 }, use:'Holds 10 resources. Reusable. You need a boat to trade!' },
     { g:'Boats', name:'Exploding Boat', icon:'💥', cost:{ 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use:'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats.' },
     { g:'Boats', name:'Robber Boat', icon:'🏴‍☠️', cost:{ 'Iron':3, 'Wood':5 }, use:'Steals 5 resources from another boat. Reusable.' },
     { g:'Boats', name:'Flying Boat', icon:'🎈', cost:{ 'Bird Feathers':2 }, needs:{ 'Trade Boat':1 }, use:'Cannot be blown up or robbed.' },
@@ -596,9 +596,11 @@
       var I = G.isl[nm]; if (I.owner < 0) return;
       if (I.drought > 0) { blocked.push(nm); return; }
       var sp = ISL[nm].spaces;
-      var keys = Object.keys(sp), m = incomeMult(I.owner), base = pick(keys);
-      got[I.owner][base] = (got[I.owner][base] || 0) + m;                       // every island makes 1 resource every roll
-      keys.forEach(function (r) { if (sp[r].indexOf(roll) >= 0) got[I.owner][r] = (got[I.owner][r] || 0) + m; });   // lucky number = bonus!
+      var keys = Object.keys(sp), m = incomeMult(I.owner), base = pick(keys), mine = {};
+      mine[base] = 1;                                                            // every island makes 1 resource every roll
+      keys.forEach(function (r) { if (sp[r].indexOf(roll) >= 0) mine[r] = (mine[r] || 0) + 1; });   // lucky number = bonus!
+      Object.keys(ISL[nm].min || {}).forEach(function (r) { mine[r] = Math.max(mine[r] || 0, ISL[nm].min[r]); });   // some islands always make at least this much
+      Object.keys(mine).forEach(function (r) { got[I.owner][r] = (got[I.owner][r] || 0) + mine[r] * m; });
     });
     var parts = [];
     got.forEach(function (g, i) {
@@ -834,10 +836,12 @@
   var trade = { partner: 1, give: '', giveN: 1, get: 'Wood', getN: 1, msg: '' };
   function opts(list, cur) { return list.map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + (RES[k] ? RES[k] + ' ' : '') + k + '</option>'; }).join(''); }
   function nums(max, cur) { var o = ''; for (var i = 1; i <= max; i++) o += '<option' + (i === cur ? ' selected' : '') + '>' + i + '</option>'; return o; }
+  function hasBoat(pi) { var it = G.players[pi].items; return (it['Trade Boat'] || 0) > 0 || (it['Flying Boat'] || 0) > 0; }
   function renderTrade() {
     var me = G.players[0], h = '<h2>🔁 Trade</h2>';
     if (G.turn !== 0) h += '<div class="need">⏳ Wait for your turn to trade.</div>';
     else if (!G.rolled) h += '<div class="need">Roll the dice first, then you can trade!</div>';
+    else if (!hasBoat(0)) h += '<div class="need">⛵ You need a boat to trade! Craft a Trade Boat in the Shop (8 🪵 Wood, 3 🪨 Stone, 3 🟤 Leather). A boat holds up to 10 resources.</div>';
     else {
       var have = Object.keys(me.res).filter(function (k) { return me.res[k] > 0; });
       if (!have.length) h += '<div class="need">You have nothing to trade yet.</div>';
@@ -857,6 +861,7 @@
   }
   function offerTrade() {
     var me = G.players[0], bot = G.players[trade.partner];
+    if (!hasBoat(0)) { trade.msg = 'You need a boat to trade!'; return; }
     if (trade.give === trade.get) { trade.msg = 'Pick two different resources!'; return; }
     if ((me.res[trade.give] || 0) < trade.giveN) { trade.msg = "You don't have that many!"; return; }
     var yes = (bot.res[trade.get] || 0) >= trade.getN && (trade.giveN > trade.getN || (trade.giveN === trade.getN && Math.random() < 0.9));
@@ -869,7 +874,7 @@
   }
   function maybeOffer(pi) {                              // a bot sometimes offers YOU a trade
     var P = G.players[pi], me = G.players[0];
-    if (Math.random() > 0.5) return false;
+    if (!hasBoat(pi) || Math.random() > 0.5) return false;       // bots need a boat too
     var mine = Object.keys(me.res).filter(function (k) { return me.res[k] > 0; });
     var spare = Object.keys(P.res).filter(function (k) { return P.res[k] >= 2; });
     if (!mine.length || !spare.length) return false;
@@ -1053,7 +1058,7 @@
   // Everything in the shop. Tell me what to delete or change!
   var SECTIONS = [
     { title: '⛵ Boats', items: [
-      { icon: '⛵', name: 'Trade Boat', cost: { 'Wood':8, 'Stone':3, 'Leather':3 }, use: 'Holds 10 resources. Reusable.' },
+      { icon: '⛵', name: 'Trade Boat', cost: { 'Wood':8, 'Stone':3, 'Leather':3 }, use: 'Holds 10 resources. Reusable. You need a boat to trade!' },
       { icon: '💥', name: 'Exploding Boat', cost: { 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use: 'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats.' },
       { icon: '🏴‍☠️', name: 'Robber Boat', cost: { 'Iron':3, 'Wood':5 }, use: 'Steals 5 resources from another boat. Reusable.' },
       { icon: '🎈', name: 'Flying Boat', cost: { 'Bird Feathers':2 }, needs: ['1 ⛵ Trade Boat'], use: 'Cannot be blown up or robbed.' } ] },
