@@ -51,9 +51,7 @@
       heal: [[65,49,12,7], [72.5,61.8,10.5,6.2]],                                                // writing on the grass
       erase: [[-2,92,104,10], [-2,78,38,15], [83,25.5,12,7], [88.5,75,9,15]] },                    // writing, banner, compass in the water
     { name: 'Timberroot',  icon: '🌲' },
-    { name: 'Ironhold',    icon: '⛰️', pic: 'assets/gemini_generated_image-5-.jpeg', kind: 'gray',
-      heal: [[57.2, 62.9, 11, 8.1, 'warm']],                      // the words on the big sign
-      erase: [[0, 0, 43, 9.3], [71, 0, 30, 9.3]] },               // faraway hills on both sides of the peak
+    { name: 'Ironhold',    icon: '⛰️' },
     { name: 'Skyreach',    icon: '☁️' },
     { name: 'Duneshade',   icon: '🏜️', sand: true }
   ];
@@ -72,7 +70,7 @@
       for (y = 0; y < rh; y++) for (x = 0; x < rw; x++) {
         o = ((y0 + y) * w + x0 + x) * 4;
         var lo = Math.min(px[o], px[o + 1], px[o + 2]), hi = Math.max(px[o], px[o + 1], px[o + 2]);
-        if (e[4] === 'warm' ? (px[o] - px[o + 2] > 30) : (lo > 185 || hi < 70)) m[y * rw + x] = 1;   // letters (white with dark outlines, or orange-ish on a sign)
+        if (lo > 185 || hi < 70) m[y * rw + x] = 1;       // white letters and their dark outlines
       }
       for (y = 0; y < rh; y++) for (x = 0; x < rw; x++) if (m[y * rw + x])
         for (dy = -2; dy <= 2; dy++) for (dx = -2; dx <= 2; dx++) {
@@ -92,8 +90,6 @@
       if (isl.kind === 'teal') {                         // bright turquoise sea
         blue = Math.min((b - r - 40) / 30, (Math.max(gr, b) - 135) / 25);
         if ((i / 4 / w) < h * 0.24) blue = Math.max(blue, Math.min((b - r - 8) / 20, (Math.max(gr, b) - 150) / 20));   // pale hazy sea near the horizon
-      } else if (isl.kind === 'gray') {                  // dull grey-blue sea
-        blue = (gr > b + 2) ? 0 : (b - r - 22) / 10;
       } else {                                           // deep blue sea
         blue = (b - r - 25) / 30;
         if (gr > b + 3) blue = 0;                        // greens and yellows are land
