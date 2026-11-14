@@ -123,6 +123,7 @@
   </div>
 </div>
 <div class="ui modal" id="shopM"><div class="mbox"><button class="btn mclose" data-close="shopM">✖</button><div id="shopBody"></div></div></div>
+<div class="ui modal" id="sumM"><div class="mbox" style="text-align:center"><div id="sumBody"></div><button class="btn go" id="sumOk" style="margin-top:12px;font-size:18px">Let's play! 👑</button></div></div>
 <div class="ui modal" id="tradeM"><div class="mbox"><button class="btn mclose" data-close="tradeM">✖</button><div id="tradeBody"></div></div></div>
 <div class="ui modal" id="offerM"><div class="mbox"><div id="offerBody"></div></div></div>
 <div class="ui modal" id="alliM"><div class="mbox"><button class="btn mclose" data-close="alliM">✖</button><div id="alliBody"></div></div></div>
@@ -466,7 +467,13 @@
     ['hud', 'turnbar', 'resbar'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
     say('👑 You own ' + ownedBy(0).length + ' island' + (ownedBy(0).length > 1 ? 's' : '') + ': ' + ownedBy(0).join(', ') + '. Pick your capital!');
     refresh();
+    // show who got which islands, so it is clear
+    var t = '<h2>🏝️ Who owns what</h2>';
+    G.players.forEach(function (p, i) { t += '<div style="margin:6px 0;font-size:16px">' + p.dot + ' <b>' + p.name + '</b> (' + ownedBy(i).length + '): ' + ownedBy(i).map(function (nm) { return ISL[nm].icon + ' ' + nm; }).join(', ') + '</div>'; });
+    t += '<div style="margin-top:8px">🏜️ Duneshade: nobody yet. Capture it to win!</div>';
+    $('sumBody').innerHTML = t; $('sumM').classList.add('on');
   }
+  $('sumOk').onclick = function () { $('sumM').classList.remove('on'); };
   document.querySelectorAll('[data-players]').forEach(function (b) { b.onclick = function () { startGame(+b.dataset.players); }; });
 
   function ownedBy(pi) { return NORMAL.filter(function (nm) { return G.isl[nm].owner === pi; }); }
