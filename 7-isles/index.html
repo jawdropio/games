@@ -33,6 +33,8 @@
   #pause { position:fixed; inset:0; z-index:10; background:rgba(18,11,46,.75); display:none; place-items:center; text-align:center; }
   #pause.on { display:grid; }
   #pause h1 { font-size:48px; margin:0 0 14px; }
+  /* Eraser and zoom buttons are hidden for now. Delete this line to bring them back. */
+  #eraser, #tools, #zin, #zout, #zfit { display:none !important; }
   /* ---- 7 Isles game screens ---- */
   /* The game is switched OFF for now: only the islands show. To bring it back, delete the next line and set PLAY = true in the game script. */
   .ui, #banner, #frame { display:none !important; }
@@ -395,7 +397,7 @@
   };
 
   // ---- Zoom and move around: scroll wheel, pinch, + / − buttons, and drag the background ----
-  var zoomEl = document.getElementById('zoom'), zs = 1, zx = 0, zy = 0, ZMAX = 8;
+  var zoomEl = document.getElementById('zoom'), zs = 1, zx = 0, zy = 0, ZMAX = 1;   // ZMAX 1 = zoom is OFF (set to 8 to bring it back)
   function zApply() {
     zs = Math.max(1, Math.min(ZMAX, zs));
     zx = Math.min(0, Math.max(innerWidth * (1 - zs), zx)); zy = Math.min(0, Math.max(innerHeight * (1 - zs), zy));
