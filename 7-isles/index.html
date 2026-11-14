@@ -8,6 +8,8 @@
   html, body { margin:0; height:100%; overflow:hidden; color:#fff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none;
     /* the old water, borrowed from the Goldenfield picture */
     background:#2a7bad url("assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg") 0 0 / 17600px auto; }
+  html, body { touch-action:none; }
+  #zoom { position:fixed; inset:0; transform-origin:0 0; }
   #board { position:fixed; left:50%; top:50%; width:100vmin; height:100vmin; transform:translate(-50%,-50%); }
   .spot { position:absolute; width:27%; height:17%; transform:translate(-50%,-50%); box-sizing:border-box;
           border:3px dashed rgba(255,255,255,.7); border-radius:50%; background:rgba(255,255,255,.12);
@@ -18,7 +20,7 @@
   .spot.pic { width:31%; height:auto; border:0; border-radius:0; background:none; display:block; }
   .spot.pic canvas { display:block; width:100%; height:auto; pointer-events:none; }
   .bar { position:fixed; z-index:5; top:12px; }
-  #left { left:12px; } #right { right:12px; display:flex; gap:8px; align-items:center; }
+  #left { left:12px; display:flex; gap:8px; align-items:center; } #right { right:12px; display:flex; gap:8px; align-items:center; }
   #tools { display:none; gap:8px; align-items:center; }
   body.erasing #tools { display:flex; }
   body.erasing .spot.pic canvas { pointer-events:auto; cursor:crosshair; touch-action:none; }
@@ -35,8 +37,8 @@
 </style>
 </head>
 <body>
-<div id="board"></div>
-<div class="bar" id="left"><a href="../">← Arcade</a></div>
+<div id="zoom"><div id="board"></div></div>
+<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
 <div class="bar" id="right">
   <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="confirm" disabled>✔ Confirm</button><button class="btn" id="cancel" disabled>✖ Cancel</button><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
   <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
@@ -261,6 +263,41 @@
     if (!confirm('Put back everything you erased?')) return;
     strokes = {}; history = []; saveStrokes(); Object.keys(views).forEach(redraw);
   };
+
+  // ---- Zoom and move around: scroll wheel, pinch, + / − buttons, and drag the background ----
+  var zoomEl = document.getElementById('zoom'), zs = 1, zx = 0, zy = 0, ZMAX = 8;
+  function zApply() {
+    zs = Math.max(1, Math.min(ZMAX, zs));
+    zx = Math.min(0, Math.max(innerWidth * (1 - zs), zx)); zy = Math.min(0, Math.max(innerHeight * (1 - zs), zy));
+    zoomEl.style.transform = 'translate(' + zx + 'px,' + zy + 'px) scale(' + zs + ')';
+  }
+  function zoomAt(px, py, ns) {
+    ns = Math.max(1, Math.min(ZMAX, ns));
+    zx = px - (px - zx) * (ns / zs); zy = py - (py - zy) * (ns / zs); zs = ns; zApply();
+  }
+  addEventListener('wheel', function (e) { e.preventDefault(); zoomAt(e.clientX, e.clientY, zs * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }, { passive: false });
+  document.getElementById('zin').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, zs * 1.4); };
+  document.getElementById('zout').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, zs / 1.4); };
+  document.getElementById('zfit').onclick = function () { zs = 1; zx = zy = 0; zApply(); };
+  var fingers = {}, pinchDist = 0;
+  addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('.bar, #pause')) return;
+    if (eraserOn && e.target.tagName === 'CANVAS' && !Object.keys(fingers).length) return;   // that drag is for erasing
+    fingers[e.pointerId] = { x: e.clientX, y: e.clientY }; pinchDist = 0;
+  });
+  addEventListener('pointermove', function (e) {
+    var f = fingers[e.pointerId]; if (!f) return;
+    var ids = Object.keys(fingers);
+    if (ids.length === 2) {
+      fingers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var a = fingers[ids[0]], b = fingers[ids[1]], dd = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchDist) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, zs * dd / pinchDist);
+      pinchDist = dd; return;
+    }
+    zx += e.clientX - f.x; zy += e.clientY - f.y; f.x = e.clientX; f.y = e.clientY; zApply();
+  });
+  function fingerUp(e) { delete fingers[e.pointerId]; pinchDist = 0; }
+  addEventListener('pointerup', fingerUp); addEventListener('pointercancel', fingerUp);
 
   var el = document.getElementById('pause'), on = false;
   function set(v) { on = v; el.classList.toggle('on', v); }
