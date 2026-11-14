@@ -5,129 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>7 isles</title>
 <style>
-  html, body { margin:0; height:100%; overflow:hidden; background:#2a7bad; color:#fff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none; }
-  #view { position:fixed; inset:0; overflow:hidden; touch-action:none; cursor:grab; }
-  #view.drag { cursor:grabbing; }
-  /* The whole ocean. Open water is borrowed from a clean corner of the Goldenfield picture so it matches. */
-  #world { position:absolute; left:0; top:0; width:3400px; height:3000px; transform-origin:0 0;
-           background:#2a7bad url("assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg") 0 0 / 17600px auto; }
-  .isle { position:absolute; width:1000px; height:545px; transform:translate(-50%,-50%);
-          -webkit-mask-image:linear-gradient(to right, transparent, #000 8%, #000 92%, transparent), linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent);
-          -webkit-mask-composite:source-in;
-          mask-image:linear-gradient(to right, transparent, #000 8%, #000 92%, transparent), linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent);
-          mask-composite:intersect; }
-  .isle img { width:100%; height:100%; display:block; pointer-events:none; }
-  /* Patches of plain water that hide the writing in the picture */
-  .isle i { position:absolute; background:#2a7bad url("assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg") 0 0 / 17600px auto;
-            -webkit-mask-image:radial-gradient(closest-side, #000 60%, transparent);
-            mask-image:radial-gradient(closest-side, #000 60%, transparent); }
-  .bar { position:fixed; z-index:5; top:12px; }
-  #left { left:12px; } #right { right:12px; }
-  .btn, .bar a { display:inline-block; background:rgba(18,11,46,.78); color:#fff; border:2px solid rgba(255,255,255,.35); border-radius:12px;
-                 padding:8px 14px; font:700 16px system-ui, sans-serif; text-decoration:none; cursor:pointer; }
-  .btn:hover, .bar a:hover { background:rgba(60,40,140,.9); }
-  #pause { position:fixed; inset:0; z-index:10; background:rgba(18,11,46,.75); display:none; place-items:center; text-align:center; }
+  html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; }
+  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
+  button { position:fixed; top:8px; right:12px; background:rgba(255,255,255,.12); color:#fff; border:2px solid rgba(255,255,255,.35); border-radius:12px; padding:8px 14px; font:700 16px system-ui, sans-serif; cursor:pointer; }
+  #pause { position:fixed; inset:0; background:rgba(18,11,46,.85); display:none; place-items:center; text-align:center; font-size:40px; }
   #pause.on { display:grid; }
-  #pause h1 { font-size:48px; margin:0 0 14px; }
 </style>
 </head>
 <body>
-<div id="view"><div id="world"></div></div>
-
-<div class="bar" id="left"><a href="../">← Arcade</a></div>
-<div class="bar" id="right"><button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
-
-<div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
-
+<a href="../">← Arcade</a>
+<button id="pauseBtn">⏸ Pause</button>
+<div id="pause"><div>⏸ Paused<br><button id="resume" style="position:static;margin-top:14px">▶ Keep playing</button></div></div>
 <script>
 (function () {
-  var WW = 3400, WH = 3000;          // size of the ocean
-  var CX = WW / 2, CY = WH / 2;      // middle of the circle
-  var R = 1150;                      // size of the circle
-  var SPOTS = 7;                     // 7 spots around the circle, spot 0 is at the top
-  var IMG = 'assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg';
-
-  // Rectangles (x, y, w, h in % of the picture) that hide the writing and the compass
-  var COVERS = [
-    [-2, 91, 104, 11],     // bottom row of words
-    [-2, 74, 24, 22],      // the big "GOLDENFIELD" banner
-    [22, 81, 20, 12],      // end of the banner
-    [86, 49, 18, 14],      // speech bubble
-    [95, 61, 4, 5],        // speech bubble tail
-    [88, 74, 11, 17]       // compass
-  ];
-
-  var world = document.getElementById('world');
-  var view = document.getElementById('view');
-
-  // Goldenfield is at spot 0 (top). Every other spot is open ocean for now.
-  for (var i = 0; i < SPOTS; i++) {
-    var ang = -Math.PI / 2 + i * 2 * Math.PI / SPOTS;
-    var x = CX + R * Math.cos(ang), y = CY + R * Math.sin(ang);
-    if (false) { // islands are hidden for now: just water
-      var d = document.createElement('div'); d.className = 'isle';
-      d.style.left = x + 'px'; d.style.top = y + 'px';
-      var im = document.createElement('img'); im.src = IMG; im.alt = 'Goldenfield';
-      d.appendChild(im);
-      COVERS.forEach(function (c) {
-        var p = document.createElement('i');
-        p.style.left = c[0] + '%'; p.style.top = c[1] + '%'; p.style.width = c[2] + '%'; p.style.height = c[3] + '%';
-        d.appendChild(p);
-      });
-      world.appendChild(d);
-    }
-  }
-
-  var scale = 1, tx = 0, ty = 0, maxS = 2;
-  function apply() { world.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')'; }
-  function clamp() {
-    var ww = WW * scale, hh = WH * scale, vw = innerWidth, vh = innerHeight;
-    tx = ww <= vw ? (vw - ww) / 2 : Math.min(0, Math.max(vw - ww, tx));
-    ty = hh <= vh ? (vh - hh) / 2 : Math.min(0, Math.max(vh - hh, ty));
-  }
-  function fitScale() { return Math.min(innerWidth / 3300, innerHeight / 2750); }
-  function zoomAt(px, py, ns) {
-    ns = Math.min(maxS, Math.max(fitScale(), ns));
-    tx = px - (px - tx) * (ns / scale); ty = py - (py - ty) * (ns / scale);
-    scale = ns; clamp(); apply();
-  }
-  function showAll() { scale = fitScale(); tx = innerWidth / 2 - CX * scale; ty = innerHeight / 2 - 1440 * scale; clamp(); apply(); }
-  showAll();
-  addEventListener('resize', function () { scale = Math.max(scale, fitScale()); clamp(); apply(); });
-
-  // Drag to move around (mouse, finger or pen), pinch to zoom
-  var pts = {}, lastDist = 0;
-  view.addEventListener('pointerdown', function (e) {
-    pts[e.pointerId] = { x: e.clientX, y: e.clientY };
-    view.setPointerCapture(e.pointerId); view.classList.add('drag'); lastDist = 0;
-  });
-  view.addEventListener('pointermove', function (e) {
-    var p = pts[e.pointerId]; if (!p) return;
-    var ids = Object.keys(pts);
-    if (ids.length === 2) {
-      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
-      var a = pts[ids[0]], b = pts[ids[1]];
-      var dist = Math.hypot(a.x - b.x, a.y - b.y);
-      if (lastDist) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, scale * dist / lastDist);
-      lastDist = dist; return;
-    }
-    tx += e.clientX - p.x; ty += e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
-    clamp(); apply();
-  });
-  function up(e) { delete pts[e.pointerId]; lastDist = 0; if (!Object.keys(pts).length) view.classList.remove('drag'); }
-  view.addEventListener('pointerup', up); view.addEventListener('pointercancel', up);
-  view.addEventListener('wheel', function (e) {
-    e.preventDefault(); zoomAt(e.clientX, e.clientY, scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
-  }, { passive: false });
-
-  // Pause (button, P or Esc)
-  var pauseEl = document.getElementById('pause'), paused = false;
-  function setPause(v) { paused = v; pauseEl.classList.toggle('on', v); }
-  document.getElementById('pauseBtn').onclick = function () { setPause(true); };
-  document.getElementById('resume').onclick = function () { setPause(false); };
-  addEventListener('keydown', function (e) {
-    if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') setPause(!paused);
-  });
+  var el = document.getElementById('pause'), on = false;
+  function set(v) { on = v; el.classList.toggle('on', v); }
+  document.getElementById('pauseBtn').onclick = function () { set(true); };
+  document.getElementById('resume').onclick = function () { set(false); };
+  addEventListener('keydown', function (e) { if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') set(!on); });
 })();
 </script>
 </body>
