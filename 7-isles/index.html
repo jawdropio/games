@@ -33,6 +33,49 @@
   #pause { position:fixed; inset:0; z-index:10; background:rgba(18,11,46,.75); display:none; place-items:center; text-align:center; }
   #pause.on { display:grid; }
   #pause h1 { font-size:48px; margin:0 0 14px; }
+  /* ---- 7 Isles game screens ---- */
+  .ui { position:fixed; z-index:6; background:rgba(18,11,46,.9); color:#fff; border:2px solid rgba(255,255,255,.25); border-radius:14px; padding:10px 12px; font:600 14px system-ui, sans-serif; }
+  #hud { top:58px; left:12px; width:236px; max-height:calc(100vh - 150px); overflow:auto; display:none; }
+  #hud h4 { margin:8px 0 4px; font-size:13px; color:#c9bfff; text-transform:uppercase; letter-spacing:.5px; }
+  #hud h4:first-child { margin-top:0; }
+  .prow { display:flex; gap:6px; align-items:center; padding:2px 0; }
+  .prow.turn { background:rgba(255,255,255,.14); border-radius:8px; }
+  .rgrid { display:grid; grid-template-columns:1fr 1fr; gap:2px 8px; }
+  .rgrid span.zero { opacity:.4; }
+  #log div { font-weight:500; font-size:12.5px; padding:2px 0; border-top:1px solid rgba(255,255,255,.1); }
+  #info { top:58px; right:12px; width:270px; max-height:calc(100vh - 150px); overflow:auto; display:none; }
+  #info h3 { margin:0 0 6px; font-size:20px; }
+  #info table { width:100%; border-collapse:collapse; margin-top:6px; }
+  #info td { padding:3px 2px; border-top:1px solid rgba(255,255,255,.12); font-weight:600; }
+  #info td.hit { background:#2d7a46; border-radius:6px; }
+  #info .tip { font-weight:500; font-size:12.5px; opacity:.85; margin-top:8px; }
+  #turnbar { bottom:12px; left:50%; transform:translateX(-50%); display:none; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; max-width:96vw; }
+  #who { font-weight:800; }
+  .die { display:inline-block; font-size:44px; line-height:1; width:48px; text-align:center; }
+  #sum { font-size:20px; min-width:26px; text-align:center; }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .modal { inset:0; background:rgba(0,0,0,.55); display:none; place-items:center; padding:0; border:0; border-radius:0; z-index:8; }
+  .modal.on { display:grid; }
+  .mbox { background:#1d1445; border:2px solid rgba(255,255,255,.3); border-radius:16px; padding:14px 16px; width:min(760px,94vw); max-height:88vh; overflow:auto; position:relative; }
+  .mbox h2 { margin:0 0 8px; }
+  .mclose { position:absolute; top:8px; right:10px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px; }
+  .card { background:rgba(255,255,255,.08); border-radius:12px; padding:8px 10px; }
+  .card b { font-size:15px; }
+  .card .use { font-weight:500; font-size:12.5px; opacity:.85; margin:3px 0 5px; }
+  .need { color:#ff9a9a; }
+  .have { color:#9af0b4; }
+  .grp { margin:12px 0 4px; color:#c9bfff; font-size:13px; text-transform:uppercase; }
+  .chip { display:inline-block; background:rgba(255,255,255,.12); border-radius:99px; padding:3px 10px; margin:2px; }
+  #start { z-index:9; }
+  #start .mbox { text-align:center; }
+  #start .btn { display:block; width:100%; margin:8px 0; font-size:18px; }
+  .lbl { position:absolute; left:50%; bottom:-1vmin; transform:translate(-50%,100%); white-space:nowrap; pointer-events:none;
+         font:800 max(10px,1.5vmin) system-ui, sans-serif; background:rgba(18,11,46,.85); color:#fff; border-radius:99px; padding:.3vmin 1vmin; }
+  .spot.pic canvas { filter:drop-shadow(0 0 .9vmin var(--own, transparent)); }
+  .spot.sel canvas { filter:drop-shadow(0 0 .8vmin #fff) drop-shadow(0 0 1.6vmin var(--own, #ffd84a)); }
+  .spot:not(.pic) { border-color:var(--own, rgba(255,255,255,.7)); }
+  .spot.sel:not(.pic) { border-style:solid; border-color:#fff; }
 </style>
 </head>
 <body>
@@ -43,6 +86,24 @@
   <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
   <button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
 <div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
+<div class="ui" id="hud"></div>
+<div class="ui" id="info"></div>
+<div class="ui" id="turnbar">
+  <span id="who"></span>
+  <span id="dice"><span class="die" id="d1">⚀</span><span class="die" id="d2">⚁</span><b id="sum"></b></span>
+  <button class="btn" id="rollBtn">🎲 Roll</button>
+  <button class="btn" id="endBtn">End turn ➜</button>
+  <button class="btn" id="shopBtn">🛒 Shop</button>
+  <button class="btn" id="alliBtn">🤝 Alliances</button>
+</div>
+<div class="ui modal" id="shopM"><div class="mbox"><button class="btn mclose" data-close="shopM">✖</button><div id="shopBody"></div></div></div>
+<div class="ui modal" id="alliM"><div class="mbox"><button class="btn mclose" data-close="alliM">✖</button><div id="alliBody"></div></div></div>
+<div class="ui modal on" id="start"><div class="mbox"><h2>🏝️ 7 Isles</h2>
+  <p>Rule the seas and <b>capture Duneshade</b> to win! You are 🔵. The other rulers are bots.</p>
+  <button class="btn" data-players="2">2 players · 3 islands each</button>
+  <button class="btn" data-players="3">3 players · 2 islands each</button>
+  <button class="btn" data-players="6">6 players · 1 island each</button>
+</div></div>
 <script>
 (function () {
   // One spot per island, placed around a circle (first one at the top)
@@ -240,7 +301,7 @@
   ISLANDS.forEach(function (isl, i) {
     var a = -Math.PI / 2 + i * 2 * Math.PI / ISLANDS.length;
     var s = document.createElement('div');
-    s.className = 'spot' + (isl.sand ? ' sand' : '') + (isl.pic ? ' pic' : '');
+    s.className = 'spot' + (isl.sand ? ' sand' : '') + (isl.pic ? ' pic' : ''); s.dataset.name = isl.name;
     s.style.left = (50 + R * Math.cos(a)) + '%'; s.style.top = (50 + R * Math.sin(a)) + '%';
     if (isl.pic) {
       var im = new Image();
@@ -292,13 +353,13 @@
     ns = Math.max(1, Math.min(ZMAX, ns));
     zx = px - (px - zx) * (ns / zs); zy = py - (py - zy) * (ns / zs); zs = ns; zApply();
   }
-  addEventListener('wheel', function (e) { e.preventDefault(); zoomAt(e.clientX, e.clientY, zs * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }, { passive: false });
+  addEventListener('wheel', function (e) { if (e.target.closest && e.target.closest('.ui')) return; e.preventDefault(); zoomAt(e.clientX, e.clientY, zs * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }, { passive: false });
   document.getElementById('zin').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, zs * 1.4); };
   document.getElementById('zout').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, zs / 1.4); };
   document.getElementById('zfit').onclick = function () { zs = 1; zx = zy = 0; zApply(); };
   var fingers = {}, pinchDist = 0;
   addEventListener('pointerdown', function (e) {
-    if (e.target.closest && e.target.closest('.bar, #pause')) return;
+    if (e.target.closest && e.target.closest('.bar, #pause, .ui')) return;
     if (eraserOn && e.target.tagName === 'CANVAS' && !Object.keys(fingers).length) return;   // that drag is for erasing
     fingers[e.pointerId] = { x: e.clientX, y: e.clientY }; pinchDist = 0;
   });
@@ -317,10 +378,294 @@
   addEventListener('pointerup', fingerUp); addEventListener('pointercancel', fingerUp);
 
   var el = document.getElementById('pause'), on = false;
+  window.SI = { eraser: function () { return eraserOn; }, paused: function () { return on; } };
   function set(v) { on = v; el.classList.toggle('on', v); }
   document.getElementById('pauseBtn').onclick = function () { set(true); };
   document.getElementById('resume').onclick = function () { set(false); };
   addEventListener('keydown', function (e) { if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') set(!on); });
+})();
+</script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var RES = { 'Bird Feathers':'🪶', 'Crystal Shards':'💎', 'Wind Iron':'🌀', 'Iron':'⚙️', 'Stone':'🪨', 'Gold':'🪙', 'Wheat':'🌾',
+              'Fruit':'🍎', 'Wood':'🪵', 'Pearls':'🦪', 'Fish':'🐟', 'Horses':'🐴', 'Leather':'🟤', 'Arrows':'🏹' };
+  // Dice numbers for every resource (two dice: 2 to 12). EDIT THESE to match your real board!
+  var ISL = {
+    Skyreach:    { icon:'☁️', hp:20, spaces:{ 'Bird Feathers':[3,10], 'Crystal Shards':[5,9], 'Wind Iron':[4,11] } },
+    Ironhold:    { icon:'⛰️', hp:20, spaces:{ 'Iron':[6,8], 'Stone':[4,10], 'Gold':[2,12] } },
+    Goldenfield: { icon:'🌾', hp:20, spaces:{ 'Wheat':[5,9], 'Fruit':[4,10] } },
+    Timberroot:  { icon:'🌲', hp:20, spaces:{ 'Wood':[4,6,8,9] } },
+    Bluewater:   { icon:'🌊', hp:20, spaces:{ 'Pearls':[3,11], 'Fish':[5,9] } },
+    Wildheart:   { icon:'🐎', hp:20, spaces:{ 'Horses':[3,10], 'Leather':[6,8], 'Arrows':[4,9] } },
+    Duneshade:   { icon:'🏜️', hp:50, spaces:{} }
+  };
+  var NORMAL = ['Skyreach', 'Ironhold', 'Goldenfield', 'Timberroot', 'Bluewater', 'Wildheart'];
+  var COLORS = ['#4aa3ff', '#ff5a5a', '#3fd46b', '#ffd23f', '#b46bff', '#ff9a3c'];
+  var DOTS = ['🔵', '🔴', '🟢', '🟡', '🟣', '🟠'];
+  var NAMES = ['You', 'Red Bot', 'Green Bot', 'Gold Bot', 'Purple Bot', 'Orange Bot'];
+  var DICE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+  // The crafting recipes (only what is on your recipe list!)
+  var RECIPES = [
+    { g:'Boats', name:'Trade Boat', icon:'⛵', cost:{ 'Wood':8, 'Stone':3, 'Leather':3 }, use:'Holds 10 resources. Reusable.' },
+    { g:'Boats', name:'Exploding Boat', icon:'💥', cost:{ 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use:'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats.' },
+    { g:'Boats', name:'Robber Boat', icon:'🏴‍☠️', cost:{ 'Iron':3, 'Wood':5 }, use:'Steals 5 resources from another boat. Reusable.' },
+    { g:'Boats', name:'Flying Boat', icon:'🎈', cost:{ 'Bird Feathers':2 }, needs:{ 'Trade Boat':1 }, use:'Cannot be blown up or robbed.' },
+    { g:'Food', name:'Bread', icon:'🍞', cost:{ 'Wheat':3 }, use:'Feeds 5 people.' },
+    { g:'Food', name:'Golden Bread', icon:'🥇', cost:{ 'Wheat':5, 'Fruit':1, 'Gold':1 }, use:'Feeds a whole island.' },
+    { g:'Special Items', name:'Drought', icon:'☀️', cost:{ 'Crystal Shards':2, 'Pearls':2 }, use:'Stops one island from gaining resources for 1 turn.', turns:1 },
+    { g:'Special Items', name:'Power Drought', icon:'🔥', cost:{ 'Crystal Shards':3, 'Pearls':3, 'Wind Iron':2 }, use:'Stops one island from gaining resources for 3 turns.', turns:3 },
+    { g:'Buildings', name:'Tent', icon:'⛺', cost:{ 'Wood':2, 'Leather':2, 'Iron':2 }, use:'Holds 1 person.' },
+    { g:'Buildings', name:'Cabin', icon:'🏠', cost:{ 'Wood':8 }, needs:{ 'Tent':1 }, use:'Holds 5 people.' }
+  ];
+  function recipe(n) { return RECIPES.filter(function (r) { return r.name === n; })[0]; }
+
+  var G = null, selected = null, pendingUse = null;
+  function later(fn, ms) { setTimeout(function w() { if (window.SI && window.SI.paused()) setTimeout(w, 300); else fn(); }, ms); }
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function ways(n) { return 6 - Math.abs(n - 7); }
+
+  // ----- starting a game -----
+  function startGame(n) {
+    G = { n: n, players: [], isl: {}, turn: 0, rolled: false, rolling: false, dice: [0, 0], log: [], ally: null, allyUsed: false };
+    for (var i = 0; i < n; i++) G.players.push({ name: NAMES[i], dot: DOTS[i], color: COLORS[i], bot: i > 0, res: {}, items: {} });
+    var order = shuffle(NORMAL.slice()), per = NORMAL.length / n;
+    order.forEach(function (nm, k) { G.isl[nm] = { owner: Math.floor(k / per), hp: ISL[nm].hp, drought: 0 }; });
+    G.isl.Duneshade = { owner: -1, hp: ISL.Duneshade.hp, drought: 0 };
+    $('start').classList.remove('on');
+    ['hud', 'turnbar'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
+    say('🏝️ The game begins! You start with ' + ownedBy(0).join(', ') + '.');
+    refresh();
+  }
+  document.querySelectorAll('[data-players]').forEach(function (b) { b.onclick = function () { startGame(+b.dataset.players); }; });
+
+  function ownedBy(pi) { return NORMAL.filter(function (nm) { return G.isl[nm].owner === pi; }); }
+  function say(t) { G.log.unshift(t); if (G.log.length > 8) G.log.pop(); }
+  function incomeMult(pi) { return G.ally && G.ally.leader === pi ? G.ally.members.length : 1; }
+  function ownerName(o) { return o < 0 ? 'Nobody yet' : G.players[o].dot + ' ' + G.players[o].name; }
+
+  // ----- rolling dice and collecting -----
+  function doRoll(pi, done) {
+    G.rolling = true; refresh();
+    var f = 0, iv = setInterval(function () {
+      f++; G.dice = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]; showDice();
+      if (f >= 9) { clearInterval(iv); G.rolling = false; G.rolled = true; var s = G.dice[0] + G.dice[1]; collect(pi, s); refresh(); if (done) done(); }
+    }, 70);
+  }
+  function collect(pi, roll) {
+    var got = G.players.map(function () { return {}; }), blocked = [];
+    NORMAL.forEach(function (nm) {
+      var I = G.isl[nm]; if (I.owner < 0) return;
+      if (I.drought > 0) { blocked.push(nm); return; }
+      var sp = ISL[nm].spaces;
+      Object.keys(sp).forEach(function (r) {
+        if (sp[r].indexOf(roll) >= 0) got[I.owner][r] = (got[I.owner][r] || 0) + incomeMult(I.owner);
+      });
+    });
+    var parts = [];
+    got.forEach(function (g, i) {
+      var P = G.players[i], txt = [];
+      Object.keys(g).forEach(function (r) { P.res[r] = (P.res[r] || 0) + g[r]; txt.push(RES[r] + g[r]); });
+      if (txt.length) parts.push(P.dot + ' ' + txt.join(' '));
+    });
+    NORMAL.forEach(function (nm) { if (G.isl[nm].drought > 0) G.isl[nm].drought--; });
+    say('🎲 ' + G.players[pi].name + ' rolled ' + roll + (parts.length ? ' → ' + parts.join(' · ') : ' → nobody collects') + (blocked.length ? ' (drought: ' + blocked.join(', ') + ')' : ''));
+  }
+  function showDice() { $('d1').textContent = G.dice[0] ? DICE[G.dice[0] - 1] : '🎲'; $('d2').textContent = G.dice[1] ? DICE[G.dice[1] - 1] : '🎲'; $('sum').textContent = G.dice[0] ? G.dice[0] + G.dice[1] : ''; }
+
+  // ----- turns and bots -----
+  function endTurn() {
+    G.turn = (G.turn + 1) % G.n; G.rolled = false; pendingUse = null;
+    if (G.turn === 0) say('➡️ Your turn!');
+    refresh();
+    if (G.players[G.turn].bot) later(botTurn, 900);
+  }
+  function botTurn() {
+    var pi = G.turn;
+    doRoll(pi, function () { later(function () { botBuild(pi); refresh(); later(endTurn, 1000); }, 900); });
+  }
+  function botBuild(pi) {
+    var P = G.players[pi], opts = RECIPES.filter(function (r) { return r.name !== 'Exploding Boat' && r.name !== 'Robber Boat'; });
+    for (var k = 0; k < 2; k++) {
+      var ok = opts.filter(function (r) { return canAfford(P, r); });
+      if (!ok.length) break;
+      var r = pick(ok); craft(pi, r); say(P.dot + ' ' + P.name + ' made ' + r.icon + ' ' + r.name);
+    }
+    ['Power Drought', 'Drought'].forEach(function (d) {
+      if ((P.items[d] || 0) > 0 && Math.random() < 0.6) {
+        var targets = NORMAL.filter(function (nm) { var o = G.isl[nm].owner; return o >= 0 && o !== pi && G.isl[nm].drought === 0 && !(G.ally && G.ally.members.indexOf(o) >= 0 && G.ally.members.indexOf(pi) >= 0); });
+        if (targets.length) { var t = pick(targets); useDrought(pi, d, t); }
+      }
+    });
+  }
+
+  // ----- crafting -----
+  function canAfford(P, r) {
+    var c = r.cost, n = r.needs || {};
+    return Object.keys(c).every(function (k) { return (P.res[k] || 0) >= c[k]; }) && Object.keys(n).every(function (k) { return (P.items[k] || 0) >= n[k]; });
+  }
+  function craft(pi, r) {
+    var P = G.players[pi];
+    if (!canAfford(P, r)) return false;
+    Object.keys(r.cost).forEach(function (k) { P.res[k] -= r.cost[k]; });
+    Object.keys(r.needs || {}).forEach(function (k) { P.items[k] -= r.needs[k]; });
+    P.items[r.name] = (P.items[r.name] || 0) + 1; return true;
+  }
+  function useDrought(pi, itemName, island) {
+    var P = G.players[pi], r = recipe(itemName);
+    if ((P.items[itemName] || 0) < 1) return;
+    P.items[itemName]--; G.isl[island].drought = r.turns;
+    say(r.icon + ' ' + P.name + ' used ' + itemName + ' on ' + island + ' (' + r.turns + ' turn' + (r.turns > 1 ? 's' : '') + ')');
+  }
+
+  // ----- alliances -----
+  function formAlliance(pi, picks) {
+    var yes = [], no = [];
+    picks.forEach(function (i) { (Math.random() < 0.75 ? yes : no).push(i); });
+    if (no.length) say('🤝 ' + no.map(function (i) { return G.players[i].name; }).join(', ') + ' said no thanks.');
+    if (!yes.length) return;
+    G.ally = { leader: pi, members: [pi].concat(yes) }; G.allyUsed = true;
+    NORMAL.forEach(function (nm) { if (G.ally.members.indexOf(G.isl[nm].owner) >= 0) G.isl[nm].owner = pi; });
+    say('🤝 Alliance formed! ' + G.players[pi].name + ' leads with ' + yes.map(function (i) { return G.players[i].name; }).join(', ') + '. Income ×' + G.ally.members.length + '!');
+  }
+  function endAlliance() { say('💔 The alliance ended. The leader keeps all the islands.'); G.ally = null; }
+  function leaveAlliance(pi) {
+    G.ally.members = G.ally.members.filter(function (m) { return m !== pi; });
+    say('👋 ' + G.players[pi].name + ' left the alliance (keeps resources and items, no islands).');
+    if (G.ally.members.length < 2) G.ally = null;
+  }
+
+  // ----- drawing the screens -----
+  function resHtml(cost) { return Object.keys(cost).map(function (k) { return cost[k] + ' ' + RES[k] + ' ' + k; }).join(', '); }
+  function refresh() {
+    if (!G) return;
+    renderHud(); renderTurn(); renderLabels(); renderInfo();
+    if ($('shopM').classList.contains('on')) renderShop();
+    if ($('alliM').classList.contains('on')) renderAlli();
+  }
+  function renderHud() {
+    var me = G.players[0], h = '<h4>Rulers</h4>';
+    G.players.forEach(function (p, i) {
+      var inAlly = G.ally && G.ally.members.indexOf(i) >= 0;
+      h += '<div class="prow' + (G.turn === i ? ' turn' : '') + '">' + (G.turn === i ? '▶' : '&nbsp;') + p.dot + ' ' + p.name + ' <span style="margin-left:auto">🏝️' + ownedBy(i).length + (inAlly ? ' 🤝' : '') + '</span></div>';
+    });
+    h += '<h4>Your resources</h4><div class="rgrid">';
+    Object.keys(RES).forEach(function (k) { var n = me.res[k] || 0; h += '<span class="' + (n ? '' : 'zero') + '">' + RES[k] + ' ' + k + ' <b>' + n + '</b></span>'; });
+    h += '</div><h4>Latest</h4><div id="log">' + G.log.map(function (t) { return '<div>' + t + '</div>'; }).join('') + '</div>';
+    $('hud').innerHTML = h;
+  }
+  function renderTurn() {
+    var mine = G.turn === 0, P = G.players[G.turn];
+    $('who').textContent = mine ? '🔵 Your turn' : P.dot + ' ' + P.name + ' is playing…';
+    showDice();
+    $('rollBtn').disabled = !(mine && !G.rolled && !G.rolling);
+    $('endBtn').disabled = !(mine && G.rolled);
+    $('shopBtn').disabled = false; $('alliBtn').disabled = false;
+  }
+  function renderLabels() {
+    document.querySelectorAll('.spot').forEach(function (s) {
+      var nm = s.dataset.name, I = G.isl[nm]; if (!I) return;
+      var l = s.querySelector('.lbl'); if (!l) { l = document.createElement('div'); l.className = 'lbl'; s.appendChild(l); }
+      l.textContent = (I.owner >= 0 ? G.players[I.owner].dot + ' ' : '⚪ ') + nm + ' ❤️' + I.hp + (I.drought ? ' ☀️' + I.drought : '');
+      s.style.setProperty('--own', I.owner >= 0 ? G.players[I.owner].color : ''); if (I.owner < 0) s.style.removeProperty('--own');
+      s.classList.toggle('sel', selected === nm);
+    });
+  }
+  function renderInfo() {
+    var box = $('info'); if (!selected) { box.style.display = 'none'; return; }
+    var D = ISL[selected], I = G.isl[selected], last = G.dice[0] ? G.dice[0] + G.dice[1] : 0;
+    var h = '<h3>' + D.icon + ' ' + selected + '</h3><div>Owner: ' + ownerName(I.owner) + '</div><div>❤️ Health: <b>' + I.hp + '</b></div>';
+    if (I.drought) h += '<div>☀️ Drought: ' + I.drought + ' turn' + (I.drought > 1 ? 's' : '') + ' left</div>';
+    var keys = Object.keys(D.spaces);
+    if (!keys.length) h += '<div class="tip">No resources here. 🏆 Capture this island to win the game!</div>';
+    else {
+      h += '<table>';
+      keys.forEach(function (r) {
+        var nums = D.spaces[r], pct = Math.round(nums.reduce(function (a, n) { return a + ways(n); }, 0) / 36 * 100);
+        h += '<tr><td>' + RES[r] + ' ' + r + '</td><td>🎲 ' + nums.map(function (n) { return n === last ? '<b class="hit">' + n + '</b>' : n; }).join(' · ') + '</td><td>' + pct + '%</td></tr>';
+      });
+      h += '</table><div class="tip">Roll one of these numbers and the owner collects 1 of that resource. The % is how often it happens.</div>';
+    }
+    box.innerHTML = h; box.style.display = 'block';
+  }
+  function renderShop() {
+    var me = G.players[0], mine = G.turn === 0, h = '<h2>🛒 Shop</h2><div>Craft items with your resources. ' + (mine ? '' : '<b>Wait for your turn to craft.</b>') + '</div>', g = '';
+    RECIPES.forEach(function (r) {
+      if (r.g !== g) { g = r.g; h += '<div class="grp">' + g + '</div><div class="cards">'; }
+      var cost = Object.keys(r.cost).map(function (k) { var ok = (me.res[k] || 0) >= r.cost[k]; return '<span class="' + (ok ? 'have' : 'need') + '">' + r.cost[k] + RES[k] + '</span>'; }).join(' ');
+      var needs = Object.keys(r.needs || {}).map(function (k) { var ok = (me.items[k] || 0) >= r.needs[k]; return '<span class="' + (ok ? 'have' : 'need') + '">' + r.needs[k] + ' ' + recipe(k).icon + ' ' + k + '</span>'; }).join(' ');
+      h += '<div class="card"><b>' + r.icon + ' ' + r.name + '</b><div class="use">' + r.use + '</div><div>Cost: ' + cost + ' ' + needs + '</div>' +
+           '<button class="btn" data-craft="' + r.name + '" style="margin-top:6px"' + (mine && canAfford(me, r) ? '' : ' disabled') + '>🔨 Craft</button></div>';
+      var next = RECIPES[RECIPES.indexOf(r) + 1]; if (!next || next.g !== g) h += '</div>';
+    });
+    h += '<div class="grp">🎒 Your items</div>';
+    var have = Object.keys(me.items).filter(function (k) { return me.items[k] > 0; });
+    if (!have.length) h += '<div>Nothing yet. Craft something!</div>';
+    have.forEach(function (k) {
+      var r = recipe(k), usable = r.turns;
+      h += '<span class="chip">' + r.icon + ' ' + k + ' ×' + me.items[k] + (usable && mine ? ' <button class="btn" data-use="' + k + '" style="padding:2px 8px;font-size:13px">Use</button>' : '') + '</span>';
+    });
+    if (pendingUse) {
+      h += '<div class="grp">Pick an island for ' + pendingUse + '</div>';
+      NORMAL.forEach(function (nm) { h += '<button class="btn" data-target="' + nm + '" style="margin:2px">' + ISL[nm].icon + ' ' + nm + ' (' + ownerName(G.isl[nm].owner) + ')</button>'; });
+    }
+    $('shopBody').innerHTML = h;
+  }
+  function renderAlli() {
+    var h = '<h2>🤝 Alliances</h2>', n = G.n;
+    h += '<div>Work together! A bigger alliance makes more income: ×1 for 1 player, ×2 for 2, and so on. The <b>leader</b> owns all the islands and collects everything. You can only make <b>one</b> alliance, and it cannot include every player.</div>';
+    if (G.ally) {
+      var A = G.ally;
+      h += '<div class="grp">Your alliance</div><div>👑 Leader: ' + G.players[A.leader].dot + ' ' + G.players[A.leader].name + '</div><div>Members: ' + A.members.map(function (m) { return G.players[m].dot + ' ' + G.players[m].name; }).join(', ') + '</div><div>Income: <b>×' + A.members.length + '</b></div>';
+      h += A.leader === 0 ? '<button class="btn" data-ally="end" style="margin-top:8px">💔 End alliance</button>' : (A.members.indexOf(0) >= 0 ? '<button class="btn" data-ally="leave" style="margin-top:8px">👋 Leave alliance</button>' : '');
+    } else if (G.allyUsed) {
+      h += '<div class="grp">Your one alliance has already been used.</div>';
+    } else if (G.turn !== 0) {
+      h += '<div class="grp">Wait for your turn to make an alliance.</div>';
+    } else {
+      h += '<div class="grp">Who do you invite? (you will be the leader)</div>';
+      for (var i = 1; i < n; i++) h += '<label class="chip"><input type="checkbox" data-pick="' + i + '"> ' + G.players[i].dot + ' ' + G.players[i].name + '</label>';
+      h += '<div><button class="btn" data-ally="form" style="margin-top:8px">🤝 Form alliance</button></div><div id="allyMsg" class="need"></div>';
+    }
+    $('alliBody').innerHTML = h;
+  }
+
+  // ----- buttons and clicks -----
+  $('rollBtn').onclick = function () { if (G && G.turn === 0 && !G.rolled && !G.rolling) doRoll(0); };
+  $('endBtn').onclick = function () { if (G && G.turn === 0 && G.rolled) endTurn(); };
+  $('shopBtn').onclick = function () { $('shopM').classList.add('on'); renderShop(); };
+  $('alliBtn').onclick = function () { $('alliM').classList.add('on'); renderAlli(); };
+  document.querySelectorAll('[data-close]').forEach(function (b) { b.onclick = function () { $(b.dataset.close).classList.remove('on'); pendingUse = null; }; });
+  ['shopM', 'alliM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
+  $('shopBody').addEventListener('click', function (e) {
+    var t = e.target; if (!t.dataset) return;
+    if (t.dataset.craft && G.turn === 0) { var r = recipe(t.dataset.craft); if (craft(0, r)) say('🔨 You made ' + r.icon + ' ' + r.name); refresh(); }
+    if (t.dataset.use) { pendingUse = t.dataset.use; renderShop(); }
+    if (t.dataset.target && pendingUse && G.turn === 0) { useDrought(0, pendingUse, t.dataset.target); pendingUse = null; refresh(); }
+  });
+  $('alliBody').addEventListener('click', function (e) {
+    var a = e.target.dataset && e.target.dataset.ally; if (!a) return;
+    if (a === 'form') {
+      var picks = [].slice.call(document.querySelectorAll('[data-pick]')).filter(function (c) { return c.checked; }).map(function (c) { return +c.dataset.pick; });
+      if (!picks.length) { $('allyMsg').textContent = 'Pick at least one player!'; return; }
+      if (picks.length + 1 >= G.n) { $('allyMsg').textContent = 'An alliance cannot include every player!'; return; }
+      formAlliance(0, picks);
+    }
+    if (a === 'end') endAlliance();
+    if (a === 'leave') leaveAlliance(0);
+    refresh();
+  });
+  // click (not drag) on an island to see its info
+  var down = null;
+  addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
+  addEventListener('pointerup', function (e) {
+    if (!G || !down || (window.SI && window.SI.eraser())) return;
+    var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
+    if (moved > 6 || (e.target.closest && e.target.closest('.ui, .bar, #pause'))) return;
+    var s = e.target.closest && e.target.closest('.spot');
+    selected = s ? s.dataset.name : null; refresh();
+  });
 })();
 </script>
 </body>
