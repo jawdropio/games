@@ -151,6 +151,8 @@
   .shCard .us { opacity:.85; font-size:13px; margin:2px 0 6px; }
   .shCard .lb { font-size:11px; text-transform:uppercase; letter-spacing:.5px; opacity:.65; margin-top:4px; }
   .shChip { display:inline-block; background:rgba(255,255,255,.14); border-radius:99px; padding:2px 9px; margin:2px 3px 0 0; font-size:13px; white-space:nowrap; }
+  .shChip.ok { background:rgba(63,212,107,.35); }
+  .shChip.no { background:rgba(224,69,123,.3); }
   .shChip.need { background:rgba(224,69,123,.35); color:#fff; }
 </style>
 </head>
@@ -500,10 +502,10 @@
   var DICE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
   // The crafting recipes (only what is on your recipe list!)
   var RECIPES = [
-    { g:'Boats', name:'Trade Boat', icon:'⛵', cost:{ 'Wood':8, 'Stone':3, 'Leather':3 }, use:'Holds 10 resources. Reusable. You need a boat to trade!' },
+    { g:'Boats', name:'Trade Boat', icon:'⛵', cost:{ 'Wood':8, 'Stone':3, 'Leather':3 }, use:'Holds 10 resources. You need a boat to trade. Whoever gets the trade keeps the boat.' },
     { g:'Boats', name:'Exploding Boat', icon:'💥', cost:{ 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use:'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats.' },
-    { g:'Boats', name:'Robber Boat', icon:'🏴‍☠️', cost:{ 'Iron':3, 'Wood':5 }, use:'Steals 5 resources from another boat. Reusable.' },
-    { g:'Boats', name:'Flying Boat', icon:'🎈', cost:{ 'Bird Feathers':2 }, needs:{ 'Trade Boat':1 }, use:'Cannot be blown up or robbed.' },
+    { g:'Boats', name:'Robber Boat', icon:'🏴‍☠️', cost:{ 'Iron':3, 'Wood':5 }, use:'Steals 5 resources from another boat. Breaks after 3 uses.' },
+    { g:'Boats', name:'Flying Boat', icon:'🎈', cost:{ 'Bird Feathers':2 }, needs:{ 'Trade Boat':1 }, use:'Cannot be blown up or robbed. Never changes hands in a trade.' },
     { g:'Food', name:'Bread', icon:'🍞', cost:{ 'Wheat':3 }, use:'Feeds 5 people.' },
     { g:'Food', name:'Golden Bread', icon:'🥇', cost:{ 'Wheat':5, 'Fruit':1, 'Gold':1 }, use:'Feeds a whole island.' },
     { g:'Special Items', name:'Drought', icon:'☀️', cost:{ 'Crystal Shards':2, 'Pearls':2 }, use:'Stops one island from gaining resources for 1 turn.', turns:1 },
@@ -522,7 +524,7 @@
   // ----- starting a game -----
   function startGame(n) {
     G = { n: n, players: [], isl: {}, turn: 0, rolled: false, rolling: false, choosing: true, capital: [], dice: [0, 0], log: [], ally: null, allyUsed: false };
-    for (var i = 0; i < n; i++) G.players.push({ name: NAMES[i], dot: DOTS[i], color: COLORS[i], bot: i > 0, res: {}, items: {} });
+    for (var i = 0; i < n; i++) G.players.push({ name: NAMES[i], dot: DOTS[i], color: COLORS[i], bot: i > 0, res: {}, items: {}, robberUses: 0 });
     var order = shuffle(NORMAL.slice()), per = NORMAL.length / n;
     order.forEach(function (nm, k) { G.isl[nm] = { owner: Math.floor(k / per), hp: ISL[nm].hp, drought: 0, people: 0, housing: 0, focus: Object.keys(ISL[nm].spaces)[0] }; });
     G.players.forEach(function (p, i) { if (i > 0) G.capital[i] = pick(ownedBy(i)); });
@@ -713,7 +715,7 @@
     h += '<div class="invh">Resources</div>';
     h += rs.length ? '<div class="invgrid">' + rs.map(function (k) { return '<div class="inv"><span class="e">' + RES[k] + '</span><b>' + me.res[k] + '</b><small>' + k + '</small></div>'; }).join('') + '</div>' : '<div>Nothing yet. Roll the dice!</div>';
     h += '<div class="invh">Items you made</div>';
-    h += is.length ? '<div class="invgrid">' + is.map(function (k) { return '<div class="inv"><span class="e">' + recipe(k).icon + '</span><b>' + me.items[k] + '</b><small>' + k + '</small></div>'; }).join('') + '</div>' : '<div>Nothing yet. Craft in the 🛒 Shop!</div>';
+    h += is.length ? '<div class="invgrid">' + is.map(function (k) { return '<div class="inv"><span class="e">' + recipe(k).icon + '</span><b>' + me.items[k] + '</b><small>' + k + (k === 'Robber Boat' ? ' (' + (3 - me.robberUses) + ' uses left)' : '') + '</small></div>'; }).join('') + '</div>' : '<div>Nothing yet. Craft in the 🛒 Shop!</div>';
     return h;
   }
   function renderInv() { $('invBody').innerHTML = '<h2>🎒 Your inventory</h2>' + invHtml(); }
@@ -833,63 +835,81 @@
   }
 
   // ----- trading with the other rulers -----
-  var trade = { partner: 1, give: '', giveN: 1, get: 'Wood', getN: 1, msg: '' };
+  var trade = { partner: 1, boat: 'Trade Boat', load: {}, get: 'Wood', getN: 1, msg: '' };
+  var BOATS = ['Trade Boat', 'Flying Boat', 'Robber Boat'];
+  function boatsOf(pi) { var it = G.players[pi].items; return BOATS.filter(function (b) { return (it[b] || 0) > 0; }); }
+  function hasBoat(pi) { return boatsOf(pi).length > 0; }
+  function loadTotal() { return Object.keys(trade.load).reduce(function (a, k) { return a + trade.load[k]; }, 0); }
+  function boatNote(b) { return b === 'Trade Boat' ? 'This boat goes to the other ruler with the trade.' : b === 'Flying Boat' ? 'You keep this boat. It is never given away.' : 'You keep this boat, but it breaks after 3 uses.'; }
+  function useRobber(pi) {                                // a Robber Boat breaks after 3 uses
+    var P = G.players[pi]; P.robberUses++;
+    if (P.robberUses >= 3) { P.items['Robber Boat']--; P.robberUses = 0; say('💥 ' + (pi === 0 ? 'Your' : P.name + "'s") + ' Robber Boat broke after 3 uses!'); }
+  }
   function opts(list, cur) { return list.map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + (RES[k] ? RES[k] + ' ' : '') + k + '</option>'; }).join(''); }
   function nums(max, cur) { var o = ''; for (var i = 1; i <= max; i++) o += '<option' + (i === cur ? ' selected' : '') + '>' + i + '</option>'; return o; }
-  function hasBoat(pi) { var it = G.players[pi].items; return (it['Trade Boat'] || 0) > 0 || (it['Flying Boat'] || 0) > 0; }
   function renderTrade() {
     var me = G.players[0], h = '<h2>🔁 Trade</h2>';
     if (G.turn !== 0) h += '<div class="need">⏳ Wait for your turn to trade.</div>';
     else if (!G.rolled) h += '<div class="need">Roll the dice first, then you can trade!</div>';
     else if (!hasBoat(0)) h += '<div class="need">⛵ You need a boat to trade! Craft a Trade Boat in the Shop (8 🪵 Wood, 3 🪨 Stone, 3 🟤 Leather). A boat holds up to 10 resources.</div>';
     else {
+      var bs = boatsOf(0); if (bs.indexOf(trade.boat) < 0) trade.boat = bs[0];
+      Object.keys(trade.load).forEach(function (k) { trade.load[k] = Math.min(trade.load[k], me.res[k] || 0); if (!trade.load[k]) delete trade.load[k]; });
+      h += '<div class="grp">1. Pick a boat</div>' + bs.map(function (b) {
+        return '<button class="btn" data-boat="' + b + '" style="margin:2px;' + (trade.boat === b ? 'background:#e0457b' : '') + '">' + recipe(b).icon + ' ' + b + ' ×' + me.items[b] + (b === 'Robber Boat' ? ' (' + (3 - me.robberUses) + ' uses left)' : '') + '</button>';
+      }).join('') + '<div class="tip">' + boatNote(trade.boat) + '</div>';
+      h += '<div class="grp">2. Load your boat (' + loadTotal() + ' / 10)</div>';
       var have = Object.keys(me.res).filter(function (k) { return me.res[k] > 0; });
-      if (!have.length) h += '<div class="need">You have nothing to trade yet.</div>';
-      else {
-        if (have.indexOf(trade.give) < 0) trade.give = have[0];
-        trade.giveN = Math.min(Math.max(1, trade.giveN), me.res[trade.give]);
-        h += '<div class="grp">Trade with</div>';
-        for (var i = 1; i < G.n; i++) h += '<button class="btn' + (trade.partner === i ? ' on' : '') + '" data-partner="' + i + '" style="margin:2px;' + (trade.partner === i ? 'background:#e0457b' : '') + '">' + G.players[i].dot + ' ' + G.players[i].name + '</button>';
-        h += '<div class="grp">You give</div><select id="tGive">' + opts(have, trade.give) + '</select><select id="tGiveN">' + nums(Math.min(10, me.res[trade.give]), trade.giveN) + '</select>';
-        h += '<div class="grp">You get</div><select id="tGet">' + opts(Object.keys(RES), trade.get) + '</select><select id="tGetN">' + nums(10, trade.getN) + '</select>';
-        h += '<div class="tip" style="margin-top:8px">Rulers like fair trades: give at least as much as you ask for.</div>';
-        h += '<div style="margin-top:10px"><button class="btn go" data-trade="offer">🤝 Offer trade</button></div>';
-      }
+      if (!have.length) h += '<div class="need">You have no resources to load.</div>';
+      have.forEach(function (k) {
+        h += '<span class="chip">' + RES[k] + ' ' + k + ' <button class="btn" data-ld="' + k + '|-1" style="padding:1px 8px">−</button> <b>' + (trade.load[k] || 0) + '</b> <button class="btn" data-ld="' + k + '|1" style="padding:1px 8px">＋</button></span>';
+      });
+      h += '<div class="grp">3. Trade with</div>';
+      for (var i = 1; i < G.n; i++) h += '<button class="btn" data-partner="' + i + '" style="margin:2px;' + (trade.partner === i ? 'background:#e0457b' : '') + '">' + G.players[i].dot + ' ' + G.players[i].name + '</button>';
+      h += '<div class="grp">4. You get</div><select id="tGet">' + opts(Object.keys(RES), trade.get) + '</select><select id="tGetN">' + nums(10, trade.getN) + '</select>';
+      h += '<div class="tip" style="margin-top:8px">Rulers like fair trades: load at least as many as you ask for.</div>';
+      h += '<div style="margin-top:10px"><button class="btn go" data-trade="offer">⛵ Send the boat!</button></div>';
     }
     if (trade.msg) h += '<div class="card" style="margin-top:10px">' + trade.msg + '</div>';
     $('tradeBody').innerHTML = h;
   }
   function offerTrade() {
-    var me = G.players[0], bot = G.players[trade.partner];
-    if (!hasBoat(0)) { trade.msg = 'You need a boat to trade!'; return; }
-    if (trade.give === trade.get) { trade.msg = 'Pick two different resources!'; return; }
-    if ((me.res[trade.give] || 0) < trade.giveN) { trade.msg = "You don't have that many!"; return; }
-    var yes = (bot.res[trade.get] || 0) >= trade.getN && (trade.giveN > trade.getN || (trade.giveN === trade.getN && Math.random() < 0.9));
-    if (yes) {
-      me.res[trade.give] -= trade.giveN; bot.res[trade.give] = (bot.res[trade.give] || 0) + trade.giveN;
-      bot.res[trade.get] -= trade.getN; me.res[trade.get] = (me.res[trade.get] || 0) + trade.getN;
-      trade.msg = '✅ ' + bot.name + ' said yes! You gave ' + trade.giveN + RES[trade.give] + ' and got ' + trade.getN + RES[trade.get] + '.';
-      say('🔁 Trade with ' + bot.name + ': gave ' + trade.giveN + RES[trade.give] + ', got ' + trade.getN + RES[trade.get]);
-    } else trade.msg = '❌ ' + bot.name + ' said no thanks.';
+    var me = G.players[0], bot = G.players[trade.partner], total = loadTotal(), b = trade.boat;
+    if (!(me.items[b] > 0)) { trade.msg = 'You need a boat to trade!'; return; }
+    if (total < 1) { trade.msg = 'Load your boat first!'; return; }
+    if (total > 10) { trade.msg = 'A boat only holds 10!'; return; }
+    if (trade.load[trade.get]) { trade.msg = 'Pick something different to get!'; return; }
+    var yes = (bot.res[trade.get] || 0) >= trade.getN && (total > trade.getN || (total === trade.getN && Math.random() < 0.9));
+    if (!yes) { trade.msg = '❌ ' + bot.name + ' said no thanks. You keep your boat and your things.'; return; }
+    var gave = [];
+    Object.keys(trade.load).forEach(function (k) { me.res[k] -= trade.load[k]; bot.res[k] = (bot.res[k] || 0) + trade.load[k]; gave.push(trade.load[k] + RES[k]); });
+    bot.res[trade.get] -= trade.getN; me.res[trade.get] = (me.res[trade.get] || 0) + trade.getN;
+    var boatMsg = '';
+    if (b === 'Trade Boat') { me.items[b]--; bot.items[b] = (bot.items[b] || 0) + 1; boatMsg = ' ' + bot.name + ' keeps the ⛵ boat.'; }
+    else if (b === 'Robber Boat') { useRobber(0); boatMsg = ' (Robber Boat: ' + (3 - me.robberUses) + ' uses left)'; }
+    trade.msg = '✅ ' + bot.name + ' said yes! You sent ' + gave.join(' ') + ' and got ' + trade.getN + RES[trade.get] + '.' + boatMsg;
+    say('🔁 Trade with ' + bot.name + ': sent ' + gave.join(' ') + ', got ' + trade.getN + RES[trade.get]);
+    trade.load = {};
   }
-  function maybeOffer(pi) {                              // a bot sometimes offers YOU a trade
-    var P = G.players[pi], me = G.players[0];
-    if (!hasBoat(pi) || Math.random() > 0.5) return false;       // bots need a boat too
+  function maybeOffer(pi) {                              // a bot sometimes offers YOU a trade (and needs a boat to do it)
+    var P = G.players[pi], me = G.players[0], bs = boatsOf(pi);
+    if (!bs.length || Math.random() > 0.5) return false;
     var mine = Object.keys(me.res).filter(function (k) { return me.res[k] > 0; });
     var spare = Object.keys(P.res).filter(function (k) { return P.res[k] >= 2; });
     if (!mine.length || !spare.length) return false;
     var get = pick(mine), give = pick(spare.filter(function (k) { return k !== get; }));
     if (!give) return false;
     var n = 1 + Math.floor(Math.random() * Math.min(2, P.res[give], me.res[get]));
-    G.offer = { from: pi, give: { res: give, n: n }, get: { res: get, n: n } };
-    say('🔁 ' + P.name + ' wants to trade with you!'); return true;
+    G.offer = { from: pi, boat: bs.indexOf('Trade Boat') >= 0 ? 'Trade Boat' : bs[0], give: { res: give, n: n }, get: { res: get, n: n } };
+    say('🔁 ' + P.name + ' sailed over to trade with you!'); return true;
   }
   function waitOffer(cb) { var ticks = 0; (function w() { if (!G.offer || ++ticks > 50) { G.offer = null; refresh(); cb(); } else later(w, 400); })(); }
   function renderOffer() {
     var o = G.offer, m = $('offerM');
     if (!o) { m.classList.remove('on'); return; }
     var P = G.players[o.from], can = (G.players[0].res[o.get.res] || 0) >= o.get.n;
-    $('offerBody').innerHTML = '<h2>🔁 Trade offer!</h2><div>' + P.dot + ' <b>' + P.name + '</b> will give you <b>' + o.give.n + ' ' + RES[o.give.res] + ' ' + o.give.res + '</b> if you give them <b>' + o.get.n + ' ' + RES[o.get.res] + ' ' + o.get.res + '</b>.</div>' +
+    $('offerBody').innerHTML = '<h2>🔁 Trade offer!</h2><div>' + P.dot + ' <b>' + P.name + '</b> sailed over in a ' + recipe(o.boat).icon + ' ' + o.boat + ' with <b>' + o.give.n + ' ' + RES[o.give.res] + ' ' + o.give.res + '</b>. They want <b>' + o.get.n + ' ' + RES[o.get.res] + ' ' + o.get.res + '</b>.</div>' +
+      '<div class="tip">' + (o.boat === 'Trade Boat' ? 'If you say yes, <b>you keep the boat!</b>' : 'They keep their boat.') + '</div>' +
       (can ? '' : '<div class="need">You don\'t have enough ' + o.get.res + '.</div>') +
       '<div style="margin-top:10px"><button class="btn go" data-offer="yes"' + (can ? '' : ' disabled') + '>✅ Accept</button> <button class="btn" data-offer="no">No thanks</button></div>';
     m.classList.add('on');
@@ -900,7 +920,10 @@
     if (a === 'yes' && (me.res[o.get.res] || 0) >= o.get.n) {
       me.res[o.get.res] -= o.get.n; P.res[o.get.res] = (P.res[o.get.res] || 0) + o.get.n;
       P.res[o.give.res] -= o.give.n; me.res[o.give.res] = (me.res[o.give.res] || 0) + o.give.n;
-      say('🔁 You traded with ' + P.name + ': got ' + o.give.n + RES[o.give.res] + ', gave ' + o.get.n + RES[o.get.res]);
+      var bm = '';
+      if (o.boat === 'Trade Boat') { P.items[o.boat]--; me.items[o.boat] = (me.items[o.boat] || 0) + 1; bm = ' You kept their ⛵ boat!'; }
+      else if (o.boat === 'Robber Boat') useRobber(o.from);
+      say('🔁 You traded with ' + P.name + ': got ' + o.give.n + RES[o.give.res] + ', gave ' + o.get.n + RES[o.get.res] + '.' + bm);
     } else say('🔁 You said no thanks to ' + P.name);
     G.offer = null; refresh();
   });
@@ -908,8 +931,6 @@
   $('tradeBtn').onclick = function () { $('tradeM').classList.add('on'); renderTrade(); };
   $('tradeBody').addEventListener('change', function (e) {
     var id = e.target.id;
-    if (id === 'tGive') trade.give = e.target.value;
-    if (id === 'tGiveN') trade.giveN = +e.target.value;
     if (id === 'tGet') trade.get = e.target.value;
     if (id === 'tGetN') trade.getN = +e.target.value;
     trade.msg = ''; renderTrade();
@@ -917,6 +938,12 @@
   $('tradeBody').addEventListener('click', function (e) {
     var d = e.target.dataset || {};
     if (d.partner) { trade.partner = +d.partner; trade.msg = ''; renderTrade(); }
+    if (d.boat) { trade.boat = d.boat; trade.msg = ''; renderTrade(); }
+    if (d.ld) {
+      var p = d.ld.split('|'), k = p[0], dl = +p[1], me = G.players[0], cur = trade.load[k] || 0;
+      if (dl > 0 && (loadTotal() >= 10 || cur >= (me.res[k] || 0))) return;
+      trade.load[k] = Math.max(0, cur + dl); if (!trade.load[k]) delete trade.load[k]; trade.msg = ''; renderTrade();
+    }
     if (d.trade === 'offer') { offerTrade(); refresh(); }
   });
 
@@ -1058,10 +1085,10 @@
   // Everything in the shop. Tell me what to delete or change!
   var SECTIONS = [
     { title: '⛵ Boats', items: [
-      { icon: '⛵', name: 'Trade Boat', cost: { 'Wood':8, 'Stone':3, 'Leather':3 }, use: 'Holds 10 resources. Reusable. You need a boat to trade!' },
+      { icon: '⛵', name: 'Trade Boat', cost: { 'Wood':8, 'Stone':3, 'Leather':3 }, use: 'Holds 10 resources. You need a boat to trade. Whoever gets the trade keeps the boat.' },
       { icon: '💥', name: 'Exploding Boat', cost: { 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use: 'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats.' },
-      { icon: '🏴‍☠️', name: 'Robber Boat', cost: { 'Iron':3, 'Wood':5 }, use: 'Steals 5 resources from another boat. Reusable.' },
-      { icon: '🎈', name: 'Flying Boat', cost: { 'Bird Feathers':2 }, needs: ['1 ⛵ Trade Boat'], use: 'Cannot be blown up or robbed.' } ] },
+      { icon: '🏴‍☠️', name: 'Robber Boat', cost: { 'Iron':3, 'Wood':5 }, use: 'Steals 5 resources from another boat. Breaks after 3 uses.' },
+      { icon: '🎈', name: 'Flying Boat', cost: { 'Bird Feathers':2 }, needs: ['1 ⛵ Trade Boat'], use: 'Cannot be blown up or robbed. Never changes hands in a trade.' } ] },
     { title: '🍞 Food', items: [
       { icon: '🍞', name: 'Bread', cost: { 'Wheat':3 }, use: 'Feeds 5 people.' },
       { icon: '🥇', name: 'Golden Bread', cost: { 'Wheat':5, 'Fruit':1, 'Gold':1 }, use: 'Feeds a whole island.' } ] },
@@ -1087,10 +1114,14 @@
       { icon: '🟤', name: 'Leather', from: 'Wildheart', use: '' },
       { icon: '🏹', name: 'Arrows', from: 'Wildheart', use: '' } ] }
   ];
+  window.MY_RES = window.MY_RES || {};      // the game fills this with what you own, e.g. MY_RES['Wood'] = 5
   var panel = document.getElementById('shopPanel'), box = document.getElementById('shopBox');
   function esc(t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
   function build() {
-    var nav = '', body = '';
+    var nav = '<button data-go="secRes">🎒 Your resources</button>', body = '<div class="shSec" id="secRes"><h3>🎒 Your resources</h3>';
+    var total = 0;
+    Object.keys(R).forEach(function (k) { var n = MY_RES[k] || 0; total += n; body += '<span class="shChip' + (n ? ' ok' : '') + '">' + R[k] + ' ' + esc(k) + ' <b>' + n + '</b></span>'; });
+    body += '<div class="lb" style="margin-top:6px">Total: ' + total + ' · green cost = you have enough, pink = you need more</div></div>';
     SECTIONS.forEach(function (sec, i) {
       nav += '<button data-go="sec' + i + '">' + esc(sec.title) + '</button>';
       body += '<div class="shSec" id="sec' + i + '"><h3>' + esc(sec.title) + '</h3><div class="shGrid">';
@@ -1098,7 +1129,7 @@
         body += '<div class="shCard"><div class="ic">' + it.icon + '</div><div class="nm">' + esc(it.name) + '</div>';
         if (it.use) body += '<div class="us">' + esc(it.use) + '</div>';
         if (it.cost) {
-          body += '<div class="lb">Cost</div>' + Object.keys(it.cost).map(function (k) { return '<span class="shChip">' + it.cost[k] + ' ' + R[k] + ' ' + esc(k) + '</span>'; }).join('') +
+          body += '<div class="lb">Cost</div>' + Object.keys(it.cost).map(function (k) { return '<span class="shChip ' + ((MY_RES[k] || 0) >= it.cost[k] ? 'ok' : 'no') + '">' + it.cost[k] + ' ' + R[k] + ' ' + esc(k) + '</span>'; }).join('') +
                   (it.needs || []).map(function (n) { return '<span class="shChip need">' + esc(n) + '</span>'; }).join('');
         }
         if (it.from) body += '<div class="lb">Comes from</div><span class="shChip">🏝️ ' + esc(it.from) + '</span>';
@@ -1109,7 +1140,7 @@
     document.getElementById('shopNav').innerHTML = nav; document.getElementById('shopBody2').innerHTML = body;
   }
   build();
-  function open(v) { panel.classList.toggle('on', v); if (v) box.scrollTop = 0; }
+  function open(v) { if (v) build(); panel.classList.toggle('on', v); if (v) box.scrollTop = 0; }
   document.getElementById('shopOpen').onclick = function () { open(true); };
   document.getElementById('shopX').onclick = function () { open(false); };
   panel.addEventListener('click', function (e) {
