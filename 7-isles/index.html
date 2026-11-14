@@ -90,6 +90,10 @@
   .inv small { display:block; font-size:10px; opacity:.8; }
   .mbox .inv .e { font-size:32px; } .mbox .inv b { font-size:20px; } .mbox .inv small { font-size:12px; }
   .invh { font-size:12px; opacity:.75; margin-top:4px; }
+  #dock { right:12px; bottom:12px; width:250px; display:none; max-height:48vh; overflow:auto; font-size:13px; }
+  #dock .seav { background:rgba(255,255,255,.1); border-radius:8px; padding:5px 7px; margin-top:4px; }
+  body:not(.play) #hudBtn { display:none; }
+  body.nohud #hud { display:none !important; }
   .crown { position:absolute; left:50%; top:0; transform:translate(-50%,-55%); font-size:max(18px,3.4vmin); line-height:1; pointer-events:none; display:none; }
   .crown.on { display:block; }
   .crown.me { font-size:max(26px,4.6vmin); animation:bob 1.4s ease-in-out infinite; }
@@ -160,7 +164,7 @@
 </head>
 <body>
 <div id="zoom"><div id="board"></div></div>
-<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
+<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="hudBtn" title="Hide or show the side panel">📋</button><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
 <div class="bar" id="right">
   <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="confirm" disabled>✔ Confirm</button><button class="btn" id="cancel" disabled>✖ Cancel</button><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
   <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
@@ -169,6 +173,7 @@
   <button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
 <div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
 <div class="ui" id="hud"></div>
+<div class="ui" id="dock"></div>
 <div class="ui" id="resbar" title="Open your inventory"></div>
 <div id="banner"></div>
 <div id="frame"></div>
@@ -526,7 +531,7 @@
 
   // ----- starting a game -----
   function startGame(n) {
-    G = { n: n, players: [], isl: {}, turn: 0, rolled: false, rolling: false, choosing: true, capital: [], dice: [0, 0], log: [], ally: null, allyUsed: false };
+    G = { n: n, voyages: [], vid: 0, players: [], isl: {}, turn: 0, rolled: false, rolling: false, choosing: true, capital: [], dice: [0, 0], log: [], ally: null, allyUsed: false };
     for (var i = 0; i < n; i++) G.players.push({ name: NAMES[i], dot: DOTS[i], color: COLORS[i], bot: i > 0, res: {}, items: {}, robberUses: 0 });
     var order = shuffle(NORMAL.slice()), per = NORMAL.length / n;
     order.forEach(function (nm, k) { G.isl[nm] = { owner: Math.floor(k / per), hp: ISL[nm].hp, drought: 0, people: 0, housing: 0, focus: Object.keys(ISL[nm].spaces)[0] }; });
@@ -637,6 +642,7 @@
   // ----- turns and bots -----
   function endTurn() {
     G.turn = (G.turn + 1) % G.n; G.rolled = false; pendingUse = null; G.offer = null;
+    deliverVoyages(G.turn);                      // boats that were at sea arrive on their sender's turn
     if (G.turn === 0) say('➡️ Your turn!');
     refresh();
     if (G.players[G.turn].bot) later(botTurn, 900);
@@ -673,12 +679,10 @@
     var spare = Object.keys(P.res).filter(function (k) { return P.res[k] >= 2; }), want = Object.keys(Q.res).filter(function (k) { return Q.res[k] >= 1; });
     if (!spare.length || !want.length) return;
     var give = pick(spare), get = pick(want.filter(function (k) { return k !== give; })); if (!get) return;
-    var n = 1 + Math.floor(Math.random() * Math.min(3, P.res[give], Q.res[get]));
-    P.res[give] -= n; Q.res[give] = (Q.res[give] || 0) + n; Q.res[get] -= n; P.res[get] = (P.res[get] || 0) + n;
-    var bs = boatsOf(pi), boat = bs.indexOf('Trade Boat') >= 0 ? 'Trade Boat' : bs[0], bm = '';
-    if (boat === 'Trade Boat') { P.items[boat]--; Q.items[boat] = (Q.items[boat] || 0) + 1; bm = ' (the boat goes to ' + Q.name + ')'; }
-    else if (boat === 'Robber Boat') useRobber(pi);
-    say('👀 ' + P.dot + ' ' + P.name + ' traded ' + n + RES[give] + ' for ' + n + RES[get] + ' with ' + Q.dot + ' ' + Q.name + bm, true);
+    var n = 1 + Math.floor(Math.random() * Math.min(3, P.res[give], Q.res[get])), bs = boatsOf(pi), boat = bs.indexOf('Trade Boat') >= 0 ? 'Trade Boat' : bs[0];
+    var l = {}, r = {}; l[give] = n; r[get] = n;
+    sendVoyage(pi, qi, boat, l, r);
+    say('👀 ' + P.dot + ' ' + P.name + ' sent a boat to ' + Q.dot + ' ' + Q.name + ' (' + n + RES[give] + ' ⇄ ' + n + RES[get] + ')', true);
   }
 
   // ----- crafting -----
@@ -724,13 +728,13 @@
     if (!G) return;
     window.MY_RES = G.players[0].res;
     renderHud(); renderResbar(); renderTurn(); renderLabels(); renderInfo();
-    renderOffer();
+    renderOffer(); renderDock();
     if ($('invM').classList.contains('on')) renderInv();
     if ($('tradeM').classList.contains('on')) renderTrade();
     if ($('shopM').classList.contains('on')) renderShop();
     if ($('alliM').classList.contains('on')) renderAlli();
   }
-  var hudOpen = { r: true, i: true, a: true, l: false };
+  var hudOpen = { r: true, i: false, a: false, l: false };
   function invHtml() {
     var me = G.players[0], h = '', rs = Object.keys(RES).filter(function (k) { return me.res[k] > 0; }), is = Object.keys(me.items).filter(function (k) { return me.items[k] > 0; });
     h += '<div class="invh">Resources</div>';
@@ -752,7 +756,7 @@
       var inAlly = G.ally && G.ally.members.indexOf(i) >= 0;
       h += '<div class="prow' + (G.turn === i ? ' turn' : '') + '">' + (G.turn === i ? '▶' : '&nbsp;') + p.dot + ' ' + p.name + ' <span style="margin-left:auto">🏝️' + ownedBy(i).length + (inAlly ? (G.ally.leader === i ? ' 👑' : ' 🤝') : '') + '</span></div>';
     });
-    h += '</details><details data-k="i"' + (hudOpen.i ? ' open' : '') + '><summary>🎒 Your inventory</summary>' + invHtml() + '</details><details data-k="a"' + (hudOpen.a ? ' open' : '') + '><summary>Your alliance</summary>';
+    h += '</details><details data-k="a"' + (hudOpen.a ? ' open' : '') + '><summary>Your alliance</summary>';
     if (G.ally && G.ally.members.indexOf(0) >= 0) {
       h += '<div>👑 Leader: ' + G.players[G.ally.leader].dot + ' ' + G.players[G.ally.leader].name + '</div><div>Members: ' + G.ally.members.map(function (m) { return G.players[m].dot; }).join(' ') + '</div><div>Income: <b>×' + G.ally.members.length + '</b></div>';
     } else h += '<div>' + (G.ally ? 'Other rulers have an alliance.' : G.allyUsed ? 'Your alliance ended.' : 'None yet. Press 🤝 Alliances!') + '</div>';
@@ -857,6 +861,87 @@
   }
 
   // ----- trading with the other rulers -----
+  // ----- boats at sea: a trade sails and arrives at the start of the sender's NEXT turn, so a Robber Boat can try to grab from it -----
+  function sendVoyage(from, to, boat, load, ret) {
+    var P = G.players[from], v = { id: ++G.vid, from: from, to: to, boat: boat, load: load, ret: ret, boatLost: false };
+    Object.keys(load).forEach(function (k) { P.res[k] -= load[k]; });                       // the goods leave right away
+    Object.keys(ret).forEach(function (k) { G.players[to].res[k] -= ret[k]; });
+    P.items[boat]--;                                                                         // and so does the boat
+    if (boat === 'Robber Boat') {
+      P.robberUses++;
+      if (P.robberUses >= 3) { P.robberUses = 0; v.boatLost = true; say('💥 ' + (from === 0 ? 'Your' : P.name + "'s") + ' Robber Boat broke after 3 uses!', from !== 0 && to !== 0); }
+    }
+    G.voyages.push(v); return v;
+  }
+  function cargoText(v) {
+    var t = function (o) { return Object.keys(o).map(function (k) { return o[k] + RES[k]; }).join(' ') || 'nothing'; };
+    return t(v.load) + ' ⇄ ' + t(v.ret);
+  }
+  function deliverVoyages(who) {
+    var here = G.voyages.filter(function (v) { return v.from === who; });
+    G.voyages = G.voyages.filter(function (v) { return v.from !== who; });
+    here.forEach(function (v) {
+      var A = G.players[v.from], B = G.players[v.to];
+      Object.keys(v.load).forEach(function (k) { B.res[k] = (B.res[k] || 0) + v.load[k]; });
+      Object.keys(v.ret).forEach(function (k) { A.res[k] = (A.res[k] || 0) + v.ret[k]; });
+      var owner = v.boat === 'Trade Boat' ? B : A, mine = v.from === 0 || v.to === 0;
+      if (!v.boatLost) owner.items[v.boat] = (owner.items[v.boat] || 0) + 1;
+      say('⛵ A boat from ' + A.dot + ' ' + A.name + ' reached ' + B.dot + ' ' + B.name + '! (' + cargoText(v) + ')' + (v.boat === 'Trade Boat' ? ' ' + B.name + ' keeps the boat.' : ''), !mine);
+    });
+  }
+  function visibleVoyages() {
+    var seeAll = (G.players[0].items['Robber Boat'] || 0) > 0;
+    return G.voyages.filter(function (v) { return v.from === 0 || v.to === 0 || seeAll; });
+  }
+  function robVoyage(pi, id) {
+    var P = G.players[pi], v = G.voyages.filter(function (x) { return x.id === id; })[0];
+    if (!v || v.boat === 'Flying Boat' || v.from === pi || v.to === pi || (P.items['Robber Boat'] || 0) < 1 || G.turn !== pi) return;
+    var units = [];
+    ['load', 'ret'].forEach(function (w) { Object.keys(v[w]).forEach(function (k) { for (var i = 0; i < v[w][k]; i++) units.push([w, k]); }); });
+    var got = {};
+    shuffle(units).slice(0, 5).forEach(function (u) {
+      v[u[0]][u[1]]--; if (!v[u[0]][u[1]]) delete v[u[0]][u[1]];
+      P.res[u[1]] = (P.res[u[1]] || 0) + 1; got[u[1]] = (got[u[1]] || 0) + 1;
+    });
+    var txt = Object.keys(got).map(function (k) { return got[k] + RES[k]; }).join(' ');
+    useRobber(pi);
+    say('🏴‍☠️ ' + (pi === 0 ? 'You robbed' : P.name + ' robbed') + ' a boat' + (txt ? ' and grabbed ' + txt + '!' : ', but it was empty!'));
+  }
+  function blowUp(pi, id) {
+    var P = G.players[pi], v = G.voyages.filter(function (x) { return x.id === id; })[0];
+    if (!v || v.boat === 'Flying Boat' || (P.items['Exploding Boat'] || 0) < 1 || G.turn !== pi) return;
+    P.items['Exploding Boat']--; G.voyages = G.voyages.filter(function (x) { return x !== v; });
+    say('💥 ' + (pi === 0 ? 'You blew' : P.name + ' blew') + ' up a boat! Everything on it is gone.');
+  }
+  var DOCK_BOATS = ['Trade Boat', 'Flying Boat', 'Robber Boat', 'Exploding Boat'];
+  function renderDock() {
+    var d = $('dock'), me = G.players[0], boats = DOCK_BOATS.filter(function (b) { return (me.items[b] || 0) > 0; }), vs = visibleVoyages();
+    if (!boats.length && !vs.length) { d.style.display = 'none'; return; }
+    var h = '<b>⛵ Your boats</b>';
+    if (!boats.length) h += '<div style="opacity:.7">No boats at home.</div>';
+    boats.forEach(function (b) {
+      h += '<div class="prow"><span>' + recipe(b).icon + ' ' + b + ' ×' + me.items[b] + (b === 'Robber Boat' ? ' <small>(' + (3 - me.robberUses) + ' uses left)</small>' : '') + '</span>' +
+           (b === 'Trade Boat' || b === 'Flying Boat' ? '<button class="btn" data-dk="' + b + '" style="margin-left:auto;padding:2px 8px">Trade</button>' : '') + '</div>';
+    });
+    if (vs.length) {
+      h += '<b style="display:block;margin-top:8px">🌊 At sea</b>';
+      var canRob = G.turn === 0 && (me.items['Robber Boat'] || 0) > 0, canBoom = G.turn === 0 && (me.items['Exploding Boat'] || 0) > 0;
+      vs.forEach(function (v) {
+        var A = G.players[v.from], B = G.players[v.to], other = v.from !== 0 && v.to !== 0, safe = v.boat === 'Flying Boat';
+        h += '<div class="seav">' + recipe(v.boat).icon + ' ' + A.dot + '→' + B.dot + ' ' + cargoText(v) + '<div style="opacity:.7;font-size:11px">arrives when ' + A.name + ' plays next' + (safe ? ' · can\'t be robbed' : '') + '</div>' +
+             (other && !safe && canRob ? '<button class="btn" data-rob="' + v.id + '" style="padding:2px 8px;margin-top:3px">🏴‍☠️ Rob 5</button> ' : '') +
+             (other && !safe && canBoom ? '<button class="btn" data-boom="' + v.id + '" style="padding:2px 8px;margin-top:3px">💥 Blow up</button>' : '') + '</div>';
+      });
+    }
+    d.innerHTML = h; d.style.display = 'block';
+  }
+  $('dock').addEventListener('click', function (e) {
+    var t = e.target.dataset || {};
+    if (t.dk) { trade.boat = t.dk; $('tradeM').classList.add('on'); renderTrade(); }
+    if (t.rob) { robVoyage(0, +t.rob); refresh(); }
+    if (t.boom) { blowUp(0, +t.boom); refresh(); }
+  });
+
   var trade = { partner: 1, boat: 'Trade Boat', load: {}, get: 'Wood', getN: 1, msg: '' };
   var BOATS = ['Trade Boat', 'Flying Boat', 'Robber Boat'];
   function boatsOf(pi) { var it = G.players[pi].items; return BOATS.filter(function (b) { return (it[b] || 0) > 0; }); }
@@ -889,7 +974,7 @@
       h += '<div class="grp">3. Trade with</div>';
       for (var i = 1; i < G.n; i++) h += '<button class="btn" data-partner="' + i + '" style="margin:2px;' + (trade.partner === i ? 'background:#e0457b' : '') + '">' + G.players[i].dot + ' ' + G.players[i].name + '</button>';
       h += '<div class="grp">4. You get</div><select id="tGet">' + opts(Object.keys(RES), trade.get) + '</select><select id="tGetN">' + nums(10, trade.getN) + '</select>';
-      h += '<div class="tip" style="margin-top:8px">Rulers like fair trades: load at least as many as you ask for.</div>';
+      h += '<div class="tip" style="margin-top:8px">Rulers like fair trades: load at least as many as you ask for. Your boat sails and arrives at the start of your next turn. A rival with a 🏴‍☠️ Robber Boat could grab from it!</div>';
       h += '<div style="margin-top:10px"><button class="btn go" data-trade="offer">⛵ Send the boat!</button></div>';
     }
     if (trade.msg) h += '<div class="card" style="margin-top:10px">' + trade.msg + '</div>';
@@ -903,14 +988,12 @@
     if (trade.load[trade.get]) { trade.msg = 'Pick something different to get!'; return; }
     var yes = (bot.res[trade.get] || 0) >= trade.getN && (total > trade.getN || (total === trade.getN && Math.random() < 0.9));
     if (!yes) { trade.msg = '❌ ' + bot.name + ' said no thanks. You keep your boat and your things.'; return; }
-    var gave = [];
-    Object.keys(trade.load).forEach(function (k) { me.res[k] -= trade.load[k]; bot.res[k] = (bot.res[k] || 0) + trade.load[k]; gave.push(trade.load[k] + RES[k]); });
-    bot.res[trade.get] -= trade.getN; me.res[trade.get] = (me.res[trade.get] || 0) + trade.getN;
-    var boatMsg = '';
-    if (b === 'Trade Boat') { me.items[b]--; bot.items[b] = (bot.items[b] || 0) + 1; boatMsg = ' ' + bot.name + ' keeps the ⛵ boat.'; }
-    else if (b === 'Robber Boat') { var before = me.items['Robber Boat']; useRobber(0); boatMsg = me.items['Robber Boat'] < before ? ' 💥 Your Robber Boat broke after 3 uses!' : ' (Robber Boat: ' + (3 - me.robberUses) + ' uses left)'; }
-    trade.msg = '✅ ' + bot.name + ' said yes! You sent ' + gave.join(' ') + ' and got ' + trade.getN + RES[trade.get] + '.' + boatMsg;
-    say('🔁 Trade with ' + bot.name + ': sent ' + gave.join(' ') + ', got ' + trade.getN + RES[trade.get]);
+    var gave = [], loadCopy = {}, ret = {};
+    Object.keys(trade.load).forEach(function (k) { loadCopy[k] = trade.load[k]; gave.push(trade.load[k] + RES[k]); });
+    ret[trade.get] = trade.getN;
+    var v = sendVoyage(0, trade.partner, b, loadCopy, ret);
+    trade.msg = '✅ ' + bot.name + ' said yes! Your ' + recipe(b).icon + ' ' + b + ' set sail with ' + gave.join(' ') + '. It arrives, bringing back ' + trade.getN + RES[trade.get] + ', at the start of your next turn. ' + (b === 'Flying Boat' ? 'Nobody can rob a Flying Boat!' : 'Watch out for robbers!') + (v.boatLost ? ' 💥 Your Robber Boat broke on this trip.' : '');
+    say('⛵ Your boat sailed to ' + bot.name + ' with ' + gave.join(' '));
     trade.load = {};
   }
   function maybeOffer(pi) {                              // a bot sometimes offers YOU a trade (and needs a boat to do it)
@@ -940,12 +1023,9 @@
     var a = e.target.dataset && e.target.dataset.offer, o = G && G.offer; if (!a || !o) return;
     var me = G.players[0], P = G.players[o.from];
     if (a === 'yes' && (me.res[o.get.res] || 0) >= o.get.n) {
-      me.res[o.get.res] -= o.get.n; P.res[o.get.res] = (P.res[o.get.res] || 0) + o.get.n;
-      P.res[o.give.res] -= o.give.n; me.res[o.give.res] = (me.res[o.give.res] || 0) + o.give.n;
-      var bm = '';
-      if (o.boat === 'Trade Boat') { P.items[o.boat]--; me.items[o.boat] = (me.items[o.boat] || 0) + 1; bm = ' You kept their ⛵ boat!'; }
-      else if (o.boat === 'Robber Boat') useRobber(o.from);
-      say('🔁 You traded with ' + P.name + ': got ' + o.give.n + RES[o.give.res] + ', gave ' + o.get.n + RES[o.get.res] + '.' + bm);
+      var give = {}, get = {}; give[o.give.res] = o.give.n; get[o.get.res] = o.get.n;
+      sendVoyage(o.from, 0, o.boat, give, get);       // their boat sails to you; your goods ride back on it
+      say('⛵ You said yes to ' + P.name + '! Their boat sails and arrives when ' + P.name + ' plays next.' + (o.boat === 'Trade Boat' ? ' You keep the boat!' : ''));
     } else say('🔁 You said no thanks to ' + P.name);
     G.offer = null; refresh();
   });
@@ -989,6 +1069,7 @@
     var names = [].slice.call(document.querySelectorAll('[data-pick]')).filter(function (c) { return c.checked; }).map(function (c) { var P = G.players[+c.dataset.pick]; return P.dot + ' ' + P.name; });
     $('allyChosen').textContent = 'You chose: ' + (names.length ? names.join(', ') : 'nobody yet');
   });
+  $('hudBtn').onclick = function () { document.body.classList.toggle('nohud'); };
   $('minBtn').onclick = function () { var t = $('turnbar'); t.classList.toggle('min'); this.textContent = t.classList.contains('min') ? '▴ 🎲' : '▾'; };
   $('alliBody').addEventListener('click', function (e) {
     var a = e.target.dataset && e.target.dataset.ally; if (!a) return;
