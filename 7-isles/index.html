@@ -69,6 +69,8 @@
   #resbar { top:12px; left:50%; transform:translateX(-50%); display:none; max-width:calc(100vw - 620px); min-width:140px; text-align:center; padding:6px 12px; font-size:14px; }
   #resbar b { color:#ffe27a; }
   .chip.picked { background:#2d7a46; }
+  .crown { position:absolute; left:50%; top:0; transform:translate(-50%,-55%); font-size:max(18px,3.4vmin); line-height:1; pointer-events:none; display:none; }
+  .crown.on { display:block; }
   .btn:disabled { opacity:.4; cursor:default; }
   .modal { inset:0; background:rgba(0,0,0,.55); display:none; place-items:center; padding:0; border:0; border-radius:0; z-index:8; }
   .modal.on { display:grid; }
@@ -450,14 +452,15 @@
 
   // ----- starting a game -----
   function startGame(n) {
-    G = { n: n, players: [], isl: {}, turn: 0, rolled: false, rolling: false, dice: [0, 0], log: [], ally: null, allyUsed: false };
+    G = { n: n, players: [], isl: {}, turn: 0, rolled: false, rolling: false, choosing: true, capital: [], dice: [0, 0], log: [], ally: null, allyUsed: false };
     for (var i = 0; i < n; i++) G.players.push({ name: NAMES[i], dot: DOTS[i], color: COLORS[i], bot: i > 0, res: {}, items: {} });
     var order = shuffle(NORMAL.slice()), per = NORMAL.length / n;
     order.forEach(function (nm, k) { G.isl[nm] = { owner: Math.floor(k / per), hp: ISL[nm].hp, drought: 0, people: 0, housing: 0, focus: Object.keys(ISL[nm].spaces)[0] }; });
+    G.players.forEach(function (p, i) { if (i > 0) G.capital[i] = pick(ownedBy(i)); });
     G.isl.Duneshade = { owner: -1, hp: ISL.Duneshade.hp, drought: 0, people: 0, housing: 0 };
     $('start').classList.remove('on');
     ['hud', 'turnbar', 'resbar'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
-    say('🏝️ The game begins! You start with ' + ownedBy(0).join(', ') + '.');
+    say('👑 Pick your capital: click one of your islands!');
     refresh();
   }
   document.querySelectorAll('[data-players]').forEach(function (b) { b.onclick = function () { startGame(+b.dataset.players); }; });
@@ -608,11 +611,11 @@
     var mine = G.turn === 0, P = G.players[G.turn];
     $('who').textContent = mine ? '🔵 Your turn' : P.dot + ' ' + P.name + ' is playing…';
     showDice();
-    $('rollBtn').disabled = !(mine && !G.rolled && !G.rolling);
+    $('rollBtn').disabled = !(mine && !G.rolled && !G.rolling && !G.choosing);
     $('endBtn').disabled = !(mine && G.rolled);
-    $('shopBtn').disabled = false; $('alliBtn').disabled = false;
+    $('shopBtn').disabled = G.choosing; $('alliBtn').disabled = G.choosing;
     $('rollBtn').classList.toggle('go', !$('rollBtn').disabled); $('endBtn').classList.toggle('go', !$('endBtn').disabled);
-    $('hint').textContent = !mine ? '⏳ ' + P.name + ' is taking a turn…' : (G.rolling ? '🎲 Rolling…' : (!G.rolled ? '👉 Step 1: roll the dice!' : '👉 Step 2: craft in the Shop, make an alliance, or end your turn.'));
+    $('hint').textContent = G.choosing ? '👑 Choose your capital: click one of your glowing 🔵 islands!' : !mine ? '⏳ ' + P.name + ' is taking a turn…' : (G.rolling ? '🎲 Rolling…' : (!G.rolled ? '👉 Step 1: roll the dice!' : '👉 Step 2: craft in the Shop, make an alliance, or end your turn.'));
   }
   function renderLabels() {
     document.querySelectorAll('.spot').forEach(function (s) {
@@ -621,12 +624,15 @@
       l.textContent = (I.owner >= 0 ? G.players[I.owner].dot + ' ' : '⚪ ') + nm + (I.drought ? ' ☀️' : '');
       s.style.setProperty('--own', I.owner >= 0 ? G.players[I.owner].color : ''); if (I.owner < 0) s.style.removeProperty('--own');
       s.classList.toggle('sel', selected === nm);
+      var cr = s.querySelector('.crown'); if (!cr) { cr = document.createElement('div'); cr.className = 'crown'; cr.textContent = '👑'; s.appendChild(cr); }
+      var who = G.capital.indexOf(nm); cr.classList.toggle('on', who >= 0);
+      if (who >= 0) cr.style.filter = 'drop-shadow(0 0 5px ' + G.players[who].color + ') drop-shadow(0 0 2px #000)';
     });
   }
   function renderInfo() {
     var box = $('info'); if (!selected) { box.style.display = 'none'; return; }
     var D = ISL[selected], I = G.isl[selected], last = G.dice[0] ? G.dice[0] + G.dice[1] : 0;
-    var h = '<button class="btn" id="infoX" style="float:right;padding:2px 9px">✖</button><h3>' + D.icon + ' ' + selected + '</h3><div>Owner: ' + ownerName(I.owner) + '</div><div>❤️ Health: <b>' + I.hp + '</b></div>';
+    var h = '<button class="btn" id="infoX" style="float:right;padding:2px 9px">✖</button><h3>' + D.icon + ' ' + selected + '</h3><div>Owner: ' + ownerName(I.owner) + '</div>' + (G.capital.indexOf(selected) >= 0 ? '<div>👑 Capital of ' + ownerName(G.capital.indexOf(selected)) + '</div>' : '') + '<div>❤️ Health: <b>' + I.hp + '</b></div>';
     h += '<div>👥 People: <b>' + I.people + '</b> / ' + I.housing + ' housing</div>';
     if (I.drought) h += '<div>☀️ Drought: ' + I.drought + ' turn' + (I.drought > 1 ? 's' : '') + ' left</div>';
     if (I.owner === 0 && I.people && D.spaces && Object.keys(D.spaces).length) h += '<div style="margin-top:6px">Workers collect: <select id="focusSel">' + Object.keys(D.spaces).map(function (r) { return '<option' + (I.focus === r ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></div>';
@@ -734,7 +740,9 @@
     var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
     if (moved > 6 || (e.target.closest && e.target.closest('.ui, .bar, #pause'))) return;
     var s = e.target.closest && e.target.closest('.spot');
-    selected = s ? s.dataset.name : null; refresh();
+    var nm = s ? s.dataset.name : null;
+    if (G.choosing && nm && G.isl[nm] && G.isl[nm].owner === 0) { G.capital[0] = nm; G.choosing = false; say('👑 ' + nm + ' is your capital!'); }
+    selected = nm; refresh();
   });
 })();
 </script>
