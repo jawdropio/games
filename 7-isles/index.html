@@ -18,12 +18,7 @@
   .spot.pic { width:31%; height:auto; border:0; border-radius:0; background:none; display:block; }
   .spot.pic canvas { display:block; width:100%; height:auto; pointer-events:none; }
   .bar { position:fixed; z-index:5; top:12px; }
-  #left { left:12px; } #right { right:12px; display:flex; gap:8px; align-items:center; }
-  #tools { display:none; gap:8px; align-items:center; }
-  body.erasing #tools { display:flex; }
-  body.erasing .spot.pic canvas { pointer-events:auto; cursor:crosshair; touch-action:none; }
-  #size { width:110px; }
-  #eraser.on { background:#e0457b; }
+  #left { left:12px; } #right { right:12px; }
   .btn, .bar a { display:inline-block; background:rgba(18,11,46,.78); color:#fff; border:2px solid rgba(255,255,255,.35); border-radius:12px;
                  padding:8px 14px; font:700 16px system-ui, sans-serif; text-decoration:none; cursor:pointer; }
   .btn:hover, .bar a:hover { background:rgba(60,40,140,.9); }
@@ -35,10 +30,7 @@
 <body>
 <div id="board"></div>
 <div class="bar" id="left"><a href="../">← Arcade</a></div>
-<div class="bar" id="right">
-  <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
-  <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
-  <button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
+<div class="bar" id="right"><button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
 <div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
 <script>
 (function () {
@@ -101,58 +93,7 @@
     g.putImageData(d, 0, 0);
     var out = document.createElement('canvas'); out.width = maxX - minX + 1; out.height = maxY - minY + 1;
     out.getContext('2d').drawImage(c, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
-    var base = document.createElement('canvas'); base.width = out.width; base.height = out.height;
-    base.getContext('2d').drawImage(out, 0, 0);
     spot.appendChild(out);
-    registerEraser(isl.name, out, base, minX, minY);
-  }
-
-  // ---- Eraser: rub out any spot of an island and the water shows through ----
-  var STORE = '7isles-eraser-v1', strokes = {}, history = [], views = {}, eraserOn = false;
-  try { strokes = JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { strokes = {}; }
-  function saveStrokes() { try { localStorage.setItem(STORE, JSON.stringify(strokes)); } catch (e) {} }
-  function paintStroke(v, st) {
-    var g = v.out.getContext('2d'), p = st.pts, k;
-    g.save(); g.globalCompositeOperation = 'destination-out'; g.lineCap = g.lineJoin = 'round';
-    g.lineWidth = st.r * 2; g.fillStyle = '#000';
-    g.beginPath(); g.arc(p[0][0] - v.ox, p[0][1] - v.oy, st.r, 0, 7); g.fill();
-    g.beginPath(); g.moveTo(p[0][0] - v.ox, p[0][1] - v.oy);
-    for (k = 1; k < p.length; k++) g.lineTo(p[k][0] - v.ox, p[k][1] - v.oy);
-    g.stroke(); g.restore();
-  }
-  function redraw(name) {
-    var v = views[name], g = v.out.getContext('2d');
-    g.clearRect(0, 0, v.out.width, v.out.height); g.drawImage(v.base, 0, 0);
-    (strokes[name] || []).forEach(function (st) { paintStroke(v, st); });
-  }
-  function registerEraser(name, out, base, ox, oy) {
-    var v = views[name] = { out: out, base: base, ox: ox, oy: oy };
-    (strokes[name] || []).forEach(function (st) { history.push({ name: name, st: st }); });
-    redraw(name);
-    var cur = null;
-    function pt(e) {
-      var r = out.getBoundingClientRect(), f = out.width / r.width;
-      return [(e.clientX - r.left) * f + ox, (e.clientY - r.top) * f + oy, f];
-    }
-    out.addEventListener('pointerdown', function (e) {
-      if (!eraserOn) return;
-      out.setPointerCapture(e.pointerId);
-      var q = pt(e), size = +document.getElementById('size').value;
-      cur = { r: Math.round(size / 2 * q[2]), pts: [[Math.round(q[0]), Math.round(q[1])]] };
-      paintStroke(v, cur);
-    });
-    out.addEventListener('pointermove', function (e) {
-      if (!cur) return;
-      var q = pt(e), last = cur.pts[cur.pts.length - 1];
-      if (Math.hypot(q[0] - last[0], q[1] - last[1]) < cur.r / 4) return;
-      cur.pts.push([Math.round(q[0]), Math.round(q[1])]);
-      paintStroke(v, { r: cur.r, pts: cur.pts.slice(-2) });
-    });
-    function end() {
-      if (!cur) return;
-      (strokes[name] = strokes[name] || []).push(cur); history.push({ name: name, st: cur }); saveStrokes(); cur = null;
-    }
-    out.addEventListener('pointerup', end); out.addEventListener('pointercancel', end);
   }
 
   var board = document.getElementById('board'), R = 38;
@@ -173,18 +114,6 @@
     }
     board.appendChild(s);
   });
-
-  document.getElementById('eraser').onclick = function () {
-    eraserOn = !eraserOn; document.body.classList.toggle('erasing', eraserOn); this.classList.toggle('on', eraserOn);
-  };
-  document.getElementById('undo').onclick = function () {
-    var h = history.pop(); if (!h) return;
-    var list = strokes[h.name]; list.splice(list.lastIndexOf(h.st), 1); saveStrokes(); redraw(h.name);
-  };
-  document.getElementById('reset').onclick = function () {
-    if (!confirm('Put back everything you erased?')) return;
-    strokes = {}; history = []; saveStrokes(); Object.keys(views).forEach(redraw);
-  };
 
   var el = document.getElementById('pause'), on = false;
   function set(v) { on = v; el.classList.toggle('on', v); }
