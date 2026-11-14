@@ -125,6 +125,11 @@
   #isleCard .row { margin-top:8px; }
   #isleCard .row b { display:block; color:#ffd84a; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
   #isleCard ul { margin:2px 0 0; padding-left:18px; }
+  #isleCard .hl { margin-top:6px; font-size:15px; }
+  #isleCard .hl b { color:#ffd84a; }
+  #isleCard .atk { display:block; width:100%; margin:10px 0 2px; padding:9px; border:0; border-radius:10px; background:#d93a4a; color:#fff; font:800 16px system-ui, sans-serif; cursor:pointer; }
+  #isleCard .atk:hover { background:#f04b5c; }
+  #atkMsg { font-size:13px; opacity:.85; min-height:16px; margin-top:2px; }
   #isleCard .x { position:absolute; top:8px; right:10px; background:rgba(255,255,255,.15); color:#fff; border:0; border-radius:8px; font:700 16px system-ui; padding:2px 9px; cursor:pointer; }
 </style>
 </head>
@@ -458,12 +463,12 @@
               'Fruit':'🍎', 'Wood':'🪵', 'Pearls':'🦪', 'Fish':'🐟', 'Horses':'🐴', 'Leather':'🟤', 'Arrows':'🏹' };
   // Dice numbers for every resource (two dice: 2 to 12). EDIT THESE to match your real board!
   var ISL = {
-    Skyreach:    { icon:'☁️', hp:20, spaces:{ 'Bird Feathers':[3,10], 'Crystal Shards':[5,9], 'Wind Iron':[4,11] } },
-    Ironhold:    { icon:'⛰️', hp:20, spaces:{ 'Iron':[6,8], 'Stone':[4,10], 'Gold':[2,12] } },
-    Goldenfield: { icon:'🌾', hp:20, spaces:{ 'Wheat':[5,9], 'Fruit':[4,10] } },
-    Timberroot:  { icon:'🌲', hp:20, spaces:{ 'Wood':[4,6,8,9] } },
-    Bluewater:   { icon:'🌊', hp:20, spaces:{ 'Pearls':[3,11], 'Fish':[5,9] } },
-    Wildheart:   { icon:'🐎', hp:20, spaces:{ 'Horses':[3,10], 'Leather':[6,8], 'Arrows':[4,9] } },
+    Skyreach:    { pop: 4200, icon:'☁️', hp:20, spaces:{ 'Bird Feathers':[3,10], 'Crystal Shards':[5,9], 'Wind Iron':[4,11] } },
+    Ironhold:    { pop: 8500, icon:'⛰️', hp:20, spaces:{ 'Iron':[6,8], 'Stone':[4,10], 'Gold':[2,12] } },
+    Goldenfield: { pop: 12000, icon:'🌾', hp:20, spaces:{ 'Wheat':[5,9], 'Fruit':[4,10] } },
+    Timberroot:  { pop: 6000, icon:'🌲', hp:20, spaces:{ 'Wood':[4,6,8,9] } },
+    Bluewater:   { pop: 9500, icon:'🌊', hp:20, spaces:{ 'Pearls':[3,11], 'Fish':[5,9] } },
+    Wildheart:   { pop: 5000, icon:'🐎', hp:20, spaces:{ 'Horses':[3,10], 'Leather':[6,8], 'Arrows':[4,9] } },
     Duneshade:   { icon:'🏜️', hp:50, spaces:{} }
   };
   var NORMAL = ['Skyreach', 'Ironhold', 'Goldenfield', 'Timberroot', 'Bluewater', 'Wildheart'];
@@ -975,22 +980,25 @@
                    extra: ['Story role', 'Their cavalry becomes important once conflict starts spreading'] },
     Duneshade:   { icon: '🏜️', title: 'Duneshade', soon: true }
   };
-  var card = document.getElementById('isleCard'), current = null;
+  var card = document.getElementById('isleCard'), current = null, ATK = '<button class="atk" id="atkBtn">⚔️ Attack</button><div id="atkMsg"></div>';
   function esc(t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
   function show(name) {
     current = name;
     document.querySelectorAll('.spot').forEach(function (s) { s.classList.toggle('sel', s.dataset.name === name); });
     if (!name || !ISLES[name]) { card.classList.remove('on'); return; }
     var d = ISLES[name], h = '<button class="x" id="cardX">✖</button><h2>' + d.icon + ' ' + esc(d.title) + '</h2>';
-    if (d.soon) h += '<div class="row">Details coming soon!</div>';
+    if (d.soon) h += '<div class="hl">👥 <b>Population:</b> ?</div>' + ATK + '<div class="row">Details coming soon!</div>';
     else {
-      h += '<div class="row"><b>Main feature</b>' + esc(d.main) + '</div><div class="row"><b>Strength</b>' + esc(d.strength) + '</div><div class="row"><b>Resources</b>' + esc(d.resources) + '</div>' +
+      h += '<div class="hl">💪 <b>Strength:</b> ' + esc(d.strength) + '</div><div class="hl">👥 <b>Population:</b> ' + d.pop.toLocaleString() + '</div>' + ATK + '<div class="row"><b>Main feature</b>' + esc(d.main) + '</div><div class="row"><b>Resources</b>' + esc(d.resources) + '</div>' +
            '<div class="row"><b>Culture</b><ul>' + d.culture.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>' +
            '<div class="row"><b>Important place</b>' + esc(d.place) + '</div><div class="row"><b>' + esc(d.extra[0]) + '</b>' + esc(d.extra[1]) + '</div>';
     }
     card.innerHTML = h; card.classList.add('on'); card.scrollTop = 0;
   }
-  card.addEventListener('click', function (e) { if (e.target.id === 'cardX') show(null); });
+  card.addEventListener('click', function (e) {
+    if (e.target.id === 'cardX') show(null);
+    if (e.target.id === 'atkBtn') document.getElementById('atkMsg').textContent = '⚔️ Attacking is coming soon!';
+  });
   // Which island is under the mouse? Look at the real picture pixels so see-through corners do not steal the press.
   function islandAt(x, y) {
     var spots = [].slice.call(document.querySelectorAll('.spot')).reverse();
