@@ -53,7 +53,7 @@
     { name: 'Wildheart',   icon: '🐎', pic: 'assets/gemini_generated_image-4-.jpeg', kind: 'blue',
       heal: [[65,49,12,7], [72.5,61.8,10.5,6.2]],                                                // writing on the grass
       erase: [[-2,92,104,10], [-2,78,38,15], [83,25.5,12,7], [88.5,75,9,15]] },                    // writing, banner, compass in the water
-    { name: 'Timberroot',  icon: '🌲' },
+    { name: 'Timberroot',  icon: '🌲', pic: 'assets/download.png', ready: true },
     { name: 'Ironhold',    icon: '⛰️', pic: 'assets/gemini_generated_image-5-.jpeg', kind: 'gray', fill: true, key: 'Ironhold-2',
       heal: [[57.2, 62.9, 11, 8.1, 'warm']],                      // the words on the big sign
       erase: [[0, 0, 43, 9.3], [71, 0, 30, 9.3]] },               // faraway hills on both sides of the peak
@@ -67,6 +67,19 @@
     var c = document.createElement('canvas'); c.width = w; c.height = h;
     var g = c.getContext('2d'); g.drawImage(img, 0, 0);
     var d = g.getImageData(0, 0, w, h), px = d.data, i;
+    if (isl.ready) {                                     // this picture is already cut out (see-through background): just trim the empty edges
+      var rx0 = w, ry0 = h, rx1 = 0, ry1 = 0, rx, ry;
+      for (ry = 0; ry < h; ry++) for (rx = 0; rx < w; rx++) {
+        if (px[(ry * w + rx) * 4 + 3] > 40) { if (rx < rx0) rx0 = rx; if (rx > rx1) rx1 = rx; if (ry < ry0) ry0 = ry; if (ry > ry1) ry1 = ry; }
+      }
+      var ro = document.createElement('canvas'); ro.width = rx1 - rx0 + 1; ro.height = ry1 - ry0 + 1;
+      ro.getContext('2d').drawImage(c, rx0, ry0, ro.width, ro.height, 0, 0, ro.width, ro.height);
+      var rb = document.createElement('canvas'); rb.width = ro.width; rb.height = ro.height;
+      rb.getContext('2d').drawImage(ro, 0, 0);
+      spot.appendChild(ro);
+      registerEraser(isl.key || isl.name, ro, rb, rx0, ry0);
+      return;
+    }
     // "heal": writing printed on the grass is painted over with the grass beside it
     (isl.heal || []).forEach(function (e) {
       var x0 = Math.max(0, Math.round(e[0] * w / 100)), x1 = Math.min(w, Math.round((e[0] + e[2]) * w / 100));
