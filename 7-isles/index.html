@@ -24,6 +24,8 @@
   body.erasing .spot.pic canvas { pointer-events:auto; cursor:crosshair; touch-action:none; }
   #size { width:110px; }
   #eraser.on { background:#e0457b; }
+  #confirm:not(:disabled) { background:#1f9d55; }
+  #tools .btn:disabled { opacity:.45; cursor:default; }
   .btn, .bar a { display:inline-block; background:rgba(18,11,46,.78); color:#fff; border:2px solid rgba(255,255,255,.35); border-radius:12px;
                  padding:8px 14px; font:700 16px system-ui, sans-serif; text-decoration:none; cursor:pointer; }
   .btn:hover, .bar a:hover { background:rgba(60,40,140,.9); }
@@ -36,7 +38,7 @@
 <div id="board"></div>
 <div class="bar" id="left"><a href="../">← Arcade</a></div>
 <div class="bar" id="right">
-  <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
+  <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="confirm" disabled>✔ Confirm</button><button class="btn" id="cancel" disabled>✖ Cancel</button><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
   <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
   <button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
 <div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
@@ -166,10 +168,14 @@
   var STORE = '7isles-eraser-v1', strokes = {}, history = [], views = {}, eraserOn = false;
   try { strokes = JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { strokes = {}; }
   function saveStrokes() { try { localStorage.setItem(STORE, JSON.stringify(strokes)); } catch (e) {} }
-  function paintStroke(v, st) {
+  var pendingList = [];                    // rubs that are waiting for the Confirm button
+  function updateButtons() {
+    document.getElementById('confirm').disabled = document.getElementById('cancel').disabled = !pendingList.length;
+  }
+  function paintStroke(v, st, preview) {
     var g = v.out.getContext('2d'), p = st.pts, k;
-    g.save(); g.globalCompositeOperation = 'destination-out'; g.lineCap = g.lineJoin = 'round';
-    g.lineWidth = st.r * 2; g.fillStyle = '#000';
+    g.save(); g.globalCompositeOperation = preview ? 'source-atop' : 'destination-out'; g.lineCap = g.lineJoin = 'round';
+    g.lineWidth = st.r * 2; g.fillStyle = g.strokeStyle = preview ? 'rgba(255,40,110,.55)' : '#000';
     g.beginPath(); g.arc(p[0][0] - v.ox, p[0][1] - v.oy, st.r, 0, 7); g.fill();
     g.beginPath(); g.moveTo(p[0][0] - v.ox, p[0][1] - v.oy);
     for (k = 1; k < p.length; k++) g.lineTo(p[k][0] - v.ox, p[k][1] - v.oy);
@@ -179,6 +185,7 @@
     var v = views[name], g = v.out.getContext('2d');
     g.clearRect(0, 0, v.out.width, v.out.height); g.drawImage(v.base, 0, 0);
     (strokes[name] || []).forEach(function (st) { paintStroke(v, st); });
+    pendingList.forEach(function (pd) { if (pd.name === name) paintStroke(v, pd.st, true); });   // pink = not erased yet
   }
   function registerEraser(name, out, base, ox, oy) {
     var v = views[name] = { out: out, base: base, ox: ox, oy: oy };
@@ -194,18 +201,18 @@
       out.setPointerCapture(e.pointerId);
       var q = pt(e), size = +document.getElementById('size').value;
       cur = { r: Math.round(size / 2 * q[2]), pts: [[Math.round(q[0]), Math.round(q[1])]] };
-      paintStroke(v, cur);
+      paintStroke(v, cur, true);
     });
     out.addEventListener('pointermove', function (e) {
       if (!cur) return;
       var q = pt(e), last = cur.pts[cur.pts.length - 1];
       if (Math.hypot(q[0] - last[0], q[1] - last[1]) < cur.r / 4) return;
       cur.pts.push([Math.round(q[0]), Math.round(q[1])]);
-      paintStroke(v, { r: cur.r, pts: cur.pts.slice(-2) });
+      paintStroke(v, { r: cur.r, pts: cur.pts.slice(-2) }, true);
     });
     function end() {
       if (!cur) return;
-      (strokes[name] = strokes[name] || []).push(cur); history.push({ name: name, st: cur }); saveStrokes(); cur = null;
+      pendingList.push({ name: name, st: cur }); cur = null; redraw(name); updateButtons();   // wait for Confirm
     }
     out.addEventListener('pointerup', end); out.addEventListener('pointercancel', end);
   }
@@ -231,8 +238,22 @@
 
   document.getElementById('eraser').onclick = function () {
     eraserOn = !eraserOn; document.body.classList.toggle('erasing', eraserOn); this.classList.toggle('on', eraserOn);
+    if (!eraserOn) cancelPending();
+  };
+  function cancelPending() {
+    var names = {}; pendingList.forEach(function (pd) { names[pd.name] = 1; });
+    pendingList = []; Object.keys(names).forEach(redraw); updateButtons();
+  }
+  document.getElementById('cancel').onclick = cancelPending;
+  document.getElementById('confirm').onclick = function () {
+    var names = {};
+    pendingList.forEach(function (pd) {
+      (strokes[pd.name] = strokes[pd.name] || []).push(pd.st); history.push({ name: pd.name, st: pd.st }); names[pd.name] = 1;
+    });
+    pendingList = []; saveStrokes(); Object.keys(names).forEach(redraw); updateButtons();
   };
   document.getElementById('undo').onclick = function () {
+    if (pendingList.length) { var pd = pendingList.pop(); redraw(pd.name); updateButtons(); return; }   // first take back pink rubs
     var h = history.pop(); if (!h) return;
     var list = strokes[h.name]; list.splice(list.lastIndexOf(h.st), 1); saveStrokes(); redraw(h.name);
   };
