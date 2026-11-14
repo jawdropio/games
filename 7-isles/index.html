@@ -72,18 +72,16 @@
     var seen = new Uint8Array(w * h), stack = new Int32Array(w * h), p, n;
     for (var s0 = 0; s0 < w * h; s0++) {
       if (seen[s0] || px[s0 * 4 + 3] < 40) continue;
-      var count = 0, list = [], sp = 0, bx0 = w, bx1 = 0, by0 = h, by1 = 0; stack[sp++] = s0; seen[s0] = 1;
+      var count = 0, list = [], sp = 0; stack[sp++] = s0; seen[s0] = 1;
       while (sp) {
         p = stack[--sp]; list.push(p); count++;
         var x3 = p % w, y3 = (p / w) | 0;
-        if (x3 < bx0) bx0 = x3; if (x3 > bx1) bx1 = x3; if (y3 < by0) by0 = y3; if (y3 > by1) by1 = y3;
         if (x3 > 0)     { n = p - 1; if (!seen[n] && px[n * 4 + 3] >= 40) { seen[n] = 1; stack[sp++] = n; } }
         if (x3 < w - 1) { n = p + 1; if (!seen[n] && px[n * 4 + 3] >= 40) { seen[n] = 1; stack[sp++] = n; } }
         if (y3 > 0)     { n = p - w; if (!seen[n] && px[n * 4 + 3] >= 40) { seen[n] = 1; stack[sp++] = n; } }
         if (y3 < h - 1) { n = p + w; if (!seen[n] && px[n * 4 + 3] >= 40) { seen[n] = 1; stack[sp++] = n; } }
       }
-      var thinStrip = (bx1 - bx0) > w * 0.3 && (by1 - by0) < h * 0.1;   // a long skinny line (like the horizon)
-      if (count < 700 || thinStrip) for (var k = 0; k < list.length; k++) px[list[k] * 4 + 3] = 0;
+      if (count < 700) for (var k = 0; k < list.length; k++) px[list[k] * 4 + 3] = 0;
     }
     // Trim the empty edges so the island sits neatly in its spot
     var minX = w, minY = h, maxX = 0, maxY = 0;
