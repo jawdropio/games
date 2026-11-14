@@ -5,13 +5,122 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>7 isles</title>
 <style>
-  html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; display:grid; place-items:center; text-align:center; }
-  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
-  h1 { font-size:48px; margin:0 0 12px; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#2a7bad; color:#fff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none; }
+  #view { position:fixed; inset:0; overflow:hidden; touch-action:none; cursor:grab; }
+  #view.drag { cursor:grabbing; }
+  #world { position:absolute; left:0; top:0; transform-origin:0 0; display:grid;
+           grid-template-columns:repeat(3, 1408px); grid-template-rows:repeat(2, 768px); }
+  /* Every slot is ocean. We borrow a patch of open water from the Goldenfield picture so it matches. */
+  .slot { position:relative; width:1408px; height:768px;
+          background:#2a7bad url("assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg") 0 0 / 1250% auto; }
+  .slot img { position:absolute; inset:0; width:100%; height:100%; display:block; pointer-events:none;
+              -webkit-mask-image:linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
+              -webkit-mask-composite:source-in;
+              mask-image:linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
+              mask-composite:intersect; }
+  .bar { position:fixed; z-index:5; display:flex; gap:8px; }
+  #top { top:12px; left:12px; align-items:center; }
+  #right { top:12px; right:12px; }
+  #bottom { bottom:14px; left:50%; transform:translateX(-50%); }
+  .btn, .bar a { background:rgba(18,11,46,.78); color:#fff; border:2px solid rgba(255,255,255,.35); border-radius:12px;
+                 padding:8px 14px; font:700 16px system-ui, sans-serif; text-decoration:none; cursor:pointer; }
+  .btn:hover, .bar a:hover { background:rgba(60,40,140,.9); }
+  #pause { position:fixed; inset:0; z-index:10; background:rgba(18,11,46,.75); display:none; place-items:center; text-align:center; }
+  #pause.on { display:grid; }
+  #pause h1 { font-size:48px; margin:0 0 14px; }
 </style>
 </head>
 <body>
-<a href="../">← Arcade</a>
-<div><h1>🎮 7 isles</h1><p>🚧 Under construction. Tell your buddy what to build!</p></div>
+<div id="view"><div id="world"></div></div>
+
+<div class="bar" id="top"><a href="../">← Arcade</a></div>
+<div class="bar" id="right"><button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
+<div class="bar" id="bottom">
+  <button class="btn" id="zout">−</button>
+  <button class="btn" id="home">🌾 Goldenfield</button>
+  <button class="btn" id="zin">+</button>
+</div>
+
+<div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
+
+<script>
+(function () {
+  var COLS = 3, ROWS = 2, W = 1408, H = 768;
+  // Where Goldenfield sits on the board (column, row). The other 5 slots are open ocean for now.
+  var GOLDEN = { col: 1, row: 0 };
+
+  var world = document.getElementById('world');
+  var view = document.getElementById('view');
+  for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) {
+    var s = document.createElement('div'); s.className = 'slot';
+    if (c === GOLDEN.col && r === GOLDEN.row) {
+      var im = document.createElement('img');
+      im.src = 'assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg'; im.alt = 'Goldenfield';
+      s.appendChild(im);
+    }
+    world.appendChild(s);
+  }
+
+  var scale = 1, tx = 0, ty = 0, minS = 0.2, maxS = 2;
+  function apply() { world.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')'; }
+  function clamp() {
+    var ww = COLS * W * scale, hh = ROWS * H * scale, vw = innerWidth, vh = innerHeight;
+    tx = ww <= vw ? (vw - ww) / 2 : Math.min(0, Math.max(vw - ww, tx));
+    ty = hh <= vh ? (vh - hh) / 2 : Math.min(0, Math.max(vh - hh, ty));
+  }
+  function zoomAt(px, py, ns) {
+    ns = Math.min(maxS, Math.max(minS, ns));
+    tx = px - (px - tx) * (ns / scale); ty = py - (py - ty) * (ns / scale);
+    scale = ns; clamp(); apply();
+  }
+  function goHome() {
+    scale = Math.min(innerWidth / W, innerHeight / H) * 0.95;
+    tx = innerWidth / 2 - (GOLDEN.col + 0.5) * W * scale;
+    ty = innerHeight / 2 - (GOLDEN.row + 0.5) * H * scale;
+    clamp(); apply();
+  }
+  minS = 0.1;
+  goHome();
+  addEventListener('resize', function () { clamp(); apply(); });
+
+  // Drag to move around (mouse, finger or pen)
+  var pts = {}, lastDist = 0;
+  view.addEventListener('pointerdown', function (e) {
+    pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    view.setPointerCapture(e.pointerId); view.classList.add('drag'); lastDist = 0;
+  });
+  view.addEventListener('pointermove', function (e) {
+    var p = pts[e.pointerId]; if (!p) return;
+    var ids = Object.keys(pts);
+    if (ids.length === 2) {
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var a = pts[ids[0]], b = pts[ids[1]];
+      var d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (lastDist) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, scale * d / lastDist);
+      lastDist = d; return;
+    }
+    tx += e.clientX - p.x; ty += e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    clamp(); apply();
+  });
+  function up(e) { delete pts[e.pointerId]; lastDist = 0; if (!Object.keys(pts).length) view.classList.remove('drag'); }
+  view.addEventListener('pointerup', up); view.addEventListener('pointercancel', up);
+  view.addEventListener('wheel', function (e) {
+    e.preventDefault(); zoomAt(e.clientX, e.clientY, scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+  }, { passive: false });
+
+  document.getElementById('zin').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, scale * 1.25); };
+  document.getElementById('zout').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, scale / 1.25); };
+  document.getElementById('home').onclick = goHome;
+
+  // Pause (button, P or Esc)
+  var pauseEl = document.getElementById('pause'), paused = false;
+  function setPause(v) { paused = v; pauseEl.classList.toggle('on', v); }
+  document.getElementById('pauseBtn').onclick = function () { setPause(true); };
+  document.getElementById('resume').onclick = function () { setPause(false); };
+  addEventListener('keydown', function (e) {
+    if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') setPause(!paused);
+  });
+})();
+</script>
 </body>
 </html>
