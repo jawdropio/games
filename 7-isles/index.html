@@ -142,6 +142,7 @@
   </div>
 </div>
 <div class="ui modal" id="shopM"><div class="mbox"><button class="btn mclose" data-close="shopM">✖</button><div id="shopBody"></div></div></div>
+<div class="ui modal" id="rollM"><div class="mbox" style="text-align:center"><div id="rollBody"></div></div></div>
 <div class="ui modal" id="sumM"><div class="mbox" style="text-align:center"><div id="sumBody"></div><button class="btn go" id="sumOk" style="margin-top:12px;font-size:18px">Let's play! 👑</button></div></div>
 <div class="ui modal" id="invM"><div class="mbox"><button class="btn mclose" data-close="invM">✖</button><div id="invBody"></div></div></div>
 <div class="ui modal" id="tradeM"><div class="mbox"><button class="btn mclose" data-close="tradeM">✖</button><div id="tradeBody"></div></div></div>
@@ -493,7 +494,44 @@
     t += '<div style="margin-top:8px">🏜️ Duneshade: nobody yet. Capture it to win!</div>';
     $('sumBody').innerHTML = t; $('sumM').classList.add('on');
   }
-  $('sumOk').onclick = function () { $('sumM').classList.remove('on'); };
+  $('sumOk').onclick = function () { $('sumM').classList.remove('on'); startRollOff(); };
+
+  // ----- everyone rolls: the highest number picks first and plays first -----
+  var RO = null;
+  function roSum(i) { return RO.vals[i][0] + RO.vals[i][1]; }
+  function startRollOff() { RO = { tied: G.players.map(function (p, i) { return i; }), vals: {}, done: false, rolling: false, msg: '', winner: 0 }; renderRollOff(); $('rollM').classList.add('on'); }
+  function renderRollOff() {
+    var h = '<h2>🎲 Who goes first?</h2><div>Everyone rolls two dice. The <b>highest number</b> picks first and plays first!</div><div style="margin:10px 0">';
+    G.players.forEach(function (p, i) {
+      var v = RO.vals[i];
+      h += '<div style="font-size:18px;margin:4px 0;opacity:' + (RO.tied.indexOf(i) >= 0 || RO.done ? 1 : 0.5) + '">' + p.dot + ' <b>' + p.name + '</b> ' + (v ? DICE[v[0] - 1] + DICE[v[1] - 1] + ' = <b>' + (v[0] + v[1]) + '</b>' : '—') + (RO.done && RO.winner === i ? ' 🏆' : '') + '</div>';
+    });
+    h += '</div>' + (RO.msg ? '<div class="card" style="margin-bottom:10px">' + RO.msg + '</div>' : '');
+    h += RO.done ? '<button class="btn go" id="roNext">Continue ➜</button>' : '<button class="btn go" id="roGo"' + (RO.rolling ? ' disabled' : '') + '>🎲 ' + (Object.keys(RO.vals).length ? 'Roll again' : 'Roll!') + '</button>';
+    $('rollBody').innerHTML = h;
+  }
+  function rollTied() {
+    if (RO.rolling) return; RO.rolling = true; RO.msg = '';
+    var f = 0, iv = setInterval(function () {
+      f++; RO.tied.forEach(function (i) { RO.vals[i] = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]; });
+      if (f >= 10) {
+        clearInterval(iv); RO.rolling = false;
+        var best = 0; RO.tied.forEach(function (i) { best = Math.max(best, roSum(i)); });
+        var w = RO.tied.filter(function (i) { return roSum(i) === best; });
+        if (w.length > 1) { RO.tied = w; RO.msg = '🤝 Tie between ' + w.map(function (i) { return G.players[i].name; }).join(' and ') + '! Roll again.'; }
+        else { RO.winner = w[0]; RO.done = true; RO.msg = '🏆 <b>' + G.players[w[0]].name + '</b> rolled the highest' + (w[0] === 0 ? ' — you pick first and play first!' : ' and goes first!'); }
+      }
+      renderRollOff();
+    }, 80);
+  }
+  $('rollBody').addEventListener('click', function (e) {
+    if (e.target.id === 'roGo') rollTied();
+    if (e.target.id === 'roNext') {
+      $('rollM').classList.remove('on'); G.turn = RO.winner; G.rolled = false;
+      say('🏆 ' + G.players[G.turn].name + ' goes first!'); refresh();
+      if (G.players[G.turn].bot) later(botTurn, 900);
+    }
+  });
   document.querySelectorAll('[data-players]').forEach(function (b) { b.onclick = function () { startGame(+b.dataset.players); }; });
 
   function ownedBy(pi) { return NORMAL.filter(function (nm) { return G.isl[nm].owner === pi; }); }
