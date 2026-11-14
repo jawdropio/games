@@ -47,7 +47,9 @@
     { name: 'Goldenfield', icon: '🌾', pic: 'assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg', kind: 'blue',
       erase: [[-2,91,104,11], [-2,74,24,22], [22,81,20,12], [86,49,18,14], [95,61,4,5], [88,74,11,17]] },   // erase = writing and compass
     { name: 'Bluewater',   icon: '🌊', pic: 'assets/gemini_generated_image-3-.jpeg', kind: 'teal', erase: [[0,0,100,14.6]] },   // erase = the sky
-    { name: 'Wildheart',   icon: '🐎' },
+    { name: 'Wildheart',   icon: '🐎', pic: 'assets/gemini_generated_image-4-.jpeg', kind: 'blue',
+      heal: [[65,49,12,7], [72.5,61.8,10.5,6.2]],                                                // writing on the grass
+      erase: [[-2,92,104,10], [-2,78,38,15], [83,25.5,12,7], [88.5,75,9,15]] },                    // writing, banner, compass in the water
     { name: 'Timberroot',  icon: '🌲' },
     { name: 'Ironhold',    icon: '⛰️' },
     { name: 'Skyreach',    icon: '☁️' },
@@ -60,6 +62,29 @@
     var c = document.createElement('canvas'); c.width = w; c.height = h;
     var g = c.getContext('2d'); g.drawImage(img, 0, 0);
     var d = g.getImageData(0, 0, w, h), px = d.data, i;
+    // "heal": writing printed on the grass is painted over with the grass beside it
+    (isl.heal || []).forEach(function (e) {
+      var x0 = Math.max(0, Math.round(e[0] * w / 100)), x1 = Math.min(w, Math.round((e[0] + e[2]) * w / 100));
+      var y0 = Math.max(0, Math.round(e[1] * h / 100)), y1 = Math.min(h, Math.round((e[1] + e[3]) * h / 100));
+      var rw = x1 - x0, rh = y1 - y0, m = new Uint8Array(rw * rh), m2 = new Uint8Array(rw * rh), x, y, dx, dy, o;
+      for (y = 0; y < rh; y++) for (x = 0; x < rw; x++) {
+        o = ((y0 + y) * w + x0 + x) * 4;
+        var lo = Math.min(px[o], px[o + 1], px[o + 2]), hi = Math.max(px[o], px[o + 1], px[o + 2]);
+        if (lo > 185 || hi < 70) m[y * rw + x] = 1;       // white letters and their dark outlines
+      }
+      for (y = 0; y < rh; y++) for (x = 0; x < rw; x++) if (m[y * rw + x])
+        for (dy = -2; dy <= 2; dy++) for (dx = -2; dx <= 2; dx++) {
+          var xx = x + dx, yy = y + dy; if (xx >= 0 && xx < rw && yy >= 0 && yy < rh) m2[yy * rw + xx] = 1;
+        }
+      for (y = 0; y < rh; y++) for (x = 0; x < rw; x++) if (m2[y * rw + x]) {
+        var l = x, r2 = x;
+        while (l >= 0 && m2[y * rw + l]) l--;
+        while (r2 < rw && m2[y * rw + r2]) r2++;
+        var a = l >= 0 ? ((y0 + y) * w + x0 + l) * 4 : -1, b2 = r2 < rw ? ((y0 + y) * w + x0 + r2) * 4 : -1;
+        o = ((y0 + y) * w + x0 + x) * 4;
+        for (var c2 = 0; c2 < 3; c2++) px[o + c2] = a >= 0 && b2 >= 0 ? (px[a + c2] + px[b2 + c2]) / 2 : px[(a >= 0 ? a : b2) + c2];
+      }
+    });
     for (i = 0; i < px.length; i += 4) {
       var r = px[i], gr = px[i + 1], b = px[i + 2], blue;
       if (isl.kind === 'teal') {                         // bright turquoise sea
