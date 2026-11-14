@@ -37,7 +37,9 @@
   #eraser, #tools, #zin, #zout, #zfit { display:none !important; }
   /* ---- 7 Isles game screens ---- */
   /* The game is switched OFF for now: only the islands show. To bring it back, delete the next line and set PLAY = true in the game script. */
-  .ui, #banner, #frame { display:none !important; }
+  body:not(.play) .ui, body:not(.play) #banner, body:not(.play) #frame { display:none !important; }
+  body.play #shopOpen, body.play #testBtn { display:none; }
+  body:not(.test) #cheatBtn, body:not(.test) #exitTest { display:none; }
   .ui { position:fixed; z-index:6; background:rgba(18,11,46,.9); color:#fff; border:2px solid rgba(255,255,255,.25); border-radius:14px; padding:10px 12px; font:600 14px system-ui, sans-serif; }
   #hud { top:58px; left:12px; width:200px; font-size:13px; max-height:calc(100vh - 150px); overflow:auto; display:none; }
   #hud h4 { margin:8px 0 4px; font-size:13px; color:#c9bfff; text-transform:uppercase; letter-spacing:.5px; }
@@ -162,6 +164,7 @@
 <div class="bar" id="right">
   <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="confirm" disabled>✔ Confirm</button><button class="btn" id="cancel" disabled>✖ Cancel</button><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
   <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
+  <button class="btn" id="testBtn">🧪 Test run</button>
   <button class="btn" id="shopOpen">🛒 Shop</button>
   <button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
 <div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
@@ -181,6 +184,8 @@
     <button class="btn" id="shopBtn">🛒 Shop</button>
     <button class="btn" id="tradeBtn">🔁 Trade</button>
     <button class="btn" id="alliBtn">🤝 Alliances</button>
+    <button class="btn" id="cheatBtn">🧪 +10 of everything</button>
+    <button class="btn" id="exitTest">Exit test ✖</button>
     <button class="btn" id="minBtn" title="Hide or show this bar">▾</button>
   </div>
 </div>
@@ -480,8 +485,6 @@
 </script>
 <script>
 (function () {
-  var PLAY = false;                      // game is switched off for now (islands only)
-  if (!PLAY) return;
   var $ = function (id) { return document.getElementById(id); };
   var RES = { 'Bird Feathers':'🪶', 'Crystal Shards':'💎', 'Wind Iron':'🌀', 'Iron':'⚙️', 'Stone':'🪨', 'Gold':'🪙', 'Wheat':'🌾',
               'Fruit':'🍎', 'Wood':'🪵', 'Pearls':'🦪', 'Fish':'🐟', 'Horses':'🐴', 'Leather':'🟤', 'Arrows':'🏹' };
@@ -573,14 +576,14 @@
     if (e.target.id === 'roGo') rollTied();
     if (e.target.id === 'roNext') {
       $('rollM').classList.remove('on'); G.turn = RO.winner; G.rolled = false;
-      say('🏆 ' + G.players[G.turn].name + ' goes first!'); refresh();
+      say('🏆 ' + (G.turn === 0 ? 'You go' : G.players[G.turn].name + ' goes') + ' first!'); refresh();
       if (G.players[G.turn].bot) later(botTurn, 900);
     }
   });
   document.querySelectorAll('[data-players]').forEach(function (b) { b.onclick = function () { startGame(+b.dataset.players); }; });
 
   function ownedBy(pi) { return NORMAL.filter(function (nm) { return G.isl[nm].owner === pi; }); }
-  function say(t) { G.log.unshift(t); if (G.log.length > 8) G.log.pop(); }
+  function say(t, secret) { G.log.unshift({ t: t, secret: !!secret }); if (G.log.length > 14) G.log.pop(); }
   function incomeMult(pi) { return G.ally && G.ally.leader === pi ? G.ally.members.length : 1; }
   function ownerName(o) { return o < 0 ? 'Nobody yet' : G.players[o].dot + ' ' + G.players[o].name; }
 
@@ -641,7 +644,7 @@
   function botTurn() {
     var pi = G.turn;
     doRoll(pi, function () { later(function () {
-      botBuild(pi); refresh();
+      botBuild(pi); botTrade(pi); refresh();
       if (maybeOffer(pi)) { refresh(); waitOffer(function () { later(endTurn, 600); }); } else later(endTurn, 1000);
     }, 900); });
   }
@@ -659,6 +662,23 @@
         if (targets.length) { var t = pick(targets); useDrought(pi, d, t); }
       }
     });
+  }
+
+  // bots trade with each other too. You only see it if you own a Robber Boat!
+  function botTrade(pi) {
+    if (G.n < 3 || !hasBoat(pi) || Math.random() > 0.6) return;
+    var others = G.players.map(function (p, i) { return i; }).filter(function (i) { return i !== pi && i !== 0; });
+    if (!others.length) return;
+    var qi = pick(others), P = G.players[pi], Q = G.players[qi];
+    var spare = Object.keys(P.res).filter(function (k) { return P.res[k] >= 2; }), want = Object.keys(Q.res).filter(function (k) { return Q.res[k] >= 1; });
+    if (!spare.length || !want.length) return;
+    var give = pick(spare), get = pick(want.filter(function (k) { return k !== give; })); if (!get) return;
+    var n = 1 + Math.floor(Math.random() * Math.min(3, P.res[give], Q.res[get]));
+    P.res[give] -= n; Q.res[give] = (Q.res[give] || 0) + n; Q.res[get] -= n; P.res[get] = (P.res[get] || 0) + n;
+    var bs = boatsOf(pi), boat = bs.indexOf('Trade Boat') >= 0 ? 'Trade Boat' : bs[0], bm = '';
+    if (boat === 'Trade Boat') { P.items[boat]--; Q.items[boat] = (Q.items[boat] || 0) + 1; bm = ' (the boat goes to ' + Q.name + ')'; }
+    else if (boat === 'Robber Boat') useRobber(pi);
+    say('👀 ' + P.dot + ' ' + P.name + ' traded ' + n + RES[give] + ' for ' + n + RES[get] + ' with ' + Q.dot + ' ' + Q.name + bm, true);
   }
 
   // ----- crafting -----
@@ -689,7 +709,7 @@
     if (!yes.length) return;
     G.ally = { leader: pi, members: [pi].concat(yes) }; G.allyUsed = true;
     NORMAL.forEach(function (nm) { if (G.ally.members.indexOf(G.isl[nm].owner) >= 0) G.isl[nm].owner = pi; });
-    say('🤝 Alliance formed! ' + G.players[pi].name + ' leads with ' + yes.map(function (i) { return G.players[i].name; }).join(', ') + '. Income ×' + G.ally.members.length + '!');
+    say('🤝 Alliance formed! ' + (pi === 0 ? 'You lead' : G.players[pi].name + ' leads') + ' with ' + yes.map(function (i) { return G.players[i].name; }).join(', ') + '. Income ×' + G.ally.members.length + '!');
   }
   function endAlliance() { say('💔 The alliance ended. The leader keeps all the islands.'); G.ally = null; }
   function leaveAlliance(pi) {
@@ -702,6 +722,7 @@
   function resHtml(cost) { return Object.keys(cost).map(function (k) { return cost[k] + ' ' + RES[k] + ' ' + k; }).join(', '); }
   function refresh() {
     if (!G) return;
+    window.MY_RES = G.players[0].res;
     renderHud(); renderResbar(); renderTurn(); renderLabels(); renderInfo();
     renderOffer();
     if ($('invM').classList.contains('on')) renderInv();
@@ -725,6 +746,7 @@
     $('resbar').innerHTML = '🎒 <b>Inventory</b> · ' + total + ' resources · ' + items + ' items';
   }
   function renderHud() {
+    var seeAll = (G.players[0].items['Robber Boat'] || 0) > 0;
     var h = '<details data-k="r"' + (hudOpen.r ? ' open' : '') + '><summary>Rulers</summary>';
     G.players.forEach(function (p, i) {
       var inAlly = G.ally && G.ally.members.indexOf(i) >= 0;
@@ -734,7 +756,7 @@
     if (G.ally && G.ally.members.indexOf(0) >= 0) {
       h += '<div>👑 Leader: ' + G.players[G.ally.leader].dot + ' ' + G.players[G.ally.leader].name + '</div><div>Members: ' + G.ally.members.map(function (m) { return G.players[m].dot; }).join(' ') + '</div><div>Income: <b>×' + G.ally.members.length + '</b></div>';
     } else h += '<div>' + (G.ally ? 'Other rulers have an alliance.' : G.allyUsed ? 'Your alliance ended.' : 'None yet. Press 🤝 Alliances!') + '</div>';
-    h += '</details><details data-k="l"' + (hudOpen.l ? ' open' : '') + '><summary>What happened</summary><div id="log">' + G.log.slice(0, 4).map(function (t) { return '<div>' + t + '</div>'; }).join('') + '</div></details>';
+    h += '</details><details data-k="l"' + (hudOpen.l ? ' open' : '') + '><summary>What happened</summary><div id="log">' + (seeAll ? '<div>👀 Your Robber Boat lets you see everyone\'s trades!</div>' : '') + G.log.filter(function (l) { return !l.secret || seeAll; }).slice(0, 5).map(function (l) { return '<div>' + l.t + '</div>'; }).join('') + '</div></details>';
     $('hud').innerHTML = h;
     $('hud').querySelectorAll('details').forEach(function (d) { d.ontoggle = function () { hudOpen[d.dataset.k] = d.open; }; });
   }
@@ -886,7 +908,7 @@
     bot.res[trade.get] -= trade.getN; me.res[trade.get] = (me.res[trade.get] || 0) + trade.getN;
     var boatMsg = '';
     if (b === 'Trade Boat') { me.items[b]--; bot.items[b] = (bot.items[b] || 0) + 1; boatMsg = ' ' + bot.name + ' keeps the ⛵ boat.'; }
-    else if (b === 'Robber Boat') { useRobber(0); boatMsg = ' (Robber Boat: ' + (3 - me.robberUses) + ' uses left)'; }
+    else if (b === 'Robber Boat') { var before = me.items['Robber Boat']; useRobber(0); boatMsg = me.items['Robber Boat'] < before ? ' 💥 Your Robber Boat broke after 3 uses!' : ' (Robber Boat: ' + (3 - me.robberUses) + ' uses left)'; }
     trade.msg = '✅ ' + bot.name + ' said yes! You sent ' + gave.join(' ') + ' and got ' + trade.getN + RES[trade.get] + '.' + boatMsg;
     say('🔁 Trade with ' + bot.name + ': sent ' + gave.join(' ') + ', got ' + trade.getN + RES[trade.get]);
     trade.load = {};
@@ -996,6 +1018,16 @@
     }
     return null;
   }
+  // ----- 🧪 test run: a 3-player game with lots of stuff so you can try everything -----
+  $('testBtn').onclick = function () {
+    document.body.classList.add('play', 'test'); $('isleCard').classList.remove('on');
+    document.querySelectorAll('.spot').forEach(function (sp) { sp.classList.remove('sel'); });
+    startGame(3);
+    G.players.forEach(function (p, i) { Object.keys(RES).forEach(function (k) { p.res[k] = i === 0 ? 30 : 15; }); p.items['Trade Boat'] = 1; });
+    hudOpen.l = true; say('🧪 Test run! You have 30 of everything and a ⛵ Trade Boat. The bots have 15 and a boat.'); refresh();
+  };
+  $('cheatBtn').onclick = function () { if (!G) return; Object.keys(RES).forEach(function (k) { G.players[0].res[k] += 10; }); say('🧪 +10 of everything!'); refresh(); };
+  $('exitTest').onclick = function () { location.reload(); };
   // click (not drag) on an island to see its info
   var down = null;
   addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
@@ -1071,6 +1103,7 @@
     return null;
   }
   addEventListener('click', function (e) {
+    if (document.body.classList.contains('play')) return;
     if (e.target.closest && e.target.closest('.bar, #pause, #isleCard, #shopPanel')) return;
     var n = islandAt(e.clientX, e.clientY);
     show(n === current ? null : n);          // press the same island again to close
