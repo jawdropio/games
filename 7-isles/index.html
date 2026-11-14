@@ -34,6 +34,8 @@
   #pause.on { display:grid; }
   #pause h1 { font-size:48px; margin:0 0 14px; }
   /* ---- 7 Isles game screens ---- */
+  /* The game is switched OFF for now: only the islands show. To bring it back, delete the next line and set PLAY = true in the game script. */
+  .ui, #banner, #frame { display:none !important; }
   .ui { position:fixed; z-index:6; background:rgba(18,11,46,.9); color:#fff; border:2px solid rgba(255,255,255,.25); border-radius:14px; padding:10px 12px; font:600 14px system-ui, sans-serif; }
   #hud { top:58px; left:12px; width:200px; font-size:13px; max-height:calc(100vh - 150px); overflow:auto; display:none; }
   #hud h4 { margin:8px 0 4px; font-size:13px; color:#c9bfff; text-transform:uppercase; letter-spacing:.5px; }
@@ -437,6 +439,8 @@
 </script>
 <script>
 (function () {
+  var PLAY = false;                      // game is switched off for now (islands only)
+  if (!PLAY) return;
   var $ = function (id) { return document.getElementById(id); };
   var RES = { 'Bird Feathers':'🪶', 'Crystal Shards':'💎', 'Wind Iron':'🌀', 'Iron':'⚙️', 'Stone':'🪨', 'Gold':'🪙', 'Wheat':'🌾',
               'Fruit':'🍎', 'Wood':'🪵', 'Pearls':'🦪', 'Fish':'🐟', 'Horses':'🐴', 'Leather':'🟤', 'Arrows':'🏹' };
