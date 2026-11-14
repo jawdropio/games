@@ -72,6 +72,9 @@
   .mbox select { font:600 15px system-ui, sans-serif; padding:4px 6px; border-radius:8px; margin-right:6px; }
   .crown { position:absolute; left:50%; top:0; transform:translate(-50%,-55%); font-size:max(18px,3.4vmin); line-height:1; pointer-events:none; display:none; }
   .crown.on { display:block; }
+  .crown.me { font-size:max(26px,4.6vmin); animation:bob 1.4s ease-in-out infinite; }
+  @keyframes bob { 50% { transform:translate(-50%,-72%); } }
+  .spot.cap { z-index:3; }
   .btn:disabled { opacity:.4; cursor:default; }
   .modal { inset:0; background:rgba(0,0,0,.55); display:none; place-items:center; padding:0; border:0; border-radius:0; z-index:8; }
   .modal.on { display:grid; }
@@ -641,8 +644,9 @@
       s.style.setProperty('--own', I.owner >= 0 ? G.players[I.owner].color : ''); if (I.owner < 0) s.style.removeProperty('--own');
       s.classList.toggle('sel', selected === nm);
       var cr = s.querySelector('.crown'); if (!cr) { cr = document.createElement('div'); cr.className = 'crown'; cr.textContent = '👑'; s.appendChild(cr); }
-      var who = G.capital.indexOf(nm); cr.classList.toggle('on', who >= 0);
-      if (who >= 0) cr.style.filter = 'drop-shadow(0 0 5px ' + G.players[who].color + ') drop-shadow(0 0 2px #000)';
+      var who = G.capital.indexOf(nm), show = who >= 0 && !G.choosing;   // no crowns until you have picked yours
+      cr.classList.toggle('on', show); cr.classList.toggle('me', who === 0); s.classList.toggle('cap', show);
+      if (show) cr.style.filter = 'drop-shadow(0 0 5px ' + G.players[who].color + ') drop-shadow(0 0 2px #000)';
     });
   }
   function renderInfo() {
