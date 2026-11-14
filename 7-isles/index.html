@@ -8,16 +8,19 @@
   html, body { margin:0; height:100%; overflow:hidden; background:#2a7bad; color:#fff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none; }
   #view { position:fixed; inset:0; overflow:hidden; touch-action:none; cursor:grab; }
   #view.drag { cursor:grabbing; }
-  #world { position:absolute; left:0; top:0; transform-origin:0 0; display:grid;
-           grid-template-columns:repeat(3, 1408px); grid-template-rows:repeat(2, 768px); }
-  /* Every slot is ocean. We borrow a patch of open water from the Goldenfield picture so it matches. */
-  .slot { position:relative; width:1408px; height:768px;
-          background:#2a7bad url("assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg") 0 0 / 1250% auto; }
-  .slot img { position:absolute; inset:0; width:100%; height:100%; display:block; pointer-events:none;
-              -webkit-mask-image:linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
-              -webkit-mask-composite:source-in;
-              mask-image:linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
-              mask-composite:intersect; }
+  /* The whole ocean. Open water is borrowed from a clean corner of the Goldenfield picture so it matches. */
+  #world { position:absolute; left:0; top:0; width:3400px; height:3000px; transform-origin:0 0;
+           background:#2a7bad url("assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg") 0 0 / 17600px auto; }
+  .isle { position:absolute; width:880px; height:480px; transform:translate(-50%,-50%);
+          -webkit-mask-image:linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
+          -webkit-mask-composite:source-in;
+          mask-image:linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
+          mask-composite:intersect; }
+  .isle img { width:100%; height:100%; display:block; pointer-events:none; }
+  /* Patches of plain water that hide the writing in the picture */
+  .isle i { position:absolute; background:#2a7bad url("assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg") 0 0 / 17600px auto;
+            -webkit-mask-image:radial-gradient(closest-side, #000 60%, transparent);
+            mask-image:radial-gradient(closest-side, #000 60%, transparent); }
   .bar { position:fixed; z-index:5; display:flex; gap:8px; }
   #top { top:12px; left:12px; align-items:center; }
   #right { top:12px; right:12px; }
@@ -37,6 +40,7 @@
 <div class="bar" id="right"><button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
 <div class="bar" id="bottom">
   <button class="btn" id="zout">−</button>
+  <button class="btn" id="all">🌍 All islands</button>
   <button class="btn" id="home">🌾 Goldenfield</button>
   <button class="btn" id="zin">+</button>
 </div>
@@ -45,45 +49,69 @@
 
 <script>
 (function () {
-  var COLS = 3, ROWS = 2, W = 1408, H = 768;
-  // Where Goldenfield sits on the board (column, row). The other 5 slots are open ocean for now.
-  var GOLDEN = { col: 1, row: 0 };
+  var WW = 3400, WH = 3000;          // size of the ocean
+  var CX = WW / 2, CY = WH / 2;      // middle of the circle
+  var R = 1150;                      // size of the circle
+  var SPOTS = 7;                     // 7 spots around the circle, spot 0 is at the top
+  var IMG = 'assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg';
+
+  // Rectangles (x, y, w, h in % of the picture) that hide the writing and the compass
+  var COVERS = [
+    [-2, 91, 104, 11],     // bottom row of words
+    [-2, 74, 24, 22],      // the big "GOLDENFIELD" banner
+    [22, 81, 20, 12],      // end of the banner
+    [86, 49, 18, 14],      // speech bubble
+    [95, 61, 4, 5],        // speech bubble tail
+    [88, 74, 11, 17]       // compass
+  ];
 
   var world = document.getElementById('world');
   var view = document.getElementById('view');
-  for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) {
-    var s = document.createElement('div'); s.className = 'slot';
-    if (c === GOLDEN.col && r === GOLDEN.row) {
-      var im = document.createElement('img');
-      im.src = 'assets/gemini_generated_image_tl4x6jtl4x6jtl4x.jpeg'; im.alt = 'Goldenfield';
-      s.appendChild(im);
+
+  // Goldenfield is at spot 0 (top). Every other spot is open ocean for now.
+  var goldenPos = null;
+  for (var i = 0; i < SPOTS; i++) {
+    var ang = -Math.PI / 2 + i * 2 * Math.PI / SPOTS;
+    var x = CX + R * Math.cos(ang), y = CY + R * Math.sin(ang);
+    if (i === 0) {
+      goldenPos = { x: x, y: y };
+      var d = document.createElement('div'); d.className = 'isle';
+      d.style.left = x + 'px'; d.style.top = y + 'px';
+      var im = document.createElement('img'); im.src = IMG; im.alt = 'Goldenfield';
+      d.appendChild(im);
+      COVERS.forEach(function (c) {
+        var p = document.createElement('i');
+        p.style.left = c[0] + '%'; p.style.top = c[1] + '%'; p.style.width = c[2] + '%'; p.style.height = c[3] + '%';
+        d.appendChild(p);
+      });
+      world.appendChild(d);
     }
-    world.appendChild(s);
   }
 
-  var scale = 1, tx = 0, ty = 0, minS = 0.2, maxS = 2;
+  var scale = 1, tx = 0, ty = 0, minS = 0.1, maxS = 2;
   function apply() { world.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')'; }
   function clamp() {
-    var ww = COLS * W * scale, hh = ROWS * H * scale, vw = innerWidth, vh = innerHeight;
+    var ww = WW * scale, hh = WH * scale, vw = innerWidth, vh = innerHeight;
     tx = ww <= vw ? (vw - ww) / 2 : Math.min(0, Math.max(vw - ww, tx));
     ty = hh <= vh ? (vh - hh) / 2 : Math.min(0, Math.max(vh - hh, ty));
   }
+  function fitScale() { return Math.min(innerWidth / WW, innerHeight / WH); }
   function zoomAt(px, py, ns) {
-    ns = Math.min(maxS, Math.max(minS, ns));
+    ns = Math.min(maxS, Math.max(fitScale(), ns));
     tx = px - (px - tx) * (ns / scale); ty = py - (py - ty) * (ns / scale);
     scale = ns; clamp(); apply();
   }
+  function showAll() { scale = fitScale(); tx = ty = 0; clamp(); apply(); }
   function goHome() {
-    scale = Math.min(innerWidth / W, innerHeight / H) * 0.95;
-    tx = innerWidth / 2 - (GOLDEN.col + 0.5) * W * scale;
-    ty = innerHeight / 2 - (GOLDEN.row + 0.5) * H * scale;
+    scale = Math.min(innerWidth / 880, innerHeight / 480) * 0.9;
+    tx = innerWidth / 2 - goldenPos.x * scale;
+    ty = innerHeight / 2 - goldenPos.y * scale;
     clamp(); apply();
   }
-  minS = 0.1;
-  goHome();
-  addEventListener('resize', function () { clamp(); apply(); });
+  showAll();
+  addEventListener('resize', function () { scale = Math.max(scale, fitScale()); clamp(); apply(); });
 
-  // Drag to move around (mouse, finger or pen)
+  // Drag to move around (mouse, finger or pen), pinch to zoom
   var pts = {}, lastDist = 0;
   view.addEventListener('pointerdown', function (e) {
     pts[e.pointerId] = { x: e.clientX, y: e.clientY };
@@ -95,9 +123,9 @@
     if (ids.length === 2) {
       pts[e.pointerId] = { x: e.clientX, y: e.clientY };
       var a = pts[ids[0]], b = pts[ids[1]];
-      var d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (lastDist) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, scale * d / lastDist);
-      lastDist = d; return;
+      var dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (lastDist) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, scale * dist / lastDist);
+      lastDist = dist; return;
     }
     tx += e.clientX - p.x; ty += e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
     clamp(); apply();
@@ -110,6 +138,7 @@
 
   document.getElementById('zin').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, scale * 1.25); };
   document.getElementById('zout').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, scale / 1.25); };
+  document.getElementById('all').onclick = showAll;
   document.getElementById('home').onclick = goHome;
 
   // Pause (button, P or Esc)
