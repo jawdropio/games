@@ -69,6 +69,7 @@
   #resbar { top:12px; left:50%; transform:translateX(-50%); display:none; max-width:calc(100vw - 620px); min-width:140px; text-align:center; padding:6px 12px; font-size:14px; }
   #resbar b { color:#ffe27a; }
   .chip.picked { background:#2d7a46; }
+  .mbox select { font:600 15px system-ui, sans-serif; padding:4px 6px; border-radius:8px; margin-right:6px; }
   .crown { position:absolute; left:50%; top:0; transform:translate(-50%,-55%); font-size:max(18px,3.4vmin); line-height:1; pointer-events:none; display:none; }
   .crown.on { display:block; }
   .btn:disabled { opacity:.4; cursor:default; }
@@ -116,11 +117,14 @@
     <button class="btn" id="endBtn">End turn ➜</button>
     <span class="sep"></span>
     <button class="btn" id="shopBtn">🛒 Shop</button>
+    <button class="btn" id="tradeBtn">🔁 Trade</button>
     <button class="btn" id="alliBtn">🤝 Alliances</button>
     <button class="btn" id="minBtn" title="Hide or show this bar">▾</button>
   </div>
 </div>
 <div class="ui modal" id="shopM"><div class="mbox"><button class="btn mclose" data-close="shopM">✖</button><div id="shopBody"></div></div></div>
+<div class="ui modal" id="tradeM"><div class="mbox"><button class="btn mclose" data-close="tradeM">✖</button><div id="tradeBody"></div></div></div>
+<div class="ui modal" id="offerM"><div class="mbox"><div id="offerBody"></div></div></div>
 <div class="ui modal" id="alliM"><div class="mbox"><button class="btn mclose" data-close="alliM">✖</button><div id="alliBody"></div></div></div>
 <div class="ui modal on" id="start"><div class="mbox"><h2>🏝️ 7 Isles</h2>
   <p>Rule the seas and <b>capture Duneshade</b> to win! You are 🔵. The other rulers are bots.</p>
@@ -484,9 +488,9 @@
       var I = G.isl[nm]; if (I.owner < 0) return;
       if (I.drought > 0) { blocked.push(nm); return; }
       var sp = ISL[nm].spaces;
-      Object.keys(sp).forEach(function (r) {
-        if (sp[r].indexOf(roll) >= 0) got[I.owner][r] = (got[I.owner][r] || 0) + incomeMult(I.owner);
-      });
+      var keys = Object.keys(sp), m = incomeMult(I.owner), base = pick(keys);
+      got[I.owner][base] = (got[I.owner][base] || 0) + m;                       // every island makes 1 resource every roll
+      keys.forEach(function (r) { if (sp[r].indexOf(roll) >= 0) got[I.owner][r] = (got[I.owner][r] || 0) + m; });   // lucky number = bonus!
     });
     var parts = [];
     got.forEach(function (g, i) {
@@ -517,14 +521,17 @@
 
   // ----- turns and bots -----
   function endTurn() {
-    G.turn = (G.turn + 1) % G.n; G.rolled = false; pendingUse = null;
+    G.turn = (G.turn + 1) % G.n; G.rolled = false; pendingUse = null; G.offer = null;
     if (G.turn === 0) say('➡️ Your turn!');
     refresh();
     if (G.players[G.turn].bot) later(botTurn, 900);
   }
   function botTurn() {
     var pi = G.turn;
-    doRoll(pi, function () { later(function () { botBuild(pi); refresh(); later(endTurn, 1000); }, 900); });
+    doRoll(pi, function () { later(function () {
+      botBuild(pi); refresh();
+      if (maybeOffer(pi)) { refresh(); waitOffer(function () { later(endTurn, 600); }); } else later(endTurn, 1000);
+    }, 900); });
   }
   function botBuild(pi) {
     var P = G.players[pi], opts = RECIPES.filter(function (r) { return r.name !== 'Exploding Boat' && r.name !== 'Robber Boat'; });
@@ -584,6 +591,8 @@
   function refresh() {
     if (!G) return;
     renderHud(); renderResbar(); renderTurn(); renderLabels(); renderInfo();
+    renderOffer();
+    if ($('tradeM').classList.contains('on')) renderTrade();
     if ($('shopM').classList.contains('on')) renderShop();
     if ($('alliM').classList.contains('on')) renderAlli();
   }
@@ -613,7 +622,7 @@
     showDice();
     $('rollBtn').disabled = !(mine && !G.rolled && !G.rolling && !G.choosing);
     $('endBtn').disabled = !(mine && G.rolled);
-    $('shopBtn').disabled = G.choosing; $('alliBtn').disabled = G.choosing;
+    $('shopBtn').disabled = G.choosing; $('alliBtn').disabled = G.choosing; $('tradeBtn').disabled = G.choosing;
     $('rollBtn').classList.toggle('go', !$('rollBtn').disabled); $('endBtn').classList.toggle('go', !$('endBtn').disabled);
     $('hint').textContent = G.choosing ? '👑 Choose your capital: click one of your glowing 🔵 islands!' : !mine ? '⏳ ' + P.name + ' is taking a turn…' : (G.rolling ? '🎲 Rolling…' : (!G.rolled ? '👉 Step 1: roll the dice!' : '👉 Step 2: craft in the Shop, make an alliance, or end your turn.'));
   }
@@ -644,7 +653,7 @@
         var nums = D.spaces[r], pct = Math.round(nums.reduce(function (a, n) { return a + ways(n); }, 0) / 36 * 100);
         h += '<tr><td>' + RES[r] + ' ' + r + '</td><td>🎲 ' + nums.map(function (n) { return n === last ? '<b class="hit">' + n + '</b>' : n; }).join(' · ') + '</td><td>' + pct + '%</td></tr>';
       });
-      h += '</table>';
+      h += '</table><div class="tip">Every roll this island makes 1 resource. Roll a 🎲 number above for a bonus +1!</div>';
     }
     box.innerHTML = h; box.style.display = 'block';
   }
@@ -697,13 +706,97 @@
     $('alliBody').innerHTML = h;
   }
 
+  // ----- trading with the other rulers -----
+  var trade = { partner: 1, give: '', giveN: 1, get: 'Wood', getN: 1, msg: '' };
+  function opts(list, cur) { return list.map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + (RES[k] ? RES[k] + ' ' : '') + k + '</option>'; }).join(''); }
+  function nums(max, cur) { var o = ''; for (var i = 1; i <= max; i++) o += '<option' + (i === cur ? ' selected' : '') + '>' + i + '</option>'; return o; }
+  function renderTrade() {
+    var me = G.players[0], h = '<h2>🔁 Trade</h2>';
+    if (G.turn !== 0) h += '<div class="need">⏳ Wait for your turn to trade.</div>';
+    else if (!G.rolled) h += '<div class="need">Roll the dice first, then you can trade!</div>';
+    else {
+      var have = Object.keys(me.res).filter(function (k) { return me.res[k] > 0; });
+      if (!have.length) h += '<div class="need">You have nothing to trade yet.</div>';
+      else {
+        if (have.indexOf(trade.give) < 0) trade.give = have[0];
+        trade.giveN = Math.min(Math.max(1, trade.giveN), me.res[trade.give]);
+        h += '<div class="grp">Trade with</div>';
+        for (var i = 1; i < G.n; i++) h += '<button class="btn' + (trade.partner === i ? ' on' : '') + '" data-partner="' + i + '" style="margin:2px;' + (trade.partner === i ? 'background:#e0457b' : '') + '">' + G.players[i].dot + ' ' + G.players[i].name + '</button>';
+        h += '<div class="grp">You give</div><select id="tGive">' + opts(have, trade.give) + '</select><select id="tGiveN">' + nums(Math.min(10, me.res[trade.give]), trade.giveN) + '</select>';
+        h += '<div class="grp">You get</div><select id="tGet">' + opts(Object.keys(RES), trade.get) + '</select><select id="tGetN">' + nums(10, trade.getN) + '</select>';
+        h += '<div class="tip" style="margin-top:8px">Rulers like fair trades: give at least as much as you ask for.</div>';
+        h += '<div style="margin-top:10px"><button class="btn go" data-trade="offer">🤝 Offer trade</button></div>';
+      }
+    }
+    if (trade.msg) h += '<div class="card" style="margin-top:10px">' + trade.msg + '</div>';
+    $('tradeBody').innerHTML = h;
+  }
+  function offerTrade() {
+    var me = G.players[0], bot = G.players[trade.partner];
+    if (trade.give === trade.get) { trade.msg = 'Pick two different resources!'; return; }
+    if ((me.res[trade.give] || 0) < trade.giveN) { trade.msg = "You don't have that many!"; return; }
+    var yes = (bot.res[trade.get] || 0) >= trade.getN && (trade.giveN > trade.getN || (trade.giveN === trade.getN && Math.random() < 0.9));
+    if (yes) {
+      me.res[trade.give] -= trade.giveN; bot.res[trade.give] = (bot.res[trade.give] || 0) + trade.giveN;
+      bot.res[trade.get] -= trade.getN; me.res[trade.get] = (me.res[trade.get] || 0) + trade.getN;
+      trade.msg = '✅ ' + bot.name + ' said yes! You gave ' + trade.giveN + RES[trade.give] + ' and got ' + trade.getN + RES[trade.get] + '.';
+      say('🔁 Trade with ' + bot.name + ': gave ' + trade.giveN + RES[trade.give] + ', got ' + trade.getN + RES[trade.get]);
+    } else trade.msg = '❌ ' + bot.name + ' said no thanks.';
+  }
+  function maybeOffer(pi) {                              // a bot sometimes offers YOU a trade
+    var P = G.players[pi], me = G.players[0];
+    if (Math.random() > 0.5) return false;
+    var mine = Object.keys(me.res).filter(function (k) { return me.res[k] > 0; });
+    var spare = Object.keys(P.res).filter(function (k) { return P.res[k] >= 2; });
+    if (!mine.length || !spare.length) return false;
+    var get = pick(mine), give = pick(spare.filter(function (k) { return k !== get; }));
+    if (!give) return false;
+    var n = 1 + Math.floor(Math.random() * Math.min(2, P.res[give], me.res[get]));
+    G.offer = { from: pi, give: { res: give, n: n }, get: { res: get, n: n } };
+    say('🔁 ' + P.name + ' wants to trade with you!'); return true;
+  }
+  function waitOffer(cb) { var ticks = 0; (function w() { if (!G.offer || ++ticks > 50) { G.offer = null; refresh(); cb(); } else later(w, 400); })(); }
+  function renderOffer() {
+    var o = G.offer, m = $('offerM');
+    if (!o) { m.classList.remove('on'); return; }
+    var P = G.players[o.from], can = (G.players[0].res[o.get.res] || 0) >= o.get.n;
+    $('offerBody').innerHTML = '<h2>🔁 Trade offer!</h2><div>' + P.dot + ' <b>' + P.name + '</b> will give you <b>' + o.give.n + ' ' + RES[o.give.res] + ' ' + o.give.res + '</b> if you give them <b>' + o.get.n + ' ' + RES[o.get.res] + ' ' + o.get.res + '</b>.</div>' +
+      (can ? '' : '<div class="need">You don\'t have enough ' + o.get.res + '.</div>') +
+      '<div style="margin-top:10px"><button class="btn go" data-offer="yes"' + (can ? '' : ' disabled') + '>✅ Accept</button> <button class="btn" data-offer="no">No thanks</button></div>';
+    m.classList.add('on');
+  }
+  $('offerBody').addEventListener('click', function (e) {
+    var a = e.target.dataset && e.target.dataset.offer, o = G && G.offer; if (!a || !o) return;
+    var me = G.players[0], P = G.players[o.from];
+    if (a === 'yes' && (me.res[o.get.res] || 0) >= o.get.n) {
+      me.res[o.get.res] -= o.get.n; P.res[o.get.res] = (P.res[o.get.res] || 0) + o.get.n;
+      P.res[o.give.res] -= o.give.n; me.res[o.give.res] = (me.res[o.give.res] || 0) + o.give.n;
+      say('🔁 You traded with ' + P.name + ': got ' + o.give.n + RES[o.give.res] + ', gave ' + o.get.n + RES[o.get.res]);
+    } else say('🔁 You said no thanks to ' + P.name);
+    G.offer = null; refresh();
+  });
+  $('tradeBtn').onclick = function () { $('tradeM').classList.add('on'); renderTrade(); };
+  $('tradeBody').addEventListener('change', function (e) {
+    var id = e.target.id;
+    if (id === 'tGive') trade.give = e.target.value;
+    if (id === 'tGiveN') trade.giveN = +e.target.value;
+    if (id === 'tGet') trade.get = e.target.value;
+    if (id === 'tGetN') trade.getN = +e.target.value;
+    trade.msg = ''; renderTrade();
+  });
+  $('tradeBody').addEventListener('click', function (e) {
+    var d = e.target.dataset || {};
+    if (d.partner) { trade.partner = +d.partner; trade.msg = ''; renderTrade(); }
+    if (d.trade === 'offer') { offerTrade(); refresh(); }
+  });
+
   // ----- buttons and clicks -----
   $('rollBtn').onclick = function () { if (G && G.turn === 0 && !G.rolled && !G.rolling) doRoll(0); };
   $('endBtn').onclick = function () { if (G && G.turn === 0 && G.rolled) endTurn(); };
   $('shopBtn').onclick = function () { $('shopM').classList.add('on'); renderShop(); };
   $('alliBtn').onclick = function () { $('alliM').classList.add('on'); renderAlli(); };
   document.querySelectorAll('[data-close]').forEach(function (b) { b.onclick = function () { $(b.dataset.close).classList.remove('on'); pendingUse = null; }; });
-  ['shopM', 'alliM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
+  ['shopM', 'alliM', 'tradeM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
   $('shopBody').addEventListener('click', function (e) {
     var t = e.target; if (!t.dataset) return;
     if (t.dataset.tab) { shopTab = t.dataset.tab; pendingUse = null; renderShop(); return; }
