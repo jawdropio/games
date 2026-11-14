@@ -37,7 +37,7 @@
 </head>
 <body>
 <div id="zoom"><div id="board"></div></div>
-<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Back to the start view">⌂</button></div>
+<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
 <div class="bar" id="right">
   <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="confirm" disabled>✔ Confirm</button><button class="btn" id="cancel" disabled>✖ Cancel</button><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
   <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
@@ -295,10 +295,7 @@
   addEventListener('wheel', function (e) { e.preventDefault(); zoomAt(e.clientX, e.clientY, zs * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }, { passive: false });
   document.getElementById('zin').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, zs * 1.4); };
   document.getElementById('zout').onclick = function () { zoomAt(innerWidth / 2, innerHeight / 2, zs / 1.4); };
-  var START_ZOOM = 1.3;                    // how zoomed in the board starts (1 = everything fits)
-  function homeView() { zs = START_ZOOM; zx = innerWidth * (1 - zs) / 2; zy = innerHeight * (1 - zs) / 2; zApply(); }
-  document.getElementById('zfit').onclick = homeView;
-  homeView();
+  document.getElementById('zfit').onclick = function () { zs = 1; zx = zy = 0; zApply(); };
   var fingers = {}, pinchDist = 0;
   addEventListener('pointerdown', function (e) {
     if (e.target.closest && e.target.closest('.bar, #pause')) return;
