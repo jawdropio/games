@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duneshade PNG</title>
+<style>
+  body { margin:0; padding:20px; background:#2a7bad; color:#fff; font-family:system-ui, sans-serif; text-align:center; }
+  a.btn, button { display:inline-block; margin:8px; padding:12px 20px; border-radius:12px; border:2px solid rgba(255,255,255,.5); background:#1f9d55; color:#fff; font:700 18px system-ui, sans-serif; text-decoration:none; cursor:pointer; }
+  img { max-width:100%; background:repeating-conic-gradient(#ddd 0 25%, #fff 0 50%) 0 0 / 24px 24px; border-radius:12px; }
+</style>
+</head>
+<body>
+<h1>🏜️ Duneshade PNG</h1>
+<p>The see-through background is the checkerboard. Press the button to save it!</p>
+<a class="btn" id="dl" download="duneshade.png" href="#">⬇ Download duneshade.png</a>
+<br><img id="out" alt="Duneshade">
+<script>
+(function () {
+  var img = new Image();
+  img.onload = function () {
+    var c = document.createElement('canvas'); c.width = 2800; c.height = 1600;   // big and sharp
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    c.toBlob(function (b) {
+      var url = URL.createObjectURL(b);
+      document.getElementById('out').src = url; document.getElementById('dl').href = url;
+    }, 'image/png');
+  };
+  img.src = 'assets/duneshade.svg';
+})();
+</script>
+</body>
+</html>
