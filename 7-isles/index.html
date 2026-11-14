@@ -70,6 +70,20 @@
   #resbar b { color:#ffe27a; }
   .chip.picked { background:#2d7a46; }
   .mbox select { font:600 15px system-ui, sans-serif; padding:4px 6px; border-radius:8px; margin-right:6px; }
+  #banner { position:fixed; top:56px; left:50%; transform:translateX(-50%); z-index:5; padding:6px 22px; font:800 18px system-ui, sans-serif; border-radius:99px; border:3px solid transparent; pointer-events:none; display:none; color:#fff; }
+  #banner.mine { background:#1f9d55; }
+  #banner.other { background:rgba(18,11,46,.92); }
+  #frame { position:fixed; inset:0; border:6px solid transparent; pointer-events:none; z-index:4; display:none; box-sizing:border-box; transition:border-color .3s; }
+  #turnbar.mine { border-color:#1f9d55; }
+  #resbar { cursor:pointer; }
+  .invgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:4px 0 6px; }
+  .mbox .invgrid { grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); }
+  .inv { background:rgba(255,255,255,.1); border-radius:10px; text-align:center; padding:4px 2px; }
+  .inv .e { font-size:22px; display:block; line-height:1.1; }
+  .inv b { font-size:16px; }
+  .inv small { display:block; font-size:10px; opacity:.8; }
+  .mbox .inv .e { font-size:32px; } .mbox .inv b { font-size:20px; } .mbox .inv small { font-size:12px; }
+  .invh { font-size:12px; opacity:.75; margin-top:4px; }
   .crown { position:absolute; left:50%; top:0; transform:translate(-50%,-55%); font-size:max(18px,3.4vmin); line-height:1; pointer-events:none; display:none; }
   .crown.on { display:block; }
   .crown.me { font-size:max(26px,4.6vmin); animation:bob 1.4s ease-in-out infinite; }
@@ -109,7 +123,9 @@
   <button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
 <div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
 <div class="ui" id="hud"></div>
-<div class="ui" id="resbar"></div>
+<div class="ui" id="resbar" title="Open your inventory"></div>
+<div id="banner"></div>
+<div id="frame"></div>
 <div class="ui" id="info"></div>
 <div class="ui" id="turnbar">
   <div id="hint"></div>
@@ -127,6 +143,7 @@
 </div>
 <div class="ui modal" id="shopM"><div class="mbox"><button class="btn mclose" data-close="shopM">✖</button><div id="shopBody"></div></div></div>
 <div class="ui modal" id="sumM"><div class="mbox" style="text-align:center"><div id="sumBody"></div><button class="btn go" id="sumOk" style="margin-top:12px;font-size:18px">Let's play! 👑</button></div></div>
+<div class="ui modal" id="invM"><div class="mbox"><button class="btn mclose" data-close="invM">✖</button><div id="invBody"></div></div></div>
 <div class="ui modal" id="tradeM"><div class="mbox"><button class="btn mclose" data-close="tradeM">✖</button><div id="tradeBody"></div></div></div>
 <div class="ui modal" id="offerM"><div class="mbox"><div id="offerBody"></div></div></div>
 <div class="ui modal" id="alliM"><div class="mbox"><button class="btn mclose" data-close="alliM">✖</button><div id="alliBody"></div></div></div>
@@ -467,7 +484,7 @@
     G.players.forEach(function (p, i) { if (i > 0) G.capital[i] = pick(ownedBy(i)); });
     G.isl.Duneshade = { owner: -1, hp: ISL.Duneshade.hp, drought: 0, people: 0, housing: 0 };
     $('start').classList.remove('on');
-    ['hud', 'turnbar', 'resbar'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
+    ['hud', 'turnbar', 'resbar', 'banner', 'frame'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
     say('👑 You own ' + ownedBy(0).length + ' island' + (ownedBy(0).length > 1 ? 's' : '') + ': ' + ownedBy(0).join(', ') + '. Pick your capital!');
     refresh();
     // show who got which islands, so it is clear
@@ -602,15 +619,25 @@
     if (!G) return;
     renderHud(); renderResbar(); renderTurn(); renderLabels(); renderInfo();
     renderOffer();
+    if ($('invM').classList.contains('on')) renderInv();
     if ($('tradeM').classList.contains('on')) renderTrade();
     if ($('shopM').classList.contains('on')) renderShop();
     if ($('alliM').classList.contains('on')) renderAlli();
   }
-  var hudOpen = { r: true, a: true, l: false };
+  var hudOpen = { r: true, i: true, a: true, l: false };
+  function invHtml() {
+    var me = G.players[0], h = '', rs = Object.keys(RES).filter(function (k) { return me.res[k] > 0; }), is = Object.keys(me.items).filter(function (k) { return me.items[k] > 0; });
+    h += '<div class="invh">Resources</div>';
+    h += rs.length ? '<div class="invgrid">' + rs.map(function (k) { return '<div class="inv"><span class="e">' + RES[k] + '</span><b>' + me.res[k] + '</b><small>' + k + '</small></div>'; }).join('') + '</div>' : '<div>Nothing yet. Roll the dice!</div>';
+    h += '<div class="invh">Items you made</div>';
+    h += is.length ? '<div class="invgrid">' + is.map(function (k) { return '<div class="inv"><span class="e">' + recipe(k).icon + '</span><b>' + me.items[k] + '</b><small>' + k + '</small></div>'; }).join('') + '</div>' : '<div>Nothing yet. Craft in the 🛒 Shop!</div>';
+    return h;
+  }
+  function renderInv() { $('invBody').innerHTML = '<h2>🎒 Your inventory</h2>' + invHtml(); }
   function renderResbar() {
-    var me = G.players[0], total = 0, chips = [];
-    Object.keys(RES).forEach(function (k) { var n = me.res[k] || 0; if (n) { total += n; chips.push(RES[k] + ' ' + k + ' <b>' + n + '</b>'); } });
-    $('resbar').innerHTML = '🎒 <b>Your resources: ' + total + '</b>' + (chips.length ? ' &nbsp;·&nbsp; ' + chips.join(' &nbsp; ') : ' — none yet, roll the dice!');
+    var me = G.players[0], total = 0, items = 0;
+    Object.keys(me.res).forEach(function (k) { total += me.res[k] || 0; }); Object.keys(me.items).forEach(function (k) { items += me.items[k] || 0; });
+    $('resbar').innerHTML = '🎒 <b>Inventory</b> · ' + total + ' resources · ' + items + ' items';
   }
   function renderHud() {
     var h = '<details data-k="r"' + (hudOpen.r ? ' open' : '') + '><summary>Rulers</summary>';
@@ -618,7 +645,7 @@
       var inAlly = G.ally && G.ally.members.indexOf(i) >= 0;
       h += '<div class="prow' + (G.turn === i ? ' turn' : '') + '">' + (G.turn === i ? '▶' : '&nbsp;') + p.dot + ' ' + p.name + ' <span style="margin-left:auto">🏝️' + ownedBy(i).length + (inAlly ? (G.ally.leader === i ? ' 👑' : ' 🤝') : '') + '</span></div>';
     });
-    h += '</details><details data-k="a"' + (hudOpen.a ? ' open' : '') + '><summary>Your alliance</summary>';
+    h += '</details><details data-k="i"' + (hudOpen.i ? ' open' : '') + '><summary>🎒 Your inventory</summary>' + invHtml() + '</details><details data-k="a"' + (hudOpen.a ? ' open' : '') + '><summary>Your alliance</summary>';
     if (G.ally && G.ally.members.indexOf(0) >= 0) {
       h += '<div>👑 Leader: ' + G.players[G.ally.leader].dot + ' ' + G.players[G.ally.leader].name + '</div><div>Members: ' + G.ally.members.map(function (m) { return G.players[m].dot; }).join(' ') + '</div><div>Income: <b>×' + G.ally.members.length + '</b></div>';
     } else h += '<div>' + (G.ally ? 'Other rulers have an alliance.' : G.allyUsed ? 'Your alliance ended.' : 'None yet. Press 🤝 Alliances!') + '</div>';
@@ -634,6 +661,11 @@
     $('endBtn').disabled = !(mine && G.rolled);
     $('shopBtn').disabled = G.choosing; $('alliBtn').disabled = G.choosing; $('tradeBtn').disabled = G.choosing;
     $('rollBtn').classList.toggle('go', !$('rollBtn').disabled); $('endBtn').classList.toggle('go', !$('endBtn').disabled);
+    var bn = $('banner'); bn.className = mine ? 'mine' : 'other';
+    bn.textContent = G.choosing ? '👑 Pick your capital!' : (mine ? '✅ YOUR TURN!' : P.dot + ' ' + P.name + "'s turn");
+    bn.style.borderColor = mine ? '#7dffa8' : P.color;
+    $('frame').style.borderColor = mine && !G.choosing ? '#1f9d55' : 'transparent';
+    $('turnbar').classList.toggle('mine', mine); $('who').style.color = mine ? '#7dffa8' : '#fff';
     $('hint').textContent = G.choosing ? '👑 Choose your capital: click one of your glowing 🔵 islands!' : !mine ? '⏳ ' + P.name + ' is taking a turn…' : (G.rolling ? '🎲 Rolling…' : (!G.rolled ? '👉 Step 1: roll the dice!' : '👉 Step 2: craft in the Shop, make an alliance, or end your turn.'));
   }
   function renderLabels() {
@@ -786,6 +818,7 @@
     } else say('🔁 You said no thanks to ' + P.name);
     G.offer = null; refresh();
   });
+  $('resbar').onclick = function () { $('invM').classList.add('on'); renderInv(); };
   $('tradeBtn').onclick = function () { $('tradeM').classList.add('on'); renderTrade(); };
   $('tradeBody').addEventListener('change', function (e) {
     var id = e.target.id;
@@ -807,7 +840,7 @@
   $('shopBtn').onclick = function () { $('shopM').classList.add('on'); renderShop(); };
   $('alliBtn').onclick = function () { $('alliM').classList.add('on'); renderAlli(); };
   document.querySelectorAll('[data-close]').forEach(function (b) { b.onclick = function () { $(b.dataset.close).classList.remove('on'); pendingUse = null; }; });
-  ['shopM', 'alliM', 'tradeM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
+  ['shopM', 'alliM', 'tradeM', 'invM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
   $('shopBody').addEventListener('click', function (e) {
     var t = e.target; if (!t.dataset) return;
     if (t.dataset.tab) { shopTab = t.dataset.tab; pendingUse = null; renderShop(); return; }
