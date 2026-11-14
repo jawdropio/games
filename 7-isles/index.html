@@ -94,6 +94,8 @@
   #dock .seav { background:rgba(255,255,255,.1); border-radius:8px; padding:5px 7px; margin-top:4px; }
   body:not(.play) #hudBtn { display:none; }
   body.nohud #hud { display:none !important; }
+  .spot.pickme canvas { filter:drop-shadow(0 0 1.4vmin #ffd84a) drop-shadow(0 0 .6vmin #fff); }
+  .spot.pickme:not(.pic) { border-color:#ffd84a; border-style:solid; }
   .crown { position:absolute; left:50%; top:0; transform:translate(-50%,-55%); font-size:max(18px,3.4vmin); line-height:1; pointer-events:none; display:none; }
   .crown.on { display:block; }
   .crown.me { font-size:max(26px,4.6vmin); animation:bob 1.4s ease-in-out infinite; }
@@ -531,21 +533,15 @@
 
   // ----- starting a game -----
   function startGame(n) {
-    G = { n: n, voyages: [], vid: 0, players: [], isl: {}, turn: 0, rolled: false, rolling: false, choosing: true, capital: [], dice: [0, 0], log: [], ally: null, allyUsed: false };
+    G = { n: n, voyages: [], vid: 0, players: [], isl: {}, turn: 0, rolled: false, rolling: false, choosing: false, phase: 'rolloff', capital: [], pickList: [], pickIdx: 0, seat: 0, startIsland: null, dice: [0, 0], log: [], ally: null, allyUsed: false };
     for (var i = 0; i < n; i++) G.players.push({ name: NAMES[i], dot: DOTS[i], color: COLORS[i], bot: i > 0, res: {}, items: {}, robberUses: 0 });
-    var order = shuffle(NORMAL.slice()), per = NORMAL.length / n;
-    order.forEach(function (nm, k) { G.isl[nm] = { owner: Math.floor(k / per), hp: ISL[nm].hp, drought: 0, people: 0, housing: 0, focus: Object.keys(ISL[nm].spaces)[0] }; });
-    G.players.forEach(function (p, i) { if (i > 0) G.capital[i] = pick(ownedBy(i)); });
+    NORMAL.forEach(function (nm) { G.isl[nm] = { owner: -1, seat: -1, hp: ISL[nm].hp, drought: 0, people: 0, housing: 0, focus: Object.keys(ISL[nm].spaces)[0] }; });
     G.isl.Duneshade = { owner: -1, hp: ISL.Duneshade.hp, drought: 0, people: 0, housing: 0 };
     $('start').classList.remove('on');
     ['hud', 'turnbar', 'resbar', 'banner', 'frame'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
-    say('👑 You own ' + ownedBy(0).length + ' island' + (ownedBy(0).length > 1 ? 's' : '') + ': ' + ownedBy(0).join(', ') + '. Pick your capital!');
+    say('🎲 Everyone rolls! The highest number picks an island first.');
     refresh();
-    // show who got which islands, so it is clear
-    var t = '<h2>🏝️ Who owns what</h2>';
-    G.players.forEach(function (p, i) { t += '<div style="margin:6px 0;font-size:16px">' + p.dot + ' <b>' + p.name + '</b> (' + ownedBy(i).length + '): ' + ownedBy(i).map(function (nm) { return ISL[nm].icon + ' ' + nm; }).join(', ') + '</div>'; });
-    t += '<div style="margin-top:8px">🏜️ Duneshade: nobody yet. Capture it to win!</div>';
-    $('sumBody').innerHTML = t; $('sumM').classList.add('on');
+    startRollOff();
   }
   $('sumOk').onclick = function () { $('sumM').classList.remove('on'); startRollOff(); };
 
@@ -554,7 +550,7 @@
   function roSum(i) { return RO.vals[i][0] + RO.vals[i][1]; }
   function startRollOff() { RO = { tied: G.players.map(function (p, i) { return i; }), vals: {}, done: false, rolling: false, msg: '', winner: 0 }; renderRollOff(); $('rollM').classList.add('on'); }
   function renderRollOff() {
-    var h = '<h2>🎲 Who goes first?</h2><div>Everyone rolls two dice. The <b>highest number</b> picks first and plays first!</div><div style="margin:10px 0">';
+    var h = '<h2>🎲 Who goes first?</h2><div>Everyone rolls two dice. The <b>highest number</b> picks an island first!</div><div style="margin:10px 0">';
     G.players.forEach(function (p, i) {
       var v = RO.vals[i];
       h += '<div style="font-size:18px;margin:4px 0;opacity:' + (RO.tied.indexOf(i) >= 0 || RO.done ? 1 : 0.5) + '">' + p.dot + ' <b>' + p.name + '</b> ' + (v ? DICE[v[0] - 1] + DICE[v[1] - 1] + ' = <b>' + (v[0] + v[1]) + '</b>' : '—') + (RO.done && RO.winner === i ? ' 🏆' : '') + '</div>';
@@ -572,18 +568,14 @@
         var best = 0; RO.tied.forEach(function (i) { best = Math.max(best, roSum(i)); });
         var w = RO.tied.filter(function (i) { return roSum(i) === best; });
         if (w.length > 1) { RO.tied = w; RO.msg = '🤝 Tie between ' + w.map(function (i) { return G.players[i].name; }).join(' and ') + '! Roll again.'; }
-        else { RO.winner = w[0]; RO.done = true; RO.msg = '🏆 <b>' + G.players[w[0]].name + '</b> rolled the highest' + (w[0] === 0 ? ' — you pick first and play first!' : ' and goes first!'); }
+        else { RO.winner = w[0]; RO.done = true; RO.msg = '🏆 <b>' + G.players[w[0]].name + '</b> rolled the highest' + (w[0] === 0 ? ' — you pick your island first!' : ' picks an island first!'); }
       }
       renderRollOff();
     }, 80);
   }
   $('rollBody').addEventListener('click', function (e) {
     if (e.target.id === 'roGo') rollTied();
-    if (e.target.id === 'roNext') {
-      $('rollM').classList.remove('on'); G.turn = RO.winner; G.rolled = false;
-      say('🏆 ' + (G.turn === 0 ? 'You go' : G.players[G.turn].name + ' goes') + ' first!'); refresh();
-      if (G.players[G.turn].bot) later(botTurn, 900);
-    }
+    if (e.target.id === 'roNext') startDraft();
   });
   document.querySelectorAll('[data-players]').forEach(function (b) { b.onclick = function () { startGame(+b.dataset.players); }; });
 
@@ -639,11 +631,53 @@
     if (pi === 0) say(r.icon + ' ' + itemName + ' built on ' + island + ' — ' + r.cap + ' more ' + (r.cap > 1 ? 'people' : 'person') + ' moved in!');
   }
 
+  // ----- picking islands, then turns go clockwise from island to island -----
+  var SEATS = ['Goldenfield', 'Bluewater', 'Wildheart', 'Timberroot', 'Ironhold', 'Skyreach'];   // the order around the board, clockwise
+  function startDraft() {
+    $('rollM').classList.remove('on');
+    var order = G.players.map(function (p, i) { return i; }).sort(function (x, y) { return (y === RO.winner) - (x === RO.winner) || roSum(y) - roSum(x) || x - y; });
+    var per = NORMAL.length / G.n; G.pickList = [];
+    for (var r = 0; r < per; r++) order.forEach(function (p) { G.pickList.push(p); });
+    G.pickIdx = 0; G.phase = 'draft'; G.startIsland = null;
+    say('🏝️ Pick your islands! Order: ' + order.map(function (i) { return G.players[i].dot; }).join(' → '));
+    nextPick();
+  }
+  function nextPick() {
+    if (G.pickIdx >= G.pickList.length) { finishDraft(); return; }
+    refresh();
+    var p = G.pickList[G.pickIdx];
+    if (G.players[p].bot) later(function () { botPick(p); }, 900);
+  }
+  function claim(pi, nm) {
+    G.isl[nm].owner = G.isl[nm].seat = pi; if (!G.startIsland) G.startIsland = nm;
+    say('🏝️ ' + (pi === 0 ? 'You chose ' : G.players[pi].name + ' chose ') + nm + '!');
+    G.pickIdx++; refresh(); later(nextPick, 400);
+  }
+  function botPick(p) {                                    // bots like islands next to their own (that means rolling twice in a row!)
+    var free = NORMAL.filter(function (nm) { return G.isl[nm].owner < 0; });
+    if (!free.length) { nextPick(); return; }
+    var near = free.filter(function (nm) { var i = SEATS.indexOf(nm); return [1, SEATS.length - 1].some(function (d) { return G.isl[SEATS[(i + d) % SEATS.length]].seat === p; }); });
+    claim(p, near.length && Math.random() < 0.7 ? pick(near) : pick(free));
+  }
+  function finishDraft() {
+    G.players.forEach(function (p, i) { if (i > 0) G.capital[i] = pick(ownedBy(i)); });
+    G.phase = 'capital'; G.choosing = true; say('👑 Now pick your capital: click one of your islands!'); refresh();
+  }
+  function beginPlay() {
+    G.phase = 'play'; G.choosing = false; G.seat = SEATS.indexOf(G.startIsland); G.turn = G.isl[SEATS[G.seat]].seat; G.rolled = false;
+    say('▶️ ' + (G.turn === 0 ? 'You start' : G.players[G.turn].name + ' starts') + ' on ' + SEATS[G.seat] + '. Turns go clockwise, island by island!');
+    refresh(); if (G.players[G.turn].bot) later(botTurn, 900);
+  }
+  function nextSeat() {
+    for (var k = 1; k <= SEATS.length; k++) { var i = (G.seat + k) % SEATS.length; if (G.isl[SEATS[i]].seat >= 0) { G.seat = i; return; } }
+  }
+
   // ----- turns and bots -----
   function endTurn() {
-    G.turn = (G.turn + 1) % G.n; G.rolled = false; pendingUse = null; G.offer = null;
+    var prev = G.turn; nextSeat(); G.turn = G.isl[SEATS[G.seat]].seat; G.rolled = false; pendingUse = null; G.offer = null;
     deliverVoyages(G.turn);                      // boats that were at sea arrive on their sender's turn
-    if (G.turn === 0) say('➡️ Your turn!');
+    if (G.turn === prev) say('🎲 ' + (G.turn === 0 ? 'You roll' : G.players[G.turn].name + ' rolls') + ' again, because their islands are side by side!');
+    else if (G.turn === 0) say('➡️ Your turn!');
     refresh();
     if (G.players[G.turn].bot) later(botTurn, 900);
   }
@@ -765,29 +799,31 @@
     $('hud').querySelectorAll('details').forEach(function (d) { d.ontoggle = function () { hudOpen[d.dataset.k] = d.open; }; });
   }
   function renderTurn() {
-    var mine = G.turn === 0, P = G.players[G.turn];
+    var mine = G.turn === 0, P = G.players[G.turn], setup = G.phase !== 'play';
     $('who').textContent = mine ? '🔵 Your turn' : P.dot + ' ' + P.name + ' is playing…';
     showDice();
-    $('rollBtn').disabled = !(mine && !G.rolled && !G.rolling && !G.choosing);
+    $('rollBtn').disabled = !(mine && !G.rolled && !G.rolling && !setup);
     $('endBtn').disabled = !(mine && G.rolled);
-    $('shopBtn').disabled = G.choosing; $('alliBtn').disabled = G.choosing; $('tradeBtn').disabled = G.choosing;
+    $('shopBtn').disabled = setup; $('alliBtn').disabled = setup; $('tradeBtn').disabled = setup;
     $('rollBtn').classList.toggle('go', !$('rollBtn').disabled); $('endBtn').classList.toggle('go', !$('endBtn').disabled);
     var bn = $('banner'); bn.className = mine ? 'mine' : 'other';
-    bn.textContent = G.choosing ? '👑 Pick your capital!' : (mine ? '✅ YOUR TURN!' : P.dot + ' ' + P.name + "'s turn");
+    bn.textContent = G.phase === 'draft' ? (G.pickList[G.pickIdx] === 0 ? '👆 Pick your island!' : (G.players[G.pickList[G.pickIdx]] || G.players[0]).dot + ' is picking…') : setup ? (G.choosing ? '👑 Pick your capital!' : '🎲 Getting ready…') : (mine ? '✅ YOUR TURN!' : P.dot + ' ' + P.name + "'s turn");
     bn.style.borderColor = mine ? '#7dffa8' : P.color;
-    $('frame').style.borderColor = mine && !G.choosing ? '#1f9d55' : 'transparent';
+    $('frame').style.borderColor = mine && !setup ? '#1f9d55' : 'transparent';
     $('turnbar').classList.toggle('mine', mine); $('who').style.color = mine ? '#7dffa8' : '#fff';
-    $('hint').textContent = G.choosing ? '👑 Choose your capital: click one of your glowing 🔵 islands!' : !mine ? '⏳ ' + P.name + ' is taking a turn…' : (G.rolling ? '🎲 Rolling…' : (!G.rolled ? '👉 Step 1: roll the dice!' : '👉 Step 2: craft in the Shop, make an alliance, or end your turn.'));
+    $('hint').textContent = G.phase === 'rolloff' ? '🎲 Roll to see who picks first!' : G.phase === 'draft' ? (G.pickList[G.pickIdx] === 0 ? '👆 Your pick! Click a glowing island to claim it.' : '⏳ ' + (G.players[G.pickList[G.pickIdx]] || G.players[0]).name + ' is picking an island…') : G.choosing ? '👑 Choose your capital: click one of your islands!' : !mine ? '⏳ ' + P.name + ' is taking a turn…' : (G.rolling ? '🎲 Rolling…' : (!G.rolled ? '👉 Step 1: roll the dice!' : '👉 Step 2: craft in the Shop, make an alliance, or end your turn.'));
   }
   function renderLabels() {
     document.querySelectorAll('.spot').forEach(function (s) {
       var nm = s.dataset.name, I = G.isl[nm]; if (!I) return;
       var l = s.querySelector('.lbl'); if (!l) { l = document.createElement('div'); l.className = 'lbl'; s.appendChild(l); }
-      l.textContent = (I.owner >= 0 ? G.players[I.owner].dot + ' ' : '⚪ ') + nm + (I.drought ? ' ☀️' : '');
+      var pickable = G.phase === 'draft' && G.pickList[G.pickIdx] === 0 && I.owner < 0 && NORMAL.indexOf(nm) >= 0;
+      l.textContent = (pickable ? '👆 ' : (G.phase === 'play' && SEATS[G.seat] === nm ? '▶ ' : '')) + (I.owner >= 0 ? G.players[I.owner].dot + ' ' : '⚪ ') + nm + (I.drought ? ' ☀️' : '');
+      s.classList.toggle('pickme', pickable);
       s.style.setProperty('--own', I.owner >= 0 ? G.players[I.owner].color : ''); if (I.owner < 0) s.style.removeProperty('--own');
       s.classList.toggle('sel', selected === nm);
       var cr = s.querySelector('.crown'); if (!cr) { cr = document.createElement('div'); cr.className = 'crown'; cr.textContent = '👑'; s.appendChild(cr); }
-      var who = G.capital.indexOf(nm), show = who === 0 && !G.choosing;   // only YOUR capital shows a crown
+      var who = G.capital.indexOf(nm), show = who === 0 && G.phase === 'play';   // only YOUR capital shows a crown
       cr.classList.toggle('on', show); cr.classList.toggle('me', who === 0); s.classList.toggle('cap', show);
       if (show) cr.style.filter = 'drop-shadow(0 0 5px ' + G.players[who].color + ') drop-shadow(0 0 2px #000)';
     });
@@ -1117,7 +1153,8 @@
     var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
     if (moved > 6 || (e.target.closest && e.target.closest('.ui, .bar, #pause'))) return;
     var nm = islandAt(e.clientX, e.clientY);
-    if (G.choosing && nm && G.isl[nm] && G.isl[nm].owner === 0) { G.capital[0] = nm; G.choosing = false; say('👑 ' + nm + ' is your capital!'); }
+    if (G.phase === 'draft' && G.pickList[G.pickIdx] === 0 && nm && G.isl[nm] && NORMAL.indexOf(nm) >= 0 && G.isl[nm].owner < 0) { claim(0, nm); return; }
+    if (G.choosing && nm && G.isl[nm] && G.isl[nm].owner === 0) { G.capital[0] = nm; say('👑 ' + nm + ' is your capital!'); beginPlay(); return; }
     selected = nm; refresh();
   });
 })();
