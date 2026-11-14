@@ -51,7 +51,9 @@
       heal: [[65,49,12,7], [72.5,61.8,10.5,6.2]],                                                // writing on the grass
       erase: [[-2,92,104,10], [-2,78,38,15], [83,25.5,12,7], [88.5,75,9,15]] },                    // writing, banner, compass in the water
     { name: 'Timberroot',  icon: '🌲' },
-    { name: 'Ironhold',    icon: '⛰️' },
+    { name: 'Ironhold',    icon: '⛰️', pic: 'assets/gemini_generated_image-5-.jpeg', kind: 'gray', fill: true, key: 'Ironhold-2',
+      heal: [[57.2, 62.9, 11, 8.1, 'warm']],                      // the words on the big sign
+      erase: [[0, 0, 43, 9.3], [71, 0, 30, 9.3]] },               // faraway hills on both sides of the peak
     { name: 'Skyreach',    icon: '☁️' },
     { name: 'Duneshade',   icon: '🏜️', sand: true }
   ];
@@ -70,7 +72,7 @@
       for (y = 0; y < rh; y++) for (x = 0; x < rw; x++) {
         o = ((y0 + y) * w + x0 + x) * 4;
         var lo = Math.min(px[o], px[o + 1], px[o + 2]), hi = Math.max(px[o], px[o + 1], px[o + 2]);
-        if (lo > 185 || hi < 70) m[y * rw + x] = 1;       // white letters and their dark outlines
+        if (e[4] === 'warm' ? (px[o] - px[o + 2] > 30) : (lo > 185 || hi < 70)) m[y * rw + x] = 1;   // letters (white with dark outlines, or orange-ish on a sign)
       }
       for (y = 0; y < rh; y++) for (x = 0; x < rw; x++) if (m[y * rw + x])
         for (dy = -2; dy <= 2; dy++) for (dx = -2; dx <= 2; dx++) {
@@ -90,11 +92,41 @@
       if (isl.kind === 'teal') {                         // bright turquoise sea
         blue = Math.min((b - r - 40) / 30, (Math.max(gr, b) - 135) / 25);
         if ((i / 4 / w) < h * 0.24) blue = Math.max(blue, Math.min((b - r - 8) / 20, (Math.max(gr, b) - 150) / 20));   // pale hazy sea near the horizon
+      } else if (isl.kind === 'gray') {                  // dull grey-blue sea
+        blue = (gr > b + 2) ? 0 : (b - r - 22) / 10;
       } else {                                           // deep blue sea
         blue = (b - r - 25) / 30;
         if (gr > b + 3) blue = 0;                        // greens and yellows are land
       }
       px[i + 3] = 255 * (1 - Math.max(0, Math.min(1, blue)));
+    }
+    // "fill": only the sea that touches the edge of the picture goes away, so nothing inside the island can turn see-through
+    if (isl.fill) {
+      var N = w * h, reach = new Uint8Array(N), st = new Int32Array(N), top = 0, p0, q, it;
+      var seaLike = function (pp, t) { var oo = pp * 4; return px[oo + 2] - px[oo] >= t && px[oo + 1] <= px[oo + 2] + 2; };
+      var push = function (pp) { reach[pp] = 1; st[top++] = pp; };
+      for (p0 = 0; p0 < N; p0++) {
+        var ex = p0 % w, ey = (p0 / w) | 0;
+        if ((ex === 0 || ey === 0 || ex === w - 1 || ey === h - 1) && seaLike(p0, 22)) push(p0);
+      }
+      while (top) {
+        p0 = st[--top]; var sx = p0 % w, sy = (p0 / w) | 0;
+        if (sx > 0     && !reach[q = p0 - 1] && seaLike(q, 22)) push(q);
+        if (sx < w - 1 && !reach[q = p0 + 1] && seaLike(q, 22)) push(q);
+        if (sy > 0     && !reach[q = p0 - w] && seaLike(q, 22)) push(q);
+        if (sy < h - 1 && !reach[q = p0 + w] && seaLike(q, 22)) push(q);
+      }
+      for (it = 0; it < 2; it++) {                       // eat the thin blurry edge of the sea too
+        var add = [];
+        for (p0 = 0; p0 < N; p0++) {
+          if (reach[p0] || !seaLike(p0, 8)) continue;
+          var tx2 = p0 % w, ty2 = (p0 / w) | 0;
+          if ((tx2 > 0 && reach[p0 - 1]) || (tx2 < w - 1 && reach[p0 + 1]) || (ty2 > 0 && reach[p0 - w]) || (ty2 < h - 1 && reach[p0 + w])) add.push(p0);
+        }
+        for (q = 0; q < add.length; q++) reach[add[q]] = 1;
+      }
+      var reached = 0; for (p0 = 0; p0 < N; p0++) reached += reach[p0];
+      if (reached < N * 0.78) for (p0 = 0; p0 < N; p0++) px[p0 * 4 + 3] = reach[p0] ? 0 : 255;   // (if it ate almost everything, keep the normal cut-out)
     }
     isl.erase.forEach(function (e) {
       var x0 = Math.max(0, Math.round(e[0] * w / 100)), x1 = Math.min(w, Math.round((e[0] + e[2]) * w / 100));
@@ -127,7 +159,7 @@
     var base = document.createElement('canvas'); base.width = out.width; base.height = out.height;
     base.getContext('2d').drawImage(out, 0, 0);
     spot.appendChild(out);
-    registerEraser(isl.name, out, base, minX, minY);
+    registerEraser(isl.key || isl.name, out, base, minX, minY);
   }
 
   // ---- Eraser: rub out any spot of an island and the water shows through ----
