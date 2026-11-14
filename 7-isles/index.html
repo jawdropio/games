@@ -464,7 +464,7 @@
     G.isl.Duneshade = { owner: -1, hp: ISL.Duneshade.hp, drought: 0, people: 0, housing: 0 };
     $('start').classList.remove('on');
     ['hud', 'turnbar', 'resbar'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
-    say('👑 Pick your capital: click one of your islands!');
+    say('👑 You own ' + ownedBy(0).length + ' island' + (ownedBy(0).length > 1 ? 's' : '') + ': ' + ownedBy(0).join(', ') + '. Pick your capital!');
     refresh();
   }
   document.querySelectorAll('[data-players]').forEach(function (b) { b.onclick = function () { startGame(+b.dataset.players); }; });
@@ -825,6 +825,20 @@
   });
   $('info').addEventListener('click', function (e) { if (e.target.id === 'infoX') { selected = null; refresh(); } });
   $('info').addEventListener('change', function (e) { if (e.target.id === 'focusSel' && selected) { G.isl[selected].focus = e.target.value; } });
+  // Which island is under the mouse? Look at the real picture pixels, so see-through corners of a neighbour don't steal the click.
+  function islandAt(x, y) {
+    var spots = [].slice.call(document.querySelectorAll('.spot')).reverse();
+    for (var i = 0; i < spots.length; i++) {
+      var sp = spots[i], c = sp.querySelector('canvas'), r = (c || sp).getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom || !r.width || !r.height) continue;
+      if (!c) return sp.dataset.name;
+      try {
+        var a = c.getContext('2d').getImageData(Math.floor((x - r.left) / r.width * c.width), Math.floor((y - r.top) / r.height * c.height), 1, 1).data[3];
+        if (a > 25) return sp.dataset.name;
+      } catch (err) { return sp.dataset.name; }
+    }
+    return null;
+  }
   // click (not drag) on an island to see its info
   var down = null;
   addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
@@ -832,8 +846,7 @@
     if (!G || !down || (window.SI && window.SI.eraser())) return;
     var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
     if (moved > 6 || (e.target.closest && e.target.closest('.ui, .bar, #pause'))) return;
-    var s = e.target.closest && e.target.closest('.spot');
-    var nm = s ? s.dataset.name : null;
+    var nm = islandAt(e.clientX, e.clientY);
     if (G.choosing && nm && G.isl[nm] && G.isl[nm].owner === 0) { G.capital[0] = nm; G.choosing = false; say('👑 ' + nm + ' is your capital!'); }
     selected = nm; refresh();
   });
