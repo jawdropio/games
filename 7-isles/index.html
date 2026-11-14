@@ -60,8 +60,15 @@
   #hud details { margin-top:6px; }
   #hud summary { cursor:pointer; font-size:13px; color:#c9bfff; text-transform:uppercase; letter-spacing:.5px; font-weight:800; }
   #who { font-weight:800; }
-  .die { display:inline-block; font-size:44px; line-height:1; width:48px; text-align:center; }
-  #sum { font-size:20px; min-width:26px; text-align:center; }
+  .die { display:inline-block; font-size:30px; line-height:1; width:34px; text-align:center; }
+  #sum { font-size:16px; min-width:22px; text-align:center; }
+  #turnbar { padding:6px 10px; }
+  #turnbar .btn { padding:5px 10px; font-size:14px; }
+  #hint { font-size:13px !important; }
+  #turnbar.min .trow > *:not(#minBtn), #turnbar.min #hint { display:none; }
+  #resbar { top:12px; left:50%; transform:translateX(-50%); display:none; max-width:calc(100vw - 620px); min-width:140px; text-align:center; padding:6px 12px; font-size:14px; }
+  #resbar b { color:#ffe27a; }
+  .chip.picked { background:#2d7a46; }
   .btn:disabled { opacity:.4; cursor:default; }
   .modal { inset:0; background:rgba(0,0,0,.55); display:none; place-items:center; padding:0; border:0; border-radius:0; z-index:8; }
   .modal.on { display:grid; }
@@ -96,6 +103,7 @@
   <button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
 <div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
 <div class="ui" id="hud"></div>
+<div class="ui" id="resbar"></div>
 <div class="ui" id="info"></div>
 <div class="ui" id="turnbar">
   <div id="hint"></div>
@@ -107,6 +115,7 @@
     <span class="sep"></span>
     <button class="btn" id="shopBtn">🛒 Shop</button>
     <button class="btn" id="alliBtn">🤝 Alliances</button>
+    <button class="btn" id="minBtn" title="Hide or show this bar">▾</button>
   </div>
 </div>
 <div class="ui modal" id="shopM"><div class="mbox"><button class="btn mclose" data-close="shopM">✖</button><div id="shopBody"></div></div></div>
@@ -447,7 +456,7 @@
     order.forEach(function (nm, k) { G.isl[nm] = { owner: Math.floor(k / per), hp: ISL[nm].hp, drought: 0, people: 0, housing: 0, focus: Object.keys(ISL[nm].spaces)[0] }; });
     G.isl.Duneshade = { owner: -1, hp: ISL.Duneshade.hp, drought: 0, people: 0, housing: 0 };
     $('start').classList.remove('on');
-    ['hud', 'turnbar'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
+    ['hud', 'turnbar', 'resbar'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
     say('🏝️ The game begins! You start with ' + ownedBy(0).join(', ') + '.');
     refresh();
   }
@@ -553,6 +562,7 @@
   function formAlliance(pi, picks) {
     var yes = [], no = [];
     picks.forEach(function (i) { (Math.random() < 0.75 ? yes : no).push(i); });
+    G.allyResult = (yes.length ? '✅ Joined: ' + yes.map(function (i) { return G.players[i].dot + ' ' + G.players[i].name; }).join(', ') : '') + (no.length ? (yes.length ? ' · ' : '') + '❌ Said no: ' + no.map(function (i) { return G.players[i].dot + ' ' + G.players[i].name; }).join(', ') : '');
     if (no.length) say('🤝 ' + no.map(function (i) { return G.players[i].name; }).join(', ') + ' said no thanks.');
     if (!yes.length) return;
     G.ally = { leader: pi, members: [pi].concat(yes) }; G.allyUsed = true;
@@ -570,22 +580,27 @@
   function resHtml(cost) { return Object.keys(cost).map(function (k) { return cost[k] + ' ' + RES[k] + ' ' + k; }).join(', '); }
   function refresh() {
     if (!G) return;
-    renderHud(); renderTurn(); renderLabels(); renderInfo();
+    renderHud(); renderResbar(); renderTurn(); renderLabels(); renderInfo();
     if ($('shopM').classList.contains('on')) renderShop();
     if ($('alliM').classList.contains('on')) renderAlli();
   }
-  var hudOpen = { r: true, s: true, l: false };
+  var hudOpen = { r: true, a: true, l: false };
+  function renderResbar() {
+    var me = G.players[0], total = 0, chips = [];
+    Object.keys(RES).forEach(function (k) { var n = me.res[k] || 0; if (n) { total += n; chips.push(RES[k] + ' ' + k + ' <b>' + n + '</b>'); } });
+    $('resbar').innerHTML = '🎒 <b>Your resources: ' + total + '</b>' + (chips.length ? ' &nbsp;·&nbsp; ' + chips.join(' &nbsp; ') : ' — none yet, roll the dice!');
+  }
   function renderHud() {
-    var me = G.players[0], h = '<details data-k="r"' + (hudOpen.r ? ' open' : '') + '><summary>Rulers</summary>';
+    var h = '<details data-k="r"' + (hudOpen.r ? ' open' : '') + '><summary>Rulers</summary>';
     G.players.forEach(function (p, i) {
       var inAlly = G.ally && G.ally.members.indexOf(i) >= 0;
-      h += '<div class="prow' + (G.turn === i ? ' turn' : '') + '">' + (G.turn === i ? '▶' : '&nbsp;') + p.dot + ' ' + p.name + ' <span style="margin-left:auto">🏝️' + ownedBy(i).length + (inAlly ? ' 🤝' : '') + '</span></div>';
+      h += '<div class="prow' + (G.turn === i ? ' turn' : '') + '">' + (G.turn === i ? '▶' : '&nbsp;') + p.dot + ' ' + p.name + ' <span style="margin-left:auto">🏝️' + ownedBy(i).length + (inAlly ? (G.ally.leader === i ? ' 👑' : ' 🤝') : '') + '</span></div>';
     });
-    h += '</details><details data-k="s"' + (hudOpen.s ? ' open' : '') + '><summary>Your resources</summary><div class="rgrid">';
-    var any = false;
-    Object.keys(RES).forEach(function (k) { var n = me.res[k] || 0; if (n) { any = true; h += '<span>' + RES[k] + ' ' + k + ' <b>' + n + '</b></span>'; } });
-    if (!any) h += '<span>Nothing yet</span>';
-    h += '</div></details><details data-k="l"' + (hudOpen.l ? ' open' : '') + '><summary>What happened</summary><div id="log">' + G.log.slice(0, 4).map(function (t) { return '<div>' + t + '</div>'; }).join('') + '</div></details>';
+    h += '</details><details data-k="a"' + (hudOpen.a ? ' open' : '') + '><summary>Your alliance</summary>';
+    if (G.ally && G.ally.members.indexOf(0) >= 0) {
+      h += '<div>👑 Leader: ' + G.players[G.ally.leader].dot + ' ' + G.players[G.ally.leader].name + '</div><div>Members: ' + G.ally.members.map(function (m) { return G.players[m].dot; }).join(' ') + '</div><div>Income: <b>×' + G.ally.members.length + '</b></div>';
+    } else h += '<div>' + (G.ally ? 'Other rulers have an alliance.' : G.allyUsed ? 'Your alliance ended.' : 'None yet. Press 🤝 Alliances!') + '</div>';
+    h += '</details><details data-k="l"' + (hudOpen.l ? ' open' : '') + '><summary>What happened</summary><div id="log">' + G.log.slice(0, 4).map(function (t) { return '<div>' + t + '</div>'; }).join('') + '</div></details>';
     $('hud').innerHTML = h;
     $('hud').querySelectorAll('details').forEach(function (d) { d.ontoggle = function () { hudOpen[d.dataset.k] = d.open; }; });
   }
@@ -658,6 +673,7 @@
   }
   function renderAlli() {
     var h = '<h2>🤝 Alliances</h2>', n = G.n;
+    if (G.allyResult) h += '<div class="card" style="margin:6px 0"><b>Last invite:</b><div>' + G.allyResult + '</div></div>';
     h += '<div>Work together! A bigger alliance makes more income: ×1 for 1 player, ×2 for 2, and so on. The <b>leader</b> owns all the islands and collects everything. You can only make <b>one</b> alliance, and it cannot include every player.</div>';
     if (G.ally) {
       var A = G.ally;
@@ -670,7 +686,7 @@
     } else {
       h += '<div class="grp">Who do you invite? (you will be the leader)</div>';
       for (var i = 1; i < n; i++) h += '<label class="chip"><input type="checkbox" data-pick="' + i + '"> ' + G.players[i].dot + ' ' + G.players[i].name + '</label>';
-      h += '<div><button class="btn" data-ally="form" style="margin-top:8px">🤝 Form alliance</button></div><div id="allyMsg" class="need"></div>';
+      h += '<div id="allyChosen" class="tip">You chose: nobody yet</div><div><button class="btn" data-ally="form" style="margin-top:8px">🤝 Form alliance</button></div><div id="allyMsg" class="need"></div>';
     }
     $('alliBody').innerHTML = h;
   }
@@ -689,6 +705,13 @@
     if (t.dataset.use) { pendingUse = t.dataset.use; renderShop(); }
     if (t.dataset.target && pendingUse && G.turn === 0) { if (recipe(pendingUse).cap) placeBuilding(0, pendingUse, t.dataset.target); else useDrought(0, pendingUse, t.dataset.target); pendingUse = null; refresh(); }
   });
+  $('alliBody').addEventListener('change', function (e) {
+    if (!e.target.dataset || !e.target.dataset.pick) return;
+    e.target.parentNode.classList.toggle('picked', e.target.checked);
+    var names = [].slice.call(document.querySelectorAll('[data-pick]')).filter(function (c) { return c.checked; }).map(function (c) { var P = G.players[+c.dataset.pick]; return P.dot + ' ' + P.name; });
+    $('allyChosen').textContent = 'You chose: ' + (names.length ? names.join(', ') : 'nobody yet');
+  });
+  $('minBtn').onclick = function () { var t = $('turnbar'); t.classList.toggle('min'); this.textContent = t.classList.contains('min') ? '▴ 🎲' : '▾'; };
   $('alliBody').addEventListener('click', function (e) {
     var a = e.target.dataset && e.target.dataset.ally; if (!a) return;
     if (a === 'form') {
