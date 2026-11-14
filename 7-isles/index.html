@@ -64,7 +64,7 @@
   for (var i = 0; i < SPOTS; i++) {
     var ang = -Math.PI / 2 + i * 2 * Math.PI / SPOTS;
     var x = CX + R * Math.cos(ang), y = CY + R * Math.sin(ang);
-    if (i === 0) {
+    if (false) { // islands are hidden for now: just water
       var d = document.createElement('div'); d.className = 'isle';
       d.style.left = x + 'px'; d.style.top = y + 'px';
       var im = document.createElement('img'); im.src = IMG; im.alt = 'Goldenfield';
