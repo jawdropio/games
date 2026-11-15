@@ -24,7 +24,7 @@
   .card a { display:block; margin-top:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
   #pad { display:none; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(2,52px); gap:6px; justify-content:center; padding:6px; }
   #pad button { font-size:24px; border-radius:12px; border:2px solid #5b4bd0; background:#2c1d6b; color:#fff; }
-  #pad .u { grid-column:2; grid-row:1; } #pad .l { grid-column:1; grid-row:2; } #pad .d { grid-column:2; grid-row:2; } #pad .r { grid-column:3; grid-row:2; }
+  #pad .z { grid-column:3; grid-row:1; background:#8a6a00; } #pad .u { grid-column:2; grid-row:1; } #pad .l { grid-column:1; grid-row:2; } #pad .d { grid-column:2; grid-row:2; } #pad .r { grid-column:3; grid-row:2; }
   @media (pointer:coarse) { #pad { display:grid; } }
 </style>
 </head>
@@ -34,6 +34,7 @@
   <span>Score: <b id="score">0</b></span>
   <span>Best: <b id="hi">0</b></span>
   <span id="lives"></span>
+  <span title="Press Space to zap the nearest coyote">⚡ Zaps: <b id="zaps">3</b></span>
   <span>Level <b id="lvl">1</b></span>
   <span class="sp"></span>
   <button id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button>
@@ -43,12 +44,12 @@
   <canvas id="c" width="608" height="672"></canvas>
   <div id="overlay" class="show"><div class="card">
     <h1 id="ovTitle">🐾 BOBCATS</h1>
-    <p id="ovMsg">Gobble all the kibble and dodge the coyotes!<br>Grab a 🐟 to turn the tables.<br>Arrow keys or WASD to move.</p>
+    <p id="ovMsg">Gobble all the kibble and dodge the coyotes!<br>Grab a 🐟 to turn the tables.<br>Arrow keys or WASD to move.<br><b>HARD MODE:</b> fast coyotes! Press <b>SPACE</b> to ⚡ zap the nearest one (auto-aim!).<br>Eat 30 kibble = +1 zap.</p>
     <button id="go">Play!</button>
     <a href="../">← Arcade</a>
   </div></div>
 </div>
-<div id="pad"><button class="u" data-d="U">▲</button><button class="l" data-d="L">◀</button><button class="d" data-d="D">▼</button><button class="r" data-d="R">▶</button></div>
+<div id="pad"><button class="u" data-d="U">▲</button><button class="l" data-d="L">◀</button><button class="d" data-d="D">▼</button><button class="r" data-d="R">▶</button><button class="z" id="zapBtn">⚡</button></div>
 
 <script>
 (() => {
@@ -86,7 +87,8 @@ const $ = id => document.getElementById(id);
 // ---------- state ----------
 let grid, pelletsLeft, homeDist, playerStart;
 let state = 'title', paused = false, timer = 0, tick = 0, lifeTick = 0;
-let score = 0, hi = 0, lives = 3, level = 1, extraGiven = false;
+let zaps = 3, zapCd = 0, beams = [], kibbleCount = 0;
+let score = 0, hi = 0, lives = 2, level = 1, extraGiven = false;
 let want = null, frightTicks = 0, combo = 0, waveTick = 0, scatter = true, chompFlip = false;
 let player, ghosts = [];
 let popups = [];
@@ -131,10 +133,10 @@ function resetActors() {
   want = null;
   const starts = [[9,7,'normal'],[8,9,'house'],[9,9,'house'],[10,9,'house']];
   ghosts = starts.map((s, i) => ({ i, x:s[0], y:s[1], mode:s[2], dir: i===0 ? DIRS.L : null, door:false, fright:false, rev:false }));
-  frightTicks = 0; combo = 0; lifeTick = 0; waveTick = 0; scatter = true; popups = [];
+  frightTicks = 0; combo = 0; lifeTick = 0; waveTick = 0; scatter = true; popups = []; beams = []; zapCd = 0;
 }
 function newGame() {
-  score = 0; lives = 3; level = 1; extraGiven = false;
+  score = 0; lives = 2; level = 1; extraGiven = false; zaps = 3; kibbleCount = 0;
   buildGrid(); resetActors();
   state = 'ready'; timer = 110; hideOverlay(); hud(); sfxStart();
 }
@@ -195,10 +197,10 @@ function ghostCenter(g, cx, cy) {
   else if (g.i === 0) { tx = pcx; ty = pcy; }
   else if (g.i === 1) { const f = pl.dir || pl.face; tx = pcx + f.x * 4; ty = pcy + f.y * 4; }
   else if (g.i === 2) {
-    if (Math.random() < 0.4) { g.dir = opts[Math.floor(Math.random() * opts.length)]; return; }
+    if (Math.random() < 0.15) { g.dir = opts[Math.floor(Math.random() * opts.length)]; return; }
     tx = pcx; ty = pcy;
   } else {
-    if (Math.hypot(pcx - cx, pcy - cy) > 8) { tx = pcx; ty = pcy; } else { [tx, ty] = CORNERS[3]; }
+    tx = pcx; ty = pcy;
   }
   let best = opts[0], bd = Infinity;
   for (const d of opts) {
@@ -217,6 +219,19 @@ function addScore(n) {
 }
 function popup(x, y, text) { popups.push({ x, y, text, t: 60 }); }
 
+function zap() {
+  if (state !== 'play' || paused || zaps <= 0 || zapCd > 0) return;
+  let best = null, bd = Infinity;
+  for (const g of ghosts) {
+    if (g.mode !== 'normal' && g.mode !== 'leave') continue;
+    const d = Math.hypot(g.x - player.x, g.y - player.y);
+    if (d < bd) { bd = d; best = g; }
+  }
+  if (!best) return;
+  zaps--; zapCd = 25; hud();
+  beams.push({ x1: player.x, y1: player.y, x2: best.x, y2: best.y, t: 18 });
+  best.mode = 'eyes'; best.fright = false; best.dir = null; addScore(100); popup(best.x, best.y, 'ZAP!'); sfxZap();
+}
 function updatePlayer() {
   const p = player;
   if (want && p.dir && want === opp(p.dir)) p.dir = want;
@@ -225,10 +240,10 @@ function updatePlayer() {
   const cx = normC(Math.round(p.x)), cy = Math.round(p.y);
   if (Math.abs(p.x - Math.round(p.x)) <= 0.3 && Math.abs(p.y - cy) <= 0.3) {
     const ch = grid[cy][cx];
-    if (ch === '.') { grid[cy][cx] = ' '; pelletsLeft--; addScore(10); sfxChomp(); }
+    if (ch === '.') { grid[cy][cx] = ' '; pelletsLeft--; addScore(10); sfxChomp(); if (++kibbleCount % 30 === 0) { zaps++; popup(p.x, p.y, '+⚡'); hud(); } }
     else if (ch === 'o') {
       grid[cy][cx] = ' '; pelletsLeft--; addScore(50); sfxPower();
-      frightTicks = Math.max(150, 480 - (level - 1) * 60); combo = 0;
+      frightTicks = Math.max(60, 300 - (level - 1) * 60); combo = 0;
       for (const g of ghosts) if (g.mode === 'normal' || g.mode === 'leave') { g.fright = true; g.rev = true; }
     }
   }
@@ -236,15 +251,15 @@ function updatePlayer() {
 
 function updateGhosts() {
   waveTick++;
-  if (!scatter && waveTick >= 1200) { scatter = true; waveTick = 0; flipGhosts(); }
-  else if (scatter && waveTick >= 300) { scatter = false; waveTick = 0; flipGhosts(); }
+  if (!scatter && waveTick >= 1800) { scatter = true; waveTick = 0; flipGhosts(); }
+  else if (scatter && waveTick >= 120) { scatter = false; waveTick = 0; flipGhosts(); }
   if (frightTicks > 0 && --frightTicks === 0) for (const g of ghosts) g.fright = false;
   const k = Math.max(0.3, 1 - (level - 1) * 0.15);
-  const rel = [0, 120, 300, 480];
-  const gs = Math.min(0.118, 0.095 + level * 0.004);
+  const rel = [0, 40, 90, 150];
+  const gs = Math.min(0.135, 0.108 + level * 0.005);
   for (const g of ghosts) {
     if (g.mode === 'house') { if (lifeTick >= rel[g.i] * k) { g.mode = 'leave'; g.door = true; g.dir = null; } else continue; }
-    const sp = g.mode === 'eyes' ? 0.25 : g.fright ? 0.06 : gs;
+    const sp = g.mode === 'eyes' ? 0.25 : g.fright ? 0.07 : gs;
     g.door = g.mode === 'leave' || g.mode === 'eyes';
     advance(g, sp, ghostCenter);
   }
@@ -265,6 +280,9 @@ function collisions() {
 
 function update() {
   tick++;
+  if (zapCd > 0) zapCd--;
+  for (const b of beams) b.t--;
+  beams = beams.filter(b => b.t > 0);
   for (const p of popups) p.t--;
   popups = popups.filter(p => p.t > 0);
   if (state === 'ready') { if (--timer <= 0) state = 'play'; return; }
@@ -390,6 +408,10 @@ function render() {
     if (state !== 'clear') for (const g of ghosts) drawGhost(g);
     if (!(state === 'dying' && timer <= 0)) drawBobcat();
   }
+  for (const b of beams) {
+    ctx.strokeStyle = b.t % 4 < 2 ? '#fff36b' : '#ff5ad1'; ctx.lineWidth = 2 + b.t / 4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo((b.x1 + .5) * T, (b.y1 + .5) * T); ctx.lineTo((b.x2 + .5) * T, (b.y2 + .5) * T); ctx.stroke();
+  }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   if (state === 'ready') { ctx.fillStyle = '#ffe14d'; ctx.font = 'bold 22px system-ui'; ctx.fillText('READY!', 9.5 * T, 11.5 * T); }
   if (state === 'clear') { ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui'; ctx.fillText('Level clear! 😺', 9.5 * T, 11.5 * T); }
@@ -400,7 +422,7 @@ function render() {
 // ---------- HUD / overlay ----------
 function hud() {
   $('score').textContent = score; $('hi').textContent = hi;
-  $('lvl').textContent = level; $('lives').textContent = '🐱'.repeat(Math.max(0, lives));
+  $('lvl').textContent = level; $('zaps').textContent = zaps; $('lives').textContent = '🐱'.repeat(Math.max(0, lives));
 }
 let overlayAction = 'start';
 function showOverlay(title, msg, btn, action) {
@@ -430,6 +452,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { setPaused(!paused); e.preventDefault(); return; }
   if (e.key === 'm' || e.key === 'M') { toggleMute(); return; }
   const d = KEYS[e.key];
+  if (e.key === ' ' && state === 'play' && !paused) { e.preventDefault(); zap(); return; }
   if (d || e.key === ' ' || e.key === 'Enter') e.preventDefault();
   if ((state === 'title' || state === 'over' || paused) && (d || e.key === 'Enter' || e.key === ' ')) {
     if (paused && !(e.key === 'Enter' || e.key === ' ')) return;
@@ -444,7 +467,8 @@ cv.addEventListener('touchend', e => {
   if (Math.hypot(dx, dy) < 20) return;
   want = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? DIRS.R : DIRS.L) : (dy > 0 ? DIRS.D : DIRS.U);
 }, { passive: true });
-document.querySelectorAll('#pad button').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); want = DIRS[b.dataset.d]; }));
+$('zapBtn').addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); zap(); });
+document.querySelectorAll('#pad button[data-d]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); want = DIRS[b.dataset.d]; }));
 document.addEventListener('visibilitychange', () => { if (document.hidden && (state === 'play' || state === 'ready')) setPaused(true); });
 
 // ---------- sound ----------
@@ -470,6 +494,7 @@ function beep(f, dur, type, vol, to, delay) {
 function sfxChomp() { chompFlip = !chompFlip; beep(chompFlip ? 300 : 200, .08, 'square', .05, chompFlip ? 200 : 300); }
 function sfxPower() { [400, 500, 650, 800].forEach((f, i) => beep(f, .1, 'triangle', .08, null, i * .06)); }
 function sfxEat() { beep(300, .25, 'sawtooth', .07, 1200); }
+function sfxZap() { beep(1500, .25, 'sawtooth', .07, 150); }
 function sfxDie() { beep(600, .9, 'sawtooth', .08, 60); }
 function sfxStart() { [392, 523, 659, 784].forEach((f, i) => beep(f, .14, 'triangle', .08, null, i * .1)); }
 function sfxLevel() { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => beep(f, .12, 'triangle', .08, null, i * .08)); }
