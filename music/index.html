@@ -79,16 +79,6 @@
   #pauseOv.show { display:grid; }
   #pauseOv h2 { font-size:44px; margin:0 0 10px; color:var(--acc); text-shadow:0 0 18px var(--acc); }
 
-  #helpOv { position:fixed; inset:0; background:rgba(5,5,12,.85); display:none; place-items:center; z-index:40; padding:10px; }
-  #helpOv.show { display:grid; }
-  #helpOv .card { max-width:520px; background:var(--pane); border:2px solid var(--acc); border-radius:10px; padding:18px 22px; box-shadow:0 0 30px -4px var(--acc); line-height:1.5; font-size:14px; }
-  #helpOv h2 { margin:0 0 8px; color:var(--acc); }
-  #helpOv ol { padding-left:20px; margin:0 0 8px; }
-  #helpOv li { margin-bottom:6px; }
-  #helpOv .tiny { color:var(--dim); font-size:12px; }
-  #songs { display:grid; grid-template-columns:1fr; gap:5px; }
-  #songs button { text-align:left; padding:6px 8px; }
-  #songs button.on { background:var(--acc); color:var(--bg); }
   @media (max-width:760px) {
     #app { grid-template-columns:1fr; grid-template-rows:auto auto 1fr auto; overflow:auto; }
     #bar, #kbPane { grid-column:1; }
@@ -107,7 +97,7 @@
     <button id="recBtn" class="rec">● Rec</button>
     <span class="grp">BPM <button id="bpmDn">−</button><b id="bpmVal">120</b><button id="bpmUp">+</button></span>
     <span class="grp">Bars <button id="barDn">−</button><b id="barVal">2</b><button id="barUp">+</button></span>
-    <button id="helpBtn">❓ How to</button>
+    <button id="megaBtn">💀 Megalovania</button>
     <button id="themeBtn">🎨 Theme</button>
     <button id="pauseBtn">⏸ Pause</button>
   </header>
@@ -121,18 +111,6 @@
     <div id="msg">Click the grid to place notes (drag sideways to make them longer). Play keys with Z X Q W E… or click them. Space = play/stop.</div>
   </section>
 </div>
-<div id="helpOv"><div class="card">
-  <h2>🎵 How to use it</h2>
-  <ol>
-    <li><b>Pick a song</b> on the left, then press <b>▶ Play</b> (or the Space bar).</li>
-    <li><b>Make your own notes:</b> click a square in the big grid. Click it again to remove it. Drag sideways to make a long note.</li>
-    <li><b>Play live:</b> press keys on your keyboard (Z X A S D F G H J K L) or click the piano at the bottom.</li>
-    <li><b>Change the sound:</b> pick a part (like Part 1), then pick an instrument, like 🎸 Electric Guitar.</li>
-    <li><b>Record:</b> press <b>● Rec</b> and play the keys along with the beat. Your notes go into the grid!</li>
-  </ol>
-  <p class="tiny">Tip: use BPM +/− to go faster or slower. 🔊 mutes a part and ✕ clears it.</p>
-  <button id="helpClose">Got it! Let's jam 🎸</button>
-</div></div>
 <div id="pauseOv"><div><h2>⏸ Paused</h2><p>Press P or Esc to keep jamming</p><button id="resumeBtn">▶ Resume</button></div></div>
 
 <script>
@@ -275,9 +253,7 @@
   const tracksPane = document.getElementById('tracksPane');
   function tc(i) { return 'var(--c'+TRACK_COLORS[i % TRACK_COLORS.length]+')'; }
   function renderTracks() {
-    let h = '<div class="sub" style="margin-top:0">1. Pick a song</div><div id="songs">';
-    SONGS.forEach((s,i) => { h += '<button data-song="'+i+'" class="'+(i===curSong?'on':'')+'">'+s.name+'</button>'; });
-    h += '</div><div class="sub">2. Your instruments</div>';
+    let h = '';
     tracks.forEach((t,i) => {
       h += '<div class="trk'+(i===sel?' sel':'')+(t.mute?' muted':'')+'" data-i="'+i+'" style="--tc:'+tc(i)+'">'
         + '<span class="nm">Part '+(i+1)+' '+INST[t.inst].icon+'</span>'
@@ -285,14 +261,13 @@
         + '<button data-act="clr" title="Clear notes">✕</button></div>';
     });
     if (tracks.length < 6) h += '<button data-act="add">＋ Add part</button>';
-    h += '<div class="sub">3. Sound for Part '+(sel+1)+':</div><div id="insts">';
+    h += '<div class="sub">Instrument for Part '+(sel+1)+':</div><div id="insts">';
     INST_IDS.forEach(id => { h += '<button data-inst="'+id+'" class="'+(tracks[sel].inst===id?'on':'')+'">'+INST[id].icon+' '+INST[id].name+'</button>'; });
     h += '</div>';
     tracksPane.innerHTML = h;
   }
   tracksPane.addEventListener('click', e => {
     const b = e.target.closest('button'), row = e.target.closest('.trk');
-    if (b && b.dataset.song) { loadSong(+b.dataset.song); return; }
     if (b && b.dataset.inst) { tracks[sel].inst = b.dataset.inst; renderTracks(); preview('C4'); return; }
     if (b && b.dataset.act === 'add') { tracks.push(mkTrack('synth')); sel = tracks.length-1; renderTracks(); renderRoll(); return; }
     if (!row) return;
@@ -418,88 +393,21 @@
   document.getElementById('barDn').onclick = () => setBars(bars-1);
   document.getElementById('barUp').onclick = () => setBars(bars+1);
 
-  // ================= songs =================
-  const shiftNote = (n, k) => { const i = rowOf[n] + k; return NOTES[i] ? NOTES[i][0] : null; };
-  // mel([[note,length],...]) lays notes one after another ('-' = rest)
-  function mel(list, start, shift) {
-    const out = []; let s = start || 0;
-    list.forEach(([n,l]) => { if (n !== '-') { const nn = shiftNote(n, shift||0); if (nn) out.push({n:nn, s, l}); } s += l; });
-    return {notes:out, end:s};
-  }
-  const SONGS = [
-    { name:'💀 Megalovania', make() {
-      const RIFF = [['R',0,1],['R',1,1],['D5',2,2],['A4',5,3],['G#4',9,2],['G4',11,2],['F4',13,2],['D4',15,1],['F4',16,1],['G4',17,1]];
-      const ROOTS = ['D4','C4','B3','A#3'], g = [], b = [];
-      for (let p = 0; p < 8; p++) {
-        const root = ROOTS[p % 4], off = p*20;
-        RIFF.forEach(([n,s,l]) => g.push({n: n==='R' ? root : n, s: off+s, l}));
-        [0,4,8,12,16].forEach(s => b.push({n:root, s:off+s, l:3}));
-      }
-      return { bpm:120, tracks:[{inst:'egtr', notes:g},{inst:'bass', notes:b}] };
-    }},
-    { name:'🏃 Rush E style (my own!)', make() {
-      const A = ['E5','B4','C5','D5','E5','B4','C5','D5','E5','B4','C5','D5','E5','D5','C5','B4'];
-      const B = ['A4','E4','A4','C5','B4','E4','B4','D5','C5','E4','C5','E5','D5','B4','G#4','E4'];
-      const up = NOTES.slice(4,20).map(n => n[0]), down = up.slice().reverse();
-      const bars = [A,B,A,up,A,B,A,down], lead = [], bass = [];
-      bars.forEach((bar,i) => {
-        bar.forEach((n,k) => lead.push({n, s:i*16+k, l:1}));
-        for (let k = 0; k < 8; k++) bass.push({n: k%2 ? 'E4' : 'A3', s:i*16+k*2, l:1});
-      });
-      return { bpm:190, tracks:[{inst:'piano', notes:lead},{inst:'bass', notes:bass}] };
-    }},
-    { name:'👹 Boss Fight (my own!)', make() {
-      const A = [['D4',1],['D4',1],['-',1],['D4',1],['-',1],['F4',2],['D4',2],['-',1],['C4',1],['-',1],['C4',1],['D4',3]];
-      const B = [['A4',1],['A4',1],['-',1],['A4',1],['-',1],['C5',2],['A4',2],['-',1],['G4',1],['-',1],['F4',1],['G4',3]];
-      const C = [['G4',2],['F4',2],['D4',2],['F4',2],['G4',2],['A4',2],['A#4',2],['A4',2]];
-      const order = [A,A,B,C,A,A,B,C], g = [], b = [];
-      order.forEach((bar,i) => {
-        mel(bar, i*16).notes.forEach(n => g.push(n));
-        const root = bar === C ? 'G4' : 'D4';
-        [0,4,8,12].forEach(s => b.push({n:root, s:i*16+s, l:3}));
-      });
-      return { bpm:150, tracks:[{inst:'egtr', notes:g},{inst:'bass', notes:b}] };
-    }},
-    { name:'🏔️ Mountain King (old tune)', make() {
-      const P1 = [['A3',2],['B3',2],['C4',2],['D4',2],['E4',2],['C4',2],['E4',4]];
-      const P2 = [['D#4',2],['A#3',2],['D#4',4],['D4',2],['A3',2],['D4',4]];
-      const lead = [], bass = [];
-      [0,2,4,7].forEach((sh,i) => {
-        mel(P1, i*32, sh).notes.concat(mel(P2, i*32+16, sh).notes).forEach(n => lead.push(n));
-        for (let k = 0; k < 8; k++) { const nn = shiftNote('A3', sh); if (nn) bass.push({n:nn, s:i*32+k*4, l:1}); }
-      });
-      return { bpm:135, tracks:[{inst:'synth', notes:lead},{inst:'bass', notes:bass}] };
-    }},
-    { name:'🎹 Für Elise (old tune)', make() {
-      const R = [['E5',1],['D#5',1],['E5',1],['D#5',1],['E5',1],['B4',1],['D5',1],['C5',1],['A4',3],['-',1],['C4',1],['E4',1],['A4',1],['B4',3],['-',1],['E4',1],['G#4',1],['B4',1],['C5',3],['-',1]];
-      const tail = [['E4',1],['C5',1],['B4',1],['A4',4]];
-      const m = mel(R.concat(R.slice(0,12), tail), 0), bass = [];
-      for (let s = 0; s < m.end; s += 16) bass.push({n:'A3', s, l:4});
-      return { bpm:130, tracks:[{inst:'piano', notes:m.notes},{inst:'bass', notes:bass}] };
-    }},
-    { name:'🎉 Ode to Joy (old tune)', make() {
-      const L1 = [['E4',2],['E4',2],['F4',2],['G4',2],['G4',2],['F4',2],['E4',2],['D4',2],['C4',2],['C4',2],['D4',2],['E4',2]];
-      const m = mel(L1.concat([['E4',3],['D4',1],['D4',4]], L1, [['D4',3],['C4',1],['C4',4]]), 0), bass = [];
-      for (let s = 0; s < m.end; s += 8) bass.push({n: (s/8)%2 ? 'G4' : 'C4', s, l:4});
-      return { bpm:110, tracks:[{inst:'organ', notes:m.notes},{inst:'bass', notes:bass}] };
-    }}
-  ];
-  let curSong = -1;
-  function loadSong(i) {
+  // ================= Megalovania (intro riff, 4 chords x 2) =================
+  const RIFF = [['R',0,1],['R',1,1],['D5',2,2],['A4',5,3],['G#4',9,2],['G4',11,2],['F4',13,2],['D4',15,1],['F4',16,1],['G4',17,1]];
+  const ROOTS = ['D4','C4','B3','A#3'];
+  document.getElementById('megaBtn').onclick = () => {
     audio(); stopT();
-    const d = SONGS[i].make(); curSong = i;
-    tracks = d.tracks.map(t => ({ inst:t.inst, notes:t.notes, mute:false, name:'' }));
-    while (tracks.length < 4) tracks.push(mkTrack(['egtr','bass','piano','synth'][tracks.length]));
-    let end = 16; tracks.forEach(t => t.notes.forEach(n => { end = Math.max(end, n.s + n.l); }));
-    sel = 0; setBpm(d.bpm); setBars(Math.min(10, Math.ceil(end/16)));
-    renderTracks(); renderRoll();
-    msg.textContent = 'Loaded ' + SONGS[i].name + '. Click the grid to change it!';
+    tracks[0] = mkTrack('egtr'); tracks[1] = mkTrack('bass');
+    for (let p = 0; p < 8; p++) {
+      const root = ROOTS[p % 4], off = p*20;
+      RIFF.forEach(([n,s,l]) => tracks[0].notes.push({n: n==='R' ? root : n, s: off+s, l}));
+      [0,4,8,12,16].forEach(s => tracks[1].notes.push({n:root, s:off+s, l:3}));
+    }
+    sel = 0; setBpm(120); setBars(10); renderTracks(); renderRoll();
+    msg.textContent = '💀 Megalovania loaded into Parts 1 and 2. Edit it however you like!';
     startT();
-  }
-  document.getElementById('helpBtn').onclick = () => helpOv.classList.add('show');
-  const helpOv = document.getElementById('helpOv');
-  const closeHelp = () => { helpOv.classList.remove('show'); try { localStorage.setItem('music-seen','1'); } catch(e) {} };
-  document.getElementById('helpClose').onclick = closeHelp;
+  };
 
   // ================= pause =================
   let paused = false;
@@ -518,7 +426,6 @@
     const k = e.key.toLowerCase();
     if (k === ' ') { e.preventDefault(); if (!e.repeat && !paused) { audio(); playing ? stopT() : startT(); } return; }
     if (e.repeat) return;
-    if (helpOv.classList.contains('show')) { if (k === 'escape' || k === 'enter') closeHelp(); return; }
     if (k === 'p' || k === 'escape') { setPause(!paused); return; }
     if (paused || e.ctrlKey || e.metaKey || e.altKey) return;
     if (keyMap[k]) press(keyMap[k]);
@@ -587,7 +494,6 @@
   applyTheme(saved);
   renderTracks(); renderRoll();
   requestAnimationFrame(frame);
-  try { if (!localStorage.getItem('music-seen')) helpOv.classList.add('show'); } catch(e) { helpOv.classList.add('show'); }
 })();
 </script>
 </body>
