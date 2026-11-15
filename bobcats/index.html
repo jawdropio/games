@@ -96,6 +96,15 @@ let score = 0, hi = 0, lives = 2, level = 1, extraGiven = false;
 let want = null, frightTicks = 0, combo = 0, waveTick = 0, scatter = true, chompFlip = false;
 let player, ghosts = [];
 let popups = [];
+let parts = [], shake = 0, trail = [];
+const stars = Array.from({ length: 70 }, () => ({ x: Math.random() * 608, y: Math.random() * 672, r: Math.random() * 1.4 + .5, ph: Math.random() * 6 }));
+function burst(x, y, color, n, speed) {
+  if (parts.length > 700) return;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, v = Math.random() * speed;
+    parts.push({ x: (x + .5) * T, y: (y + .5) * T, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 25 + Math.random() * 25, max: 50, c: color, r: 1.5 + Math.random() * 3 });
+  }
+}
 try { hi = +localStorage.getItem('bobcats-hi') || 0; } catch (e) {}
 
 // ---------- maze ----------
@@ -137,7 +146,7 @@ function resetActors() {
   want = null; gwant = null;
   const starts = [[9,7,'normal'],[8,9,'house'],[9,9,'house'],[10,9,'house'],[1,1,'normal'],[17,1,'normal']];
   ghosts = starts.map((s, i) => ({ i, x:s[0], y:s[1], mode:s[2], dir: (i===0 || i===5) ? DIRS.L : i===4 ? DIRS.R : null, door:false, fright:false, rev:false }));
-  frightTicks = 0; combo = 0; lifeTick = 0; waveTick = 0; scatter = true; popups = []; beams = []; zapCd = 0; shield = 0;
+  frightTicks = 0; combo = 0; lifeTick = 0; waveTick = 0; scatter = true; popups = []; beams = []; zapCd = 0; shield = 0; trail = [];
 }
 function newGame() {
   score = 0; lives = ghostMode ? 3 : 2; level = 1; extraGiven = false; zaps = ghostMode ? 3 : 40; kibbleCount = 0; shieldCd = 0;
@@ -238,6 +247,7 @@ function botChoose(cx, cy) {
       if (Math.abs(dx) + Math.abs(dy) <= 2) blocked.add(normC(gx + dx) + ',' + (gy + dy));
   }
   blocked.delete(cx + ',' + cy);
+  if (shield > 0 && !ghostMode) blocked.clear();
   const near = danger.some(g => Math.hypot(g.x - cx, g.y - cy) < 9);
   const edible = new Set(frightTicks > 90 ? ghosts.filter(g => g.fright && g.mode === 'normal').map(g => normC(Math.round(g.x)) + ',' + Math.round(g.y)) : []);
   const search = accept => {
@@ -274,7 +284,7 @@ function botChoose(cx, cy) {
 }
 function activateShield() {
   if (state !== 'play' || paused || shield > 0 || shieldCd > 0) return;
-  shield = 1200; sfxShield();
+  shield = 1200; sfxShield(); { const a = ghostMode ? ghosts[0] : player; burst(a.x, a.y, '#6ff', 40, 5); shake = 4; }
 }
 function zap(cd = 6) {
   if (state !== 'play' || paused || zaps <= 0 || zapCd > 0) return;
@@ -288,20 +298,26 @@ function zap(cd = 6) {
   if (ghostMode) zaps--;
   zapCd = cd; hud();
   beams.push({ x1: player.x, y1: player.y, x2: best.x, y2: best.y, t: 8 });
+  burst(best.x, best.y, GCOLORS[best.i], 18, 4); shake = Math.max(shake, 3);
   best.mode = 'eyes'; best.fright = false; addScore(100); popup(best.x, best.y, 'ZAP!'); sfxZap();
 }
 function updatePlayer() {
   const p = player;
-  if ((auto || ghostMode) && zaps > 0 && ghosts.some(g => (g.mode === 'normal' || g.mode === 'leave') && !g.fright && Math.hypot(g.x - p.x, g.y - p.y) < 1.8)) zap(25);
+  if (auto && !ghostMode) {
+    const nearG = ghosts.filter(g => (g.mode === 'normal' || g.mode === 'leave') && !g.fright && Math.hypot(g.x - p.x, g.y - p.y) < 4.5);
+    if (nearG.length) zap();
+    if (shield <= 0 && shieldCd <= 0 && nearG.some(g => Math.hypot(g.x - p.x, g.y - p.y) < 2.6)) activateShield();
+  } else if (ghostMode && zaps > 0 && ghosts.some(g => (g.mode === 'normal' || g.mode === 'leave') && !g.fright && Math.hypot(g.x - p.x, g.y - p.y) < 1.8)) zap(25);
   if (want && p.dir && want === opp(p.dir)) p.dir = want;
   advance(p, 0.125, playerCenter);
   if (p.dir) { p.face = p.dir; p.anim += 0.35; }
+  trail.push({ x: p.x, y: p.y }); if (trail.length > 9) trail.shift();
   const cx = normC(Math.round(p.x)), cy = Math.round(p.y);
   if (Math.abs(p.x - Math.round(p.x)) <= 0.3 && Math.abs(p.y - cy) <= 0.3) {
     const ch = grid[cy][cx];
-    if (ch === '.') { grid[cy][cx] = ' '; pelletsLeft--; addScore(10); sfxChomp(); if (++kibbleCount % 30 === 0) { zaps += ghostMode ? 1 : 10; popup(p.x, p.y, '+⚡'); hud(); } }
+    if (ch === '.') { grid[cy][cx] = ' '; pelletsLeft--; addScore(10); sfxChomp(); burst(p.x, p.y, '#ffd9a0', 3, 1.5); if (++kibbleCount % 30 === 0) { zaps += ghostMode ? 1 : 10; popup(p.x, p.y, '+⚡'); hud(); } }
     else if (ch === 'o') {
-      grid[cy][cx] = ' '; pelletsLeft--; addScore(50); sfxPower();
+      grid[cy][cx] = ' '; pelletsLeft--; addScore(50); sfxPower(); burst(p.x, p.y, '#6ff', 40, 6); shake = 6;
       frightTicks = Math.max(60, 300 - (level - 1) * 60); combo = 0;
       for (const g of ghosts) if (g.mode === 'normal' || g.mode === 'leave') { g.fright = true; g.rev = true; }
     }
@@ -334,8 +350,8 @@ function collisions() {
     if (Math.hypot(g.x - player.x, g.y - player.y) < 0.6) {
       if (g.fright) {
         const pts = 200 * Math.pow(2, combo++);
-        g.mode = 'eyes'; g.fright = false; addScore(pts); popup(g.x, g.y, String(pts)); sfxEat();
-      } else { state = 'dying'; timer = 100; sfxDie(); return; }
+        g.mode = 'eyes'; g.fright = false; burst(g.x, g.y, GCOLORS[g.i], 40, 5); shake = 8; addScore(pts); popup(g.x, g.y, String(pts)); sfxEat();
+      } else { state = 'dying'; timer = 100; sfxDie(); burst(player.x, player.y, '#ff9a3c', 60, 6); shake = 14; return; }
     }
   }
 }
@@ -344,6 +360,9 @@ function update() {
   tick++;
   const lab = shield > 0 ? '🛡 ' + Math.ceil(shield / 60) + 's' : shieldCd > 0 ? '🛡 wait ' + Math.ceil(shieldCd / 60) + 's' : '🛡 F ready';
   if (lab !== shLabel) { shLabel = lab; $('shield').textContent = lab; }
+  for (const q of parts) { q.x += q.vx; q.y += q.vy; q.vx *= .96; q.vy *= .96; q.life--; }
+  parts = parts.filter(q => q.life > 0);
+  shake = shake > 0.3 ? shake * 0.88 : 0;
   if (zapCd > 0) zapCd--;
   for (const b of beams) b.t--;
   beams = beams.filter(b => b.t > 0);
@@ -358,12 +377,14 @@ function update() {
     return;
   }
   if (state === 'clear') {
+    if (timer % 8 === 0) burst(1 + Math.random() * 17, 1 + Math.random() * 19, GCOLORS[Math.floor(Math.random() * 6)], 30, 4);
     if (--timer <= 0) { if (ghostMode) { gameOver(); return; } level++; buildGrid(); resetActors(); state = 'ready'; timer = 100; hud(); sfxStart(); }
     return;
   }
   if (state !== 'play') return;
   lifeTick++;
   if (fireHeld && !ghostMode) zap();
+  if (shield > 0 && tick % 4 === 0) { const a = ghostMode ? ghosts[0] : player; burst(a.x, a.y, '#6ff', 1, 1); }
   if (shield > 0) { if (--shield === 0) shieldCd = 600; } else if (shieldCd > 0) shieldCd--;
   updatePlayer();
   updateGhosts();
@@ -386,7 +407,7 @@ function gameOver() {
 function drawWalls(color) {
   ctx.fillStyle = '#10084a';
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (grid[r][c] === '#') ctx.fillRect(c * T, r * T, T, T);
-  ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.shadowColor = color; ctx.shadowBlur = 12;
   const isW = (c, r) => c < 0 || r < 0 || c >= W || r >= H || grid[r][c] === '#';
   ctx.beginPath();
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
@@ -397,7 +418,7 @@ function drawWalls(color) {
     if (!isW(c - 1, r)) { ctx.moveTo(x + i, y + i); ctx.lineTo(x + i, y + T - i); }
     if (!isW(c + 1, r)) { ctx.moveTo(x + T - i, y + i); ctx.lineTo(x + T - i, y + T - i); }
   }
-  ctx.stroke();
+  ctx.stroke(); ctx.shadowBlur = 0;
   ctx.strokeStyle = '#ff8fd0'; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(8 * T + 4, 8.5 * T); ctx.lineTo(11 * T - 4, 8.5 * T); ctx.stroke();
 }
@@ -416,7 +437,8 @@ function drawPellets() {
 
 function drawBobcat() {
   const p = player, f = p.face;
-  ctx.save(); ctx.translate((p.x + .5) * T, (p.y + .5) * T); ctx.scale(T, T);
+  ctx.save(); ctx.shadowColor = (auto || ghostMode) ? '#6ff' : '#ff9a3c'; ctx.shadowBlur = 14;
+  ctx.translate((p.x + .5) * T, (p.y + .5) * T); ctx.scale(T, T);
   let ang = Math.atan2(f.y, f.x), m = 0.04 + 0.3 * Math.abs(Math.sin(p.anim));
   if (state === 'dying') { ang = -Math.PI / 2; m = Math.min(Math.PI, (100 - timer) / 100 * Math.PI * 1.1); }
   const ear = s => {
@@ -435,6 +457,7 @@ function drawBobcat() {
     const sx = f.x < 0 ? -1 : 1;
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx * .17, -.12, .095, 0, 7); ctx.fill();
     ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(sx * .17 + f.x * .03, -.12 + f.y * .03, .05, 0, 7); ctx.fill();
+    if (auto || ghostMode) { ctx.shadowBlur = 0; ctx.fillStyle = '#0a0a14'; ctx.fillRect(-.3, -.22, .6, .13); ctx.fillStyle = '#6ff'; ctx.fillRect(sx * .17 - .07, -.2, .14, .03); }
   }
   ctx.restore();
 }
@@ -446,7 +469,7 @@ function drawGhost(g) {
   const fr = g.fright && g.mode !== 'eyes';
   if (g.mode !== 'eyes') {
     const col = fr ? (flashing ? '#fff' : '#2a3cff') : GCOLORS[g.i];
-    ctx.fillStyle = col;
+    ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 10;
     for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(s * .4, -.1); ctx.lineTo(s * .38, -.58); ctx.lineTo(s * .1, -.36); ctx.closePath(); ctx.fill(); }
     const a = Math.floor(tick / 8) % 2 ? .3 : .42, b = a === .3 ? .42 : .3;
     ctx.beginPath(); ctx.moveTo(-.42, .42); ctx.lineTo(-.42, -.05); ctx.arc(0, -.05, .42, Math.PI, 0);
@@ -471,10 +494,13 @@ function drawGhost(g) {
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
+  if (shake > 0.3) ctx.translate((Math.random() - .5) * shake * 2, (Math.random() - .5) * shake * 2);
+  for (const st of stars) { ctx.fillStyle = 'rgba(190,200,255,' + (.12 + .2 * Math.abs(Math.sin(tick / 25 + st.ph))) + ')'; ctx.fillRect(st.x, st.y, st.r, st.r); }
   const flash = state === 'clear' && Math.floor(tick / 10) % 2 === 0;
   drawWalls(flash ? '#fff' : '#5b6cff');
   if (!grid) return;
   drawPellets();
+  for (let i = 0; i < trail.length; i++) { const t = trail[i], k = i / trail.length; ctx.fillStyle = 'rgba(255,140,40,' + k * .28 + ')'; ctx.beginPath(); ctx.arc((t.x + .5) * T, (t.y + .5) * T, T * .3 * (k + .3), 0, 7); ctx.fill(); }
   if (player) {
     if (state !== 'clear') for (const g of ghosts) drawGhost(g);
     if (!(state === 'dying' && timer <= 0)) drawBobcat();
@@ -485,9 +511,14 @@ function render() {
     ctx.fillStyle = 'rgba(102,255,255,0.22)'; ctx.fill(); ctx.strokeStyle = '#6ff'; ctx.lineWidth = 3; ctx.stroke();
   }
   for (const b of beams) {
-    ctx.strokeStyle = b.t % 4 < 2 ? '#fff36b' : '#ff5ad1'; ctx.lineWidth = 2 + b.t / 4; ctx.lineCap = 'round';
+    ctx.strokeStyle = b.t % 4 < 2 ? '#fff36b' : '#ff5ad1'; ctx.lineWidth = 2 + b.t / 2; ctx.lineCap = 'round'; ctx.shadowColor = '#ff5ad1'; ctx.shadowBlur = 16;
     ctx.beginPath(); ctx.moveTo((b.x1 + .5) * T, (b.y1 + .5) * T); ctx.lineTo((b.x2 + .5) * T, (b.y2 + .5) * T); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,' + b.t / 10 + ')'; ctx.beginPath(); ctx.arc((b.x2 + .5) * T, (b.y2 + .5) * T, 4 + (8 - b.t) * 2.5, 0, 7); ctx.fill();
+    ctx.shadowBlur = 0;
   }
+  ctx.globalCompositeOperation = 'lighter';
+  for (const q of parts) { ctx.globalAlpha = Math.max(0, q.life / q.max); ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   if (ghostMode && ghosts[0] && state !== 'clear') {
     const g = ghosts[0]; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff36b'; ctx.font = 'bold 12px system-ui';
     ctx.fillText('▼ YOU', (g.x + .5) * T, (g.y - .25) * T);
