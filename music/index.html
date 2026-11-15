@@ -153,7 +153,7 @@
   const freqs = {}, rowOf = {}, keyMap = {};
   NOTES.forEach((n,i) => { freqs[n[0]] = n[1]; rowOf[n[0]] = i; keyMap[KEYS[n[0]]] = n[0]; });
 
-  const MAXSTEPS = 160, LW = 46, CW = 22, RH = 17;
+  const MAXSTEPS = 480, LW = 46, CW = 22, RH = 17;
   const root = document.documentElement;
   root.style.setProperty('--lw', LW+'px'); root.style.setProperty('--cw', CW+'px'); root.style.setProperty('--rh', RH+'px');
 
@@ -434,7 +434,7 @@
 
   const bpmVal = document.getElementById('bpmVal'), barVal = document.getElementById('barVal');
   function setBpm(v) { bpm = Math.max(60, Math.min(200, v)); bpmVal.textContent = bpm; }
-  function setBars(v) { bars = Math.max(1, Math.min(10, v)); steps = bars*16; barVal.textContent = bars; if (step >= steps) step = 0; renderRoll(); }
+  function setBars(v) { bars = Math.max(1, Math.min(30, v)); steps = bars*16; barVal.textContent = bars; if (step >= steps) step = 0; renderRoll(); }
   document.getElementById('bpmDn').onclick = () => setBpm(bpm-5);
   document.getElementById('bpmUp').onclick = () => setBpm(bpm+5);
   document.getElementById('barDn').onclick = () => setBars(bars-1);
@@ -511,6 +511,25 @@
         }
       });
       return { bpm:130, tracks:[{inst:'egtr', notes:lead},{inst:'bass', notes:bass}] };
+    }},
+    { name:'🌹 Malagueña (from your picture)', make() {
+      // 3/4 time: one beat = 4 steps, one measure = 12 steps (my best reading of the sheet)
+      const at = m => (m-1)*12, mel = [], hand = [];
+      const put = (arr, n, m, beat, len) => arr.push({n, s:at(m)+beat*4, l:len*4});
+      for (let m = 1; m <= 4; m++) put(hand, 'A3', m, 0, 3);
+      const T = [['E5','C5','A4'],['D5','B4','G4'],['C5','A4','F4'],['B4','G#4','E5']];
+      const HAND = {Am:['A3','C4','E4'], G:['D4','G4','B4'], F:['C4','F4','A4'], E:['E4','G#4','B4']};
+      const FIVE = ['Am','G','F','E'];
+      T.forEach((t,k) => { t.forEach((n,j) => put(mel, n, 5+k, j, 1)); put(hand, HAND[FIVE[k]][0], 5+k, 0, 3); });
+      const ROW = [[['E5',0,3]],[['E5',0,1],['D5',1,1],['C5',2,1]],[['D5',0,3]],[['D5',0,1],['C5',1,1],['B4',2,1]],
+                   [['C5',0,3]],[['C5',0,1],['B4',1,1],['A4',2,1]],[['B4',0,3]],[['E4',0,3]]];
+      const CH = ['Am','Am','G','G','F','F','E','E'];
+      for (let r = 0; r < 4; r++) ROW.forEach((notes, i) => {
+        const m = 9 + r*8 + i, h = HAND[CH[i]];
+        notes.forEach(([n,b,l]) => put(mel, n, m, b, l));
+        put(hand, h[0], m, 0, 1); put(hand, h[1], m, 1, 1); put(hand, h[2], m, 1, 1); put(hand, h[1], m, 2, 1); put(hand, h[2], m, 2, 1);
+      });
+      return { bpm:148, pad:false, tracks:[{inst:'cgtr', notes:mel},{inst:'piano', notes:hand}] };
     }}
   ];
   let curSong = -1;
@@ -522,7 +541,7 @@
     if (d.pad !== false && tracks[2] && !tracks[2].notes.length && tracks[1] && tracks[1].notes.length) tracks[2] = { inst:'organ', mute:false, name:'', notes: tracks[1].notes.map(n => ({n:n.n, s:n.s, l:n.l})) };
     while (tracks.length < 4) tracks.push(mkTrack(['egtr','bass','piano','synth'][tracks.length]));
     let end = 16; tracks.forEach(t => t.notes.forEach(n => { end = Math.max(end, n.s + n.l); }));
-    sel = 0; setBpm(d.bpm); setBars(Math.min(10, Math.ceil(end/16)));
+    sel = 0; setBpm(d.bpm); setBars(Math.min(30, Math.ceil(end/16)));
     renderTracks(); renderRoll();
   }
   function loadSong(i) {
@@ -548,7 +567,7 @@
     mixList.forEach(i => SONGS[i].make().tracks.forEach(t => all.push({ inst:t.inst, notes:t.notes, mute:false, name:'' })));
     tracks = all.slice(0, 8);
     tracks.forEach(t => t.notes.forEach(n => { end = Math.max(end, n.s + n.l); }));
-    sel = 0; curSong = -1; setBpm(SONGS[mixList[0]].make().bpm); setBars(Math.min(10, Math.ceil(end/16)));
+    sel = 0; curSong = -1; setBpm(SONGS[mixList[0]].make().bpm); setBars(Math.min(30, Math.ceil(end/16)));
     renderTracks(); renderRoll();
     msg.textContent = '🌀 Mash-up! Mute parts (🔊) to pick your favorite mix.'; startT();
   }
