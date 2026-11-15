@@ -61,7 +61,14 @@
   .rcrow { flex-wrap:wrap; } .rcl { flex:1; min-width:170px; } .rcr { flex:1.3; min-width:210px; }
   .tab { min-width:0 !important; font-size:15px !important; padding:8px 14px !important; margin:4px !important; } .tab.sel { outline:3px solid #ffe14d; }
   .at { display:flex; align-items:center; gap:6px; font-size:12px; margin:2px 0; } .at span { width:74px; } .at i { flex:1; height:8px; background:#0d0826; border-radius:4px; overflow:hidden; display:block; }
-  .at u { display:block; height:100%; background:#4de1ff; } .at b { width:24px; text-align:right; } .ovr { color:#ffe14d; font-weight:800; } .good { color:#5df07a; font-weight:800; }
+  .at u { display:block; height:100%; background:#4de1ff; } .at b { width:24px; text-align:right; } .ovr { color:#ffe14d; font-weight:800; } .good { color:#5df07a; font-weight:800; } .bad { color:#ff7a7a; font-weight:800; }
+  #fbRecruit { background:repeating-linear-gradient(90deg,#1f7a4a 0 70px,#1a6a40 70px 140px); }
+  .lockerwrap { width:min(640px,94vw); padding-bottom:20px; }
+  .lockerhead { font-size:32px; font-weight:900; letter-spacing:3px; background:#0a1f5c; color:#c8a465; border:4px solid #fff; border-radius:12px; padding:4px 16px; margin:8px 0; display:inline-block; }
+  #rcCoins { background:rgba(0,0,0,.55); display:inline-block; padding:4px 12px; border-radius:10px; font-weight:800; font-size:14px; }
+  .rcrow { background:linear-gradient(135deg,#0a1f5c,#16308a) !important; border:3px solid #c8a465; box-shadow:0 4px 10px rgba(0,0,0,.5); }
+  .jersey { width:44px; height:44px; border-radius:10px; background:#c8a465; color:#0a1f5c; font-weight:900; font-size:22px; display:inline-grid; place-items:center; margin-right:8px; vertical-align:middle; border:3px solid #fff; }
+  #rcPos .tab { padding:6px 10px !important; font-size:14px !important; }
   #fbPauseBtn { position:fixed; top:8px; right:12px; z-index:6; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
   canvas { position:fixed; inset:0; width:100%; height:100%; }
   .overlay { overflow:auto; position:fixed; inset:0; display:none; place-items:center; text-align:center; background:rgba(18,11,46,.85); z-index:4; }
@@ -135,7 +142,11 @@
     <p style="font-size:14px;max-width:460px">OFFENSE: call a play (Quick pass, Deep pass, Run or QB run), read the coverage tip, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Man, Zone or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch to the player near the ball (you have to press it!). Tackle the ball carrier!<br>REF MODE: throw the flag (Space) when you see a foul: a player over the blue line before the snap, a player jumping early, a yellow line between two players, or a hit on the QB.<br>After a touchdown, kick the extra point (+1) or GO FOR 2!<br>T = timeout (stops the clock). Watch out for 🚩 penalties! After you score you can try an ONSIDE kick. P pauses.</p>
   </div></div>
   <div id="fbOver" class="overlay"><div><h1 id="fbOverTitle"></h1><p id="fbOverText"></p><button class="btn" id="fbAgain">Play again</button><button class="btn" id="fbRecBtn2">🎓 Recruit players</button><button class="btn" id="fbMenu2">Menu</button></div></div>
-  <div id="fbRecruit" class="overlay"><div style="width:min(620px,94vw)"><h1>🎓 Your team</h1><p id="rcCoins"></p><div class="row"><button class="btn tab" id="tabTeam">👥 My team</button><button class="btn tab" id="tabShop">🛒 Recruit</button><button class="btn tab" id="tabTrain">🏋️ Training</button></div><div id="rcList"></div><button class="btn" id="rcBack">Back</button></div></div>
+  <div id="fbRecruit" class="overlay"><div class="lockerwrap">
+    <div class="lockerhead">🏟️ LOCKER ROOM</div><br><span id="rcCoins"></span>
+    <div class="row"><button class="btn tab" id="tabTeam">👥 My team</button><button class="btn tab" id="tabShop">🛒 Recruit</button><button class="btn tab" id="tabTrain">🏋️ Training</button></div>
+    <div class="row" id="rcPos"></div>
+    <div id="rcList"></div><button class="btn" id="rcBack">Back</button></div></div>
   <div id="fbPause" class="overlay"><div><h1>⏸ Paused</h1><button class="btn" id="fbResume">Resume</button><button class="btn" id="fbMenu3">Menu</button></div></div>
 </div>
 <div id="pause" class="overlay">
@@ -847,14 +858,16 @@ try {
 POS.forEach(q => { if (!(roster.lv[q.k] >= 1 && roster.lv[q.k] <= 6)) roster.lv[q.k] = 3; if (!roster.nm[q.k]) roster.nm[q.k] = newName(); });
 const ATTR = { qb: ['Arm', 'Accuracy', 'Vision'], rb: ['Speed', 'Power', 'Agility'], wr: ['Speed', 'Hands', 'Routes'], ol: ['Strength', 'Blocking', 'Stamina'], dl: ['Strength', 'Pass rush', 'Tackling'], db: ['Speed', 'Coverage', 'Tackling'], k: ['Leg power', 'Accuracy', 'Clutch'] };
 const rb3 = () => [0, 1, 2].map(() => Math.floor(Math.random() * 13) - 6);
-function makeCand(k, nextLv) { return { nm: nextLv >= 6 ? OPNAME[k] : newName(), bias: rb3() }; }
-roster.bias = roster.bias || {}; roster.tr = roster.tr || {}; roster.cand = roster.cand || {};
+function makeCand(k, lv) { return { nm: lv >= 6 ? OPNAME[k] : newName(), lv, bias: rb3() }; }
+function genMarket(k) { return [2, 3, 4, 5, 6].map(lv => makeCand(k, lv)); }
+roster.bias = roster.bias || {}; roster.tr = roster.tr || {}; roster.inj = roster.inj || {}; roster.market = roster.market || {};
 POS.forEach(q => {
   if (!roster.bias[q.k]) roster.bias[q.k] = rb3();
   roster.tr[q.k] = Math.min(4, roster.tr[q.k] | 0);
-  if (roster.lv[q.k] < 6 && !(roster.cand[q.k] && roster.cand[q.k].bias)) roster.cand[q.k] = makeCand(q.k, roster.lv[q.k] + 1);
+  roster.inj[q.k] = Math.max(0, roster.inj[q.k] | 0);
+  if (!Array.isArray(roster.market[q.k]) || roster.market[q.k].length < 5 || !roster.market[q.k][0].lv) roster.market[q.k] = genMarket(q.k);
 });
-const L = k => (roster.lv[k] >= 6 ? 7 : roster.lv[k]) + (roster.tr[k] || 0) * .25;   // OP counts as level 7, each training session adds a quarter star
+const L = k => Math.max(1, (roster.lv[k] >= 6 ? 7 : roster.lv[k]) + (roster.tr[k] || 0) * .25 - (roster.inj[k] > 0 ? 2 : 0));   // OP counts as level 7, each training session adds a quarter star
 try { if (!localStorage.getItem('papaBowlGift10M')) { coins += 10000000; localStorage.setItem('papaBowlGift10M', '1'); localStorage.setItem('papaBowlCoins', coins); } } catch (e) {}
 function saveAll() { try { localStorage.setItem('papaBowlRoster', JSON.stringify(roster)); localStorage.setItem('papaBowlCoins', coins); } catch (e) {} }
 let g = null, P = null, phase = 'idle', paused = false, timer = 0, banner = '', sub = '', camX = 0, tick = 0, kick = null, toast = '', toastT = 0;
@@ -900,7 +913,7 @@ function reroute() {
 }
 function setupFormation() {
   const d = g.poss === 'me' ? 1 : -1, los = g.los, X = o => los + d * o, off = g.poss, def = off === 'me' ? 'cpu' : 'me';
-  const recs = [4, 26, 21].map((y, i) => ({ x: los, y, wp: [], i: 0, v: off === 'me' ? 6 + .3 * L('wr') : 6.4, n: i + 1, team: off }));
+  const recs = [4, 26, 21].map((y, i) => ({ x: los, y, wp: [], i: 0, v: off === 'me' ? 6 + .3 * L('wr') : (g.practice ? 5.4 : 6.4), n: i + 1, team: off }));
   const cr = Math.random();
   P = {
     dir: d, type: 'pass', sel: 'quick', t: 0, qb: { x: X(-5), y: 15, team: off }, rb: { x: X(-5), y: 17.65, team: off }, recs,
@@ -1082,7 +1095,7 @@ function aiRun(c, dt) {
   let vy = (15 - c.y) * .3;
   if (nd && nds < 5) vy = clamp((c.y - nd.y) * 2.4 + .5, -5.5, 5.5);
   if (nd && nds < 1.9 && P.jukeCd <= 0 && Math.random() < .05) { P.juke = .3; P.jukeCd = 4; }
-  const sp = (g.poss === 'me' ? (c === P.rb ? 6 + .3 * L('rb') : (c.v || 6.5)) : (c === P.rb ? 6.1 : 5.9)) * (P.juke > 0 ? 1.12 : 1);
+  const sp = (g.poss === 'me' ? (c === P.rb ? 6 + .3 * L('rb') : (c.v || 6.5)) : (c === P.rb ? 6.1 : 5.9) * (g.practice ? .8 : 1)) * (P.juke > 0 ? 1.12 : 1);
   c.x += d * sp * dt; c.y = clamp(c.y + vy * dt, 1, 29);
 }
 function boostOn(want, dt) {
@@ -1134,7 +1147,7 @@ function updatePlay(dt) {
   }
   // defenders
   const inAir = B.mode === 'flying';
-  const mm = o => meOff ? .97 : 1.05 * (o.role === 'db' ? 1 + .04 * (L('db') - 3) : o.role === 'lb' ? 1 + .02 * ((L('dl') + L('db')) / 2 - 3) : 1 + .04 * (L('dl') - 3));
+  const mm = o => meOff ? (g.practice ? .8 : .97) : (g.practice ? 1.2 : 1.05) * (o.role === 'db' ? 1 + .04 * (L('db') - 3) : o.role === 'lb' ? 1 + .02 * ((L('dl') + L('db')) / 2 - 3) : 1 + .04 * (L('dl') - 3));
   P.dl.forEach((o, i) => { if (P.t < P.delay) { P.ol[i].x = o.x - d * .9; P.ol[i].y = o.y; } });
   for (const o of P.defs) {
     if (o.stun > 0) { o.stun -= dt; continue; }
@@ -1186,7 +1199,7 @@ function resolveCatch() {
   const r = P.target, meOff = g.poss === 'me';
   const dd = Math.min(...P.defs.map(o => dist(o, r)));
   let pc = dd > 3 ? .97 : dd > 1.8 ? .82 : dd > 1 ? .55 : .3;
-  if (meOff) pc += .05 + .03 * (L('qb') - 3) + .02 * (L('wr') - 3); else pc -= .03;
+  if (meOff) pc += .05 + .03 * (L('qb') - 3) + .02 * (L('wr') - 3); else pc -= g.practice ? .25 : .03;
   if (P.flight0 > 30) pc *= .85;
   if (r.y < .8 || r.y > 29.2) pc = 0;
   pc = clamp(pc, 0, .99);
@@ -1201,6 +1214,15 @@ function resolveCatch() {
   else endPlay('inc', r.x);
 }
 const ord = n => ['', '1st', '2nd', '3rd', '4th'][n];
+function rollInjury() {
+  if (Math.random() >= .05) return;
+  const pool = (g.poss === 'me' ? ['qb', 'rb', 'wr', 'ol'] : ['dl', 'db']).filter(k => !(roster.inj[k] > 0));
+  if (!pool.length) return;
+  const k = pool[Math.floor(Math.random() * pool.length)];
+  roster.inj[k] = 2; roster.tr[k] = 0; saveAll();
+  sub = (sub ? sub + ' · ' : '') + '🤕 ' + roster.nm[k] + ' is injured! A backup comes in.';
+  sfx.bad();
+}
 function addYards(gain) {
   if (g.poss !== 'me') return;
   if (P.type === 'pass' && P.completed) g.st.py += gain; else if (P.type !== 'pass') g.st.ry += gain;
@@ -1238,6 +1260,7 @@ function endPlay(kind, x) {
     if (g.down > 4) { banner = 'TURNOVER ON DOWNS'; sub = me ? 'The Coyotes take over' : 'Your ball!'; g.pend = { poss: other, los: g.los }; sfx.bad(); }
   }
   g.running = keep && !g.pend;
+  rollInjury();
   setPhase('result');
 }
 function kickFG(team) {
@@ -1278,11 +1301,27 @@ function after() {
   }
   presnap();
 }
-function newGame() {
-  g = { my: 0, cpu: 0, clock: TOTAL, los: 25, down: 1, fd: 35, poss: 'me', pend: null, running: false, runLeft: 0, to: 3, half: false, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0 } };
+function newGame(practice) {
+  practice = typeof practice === 'string' ? practice : null;
+  const tot = practice ? 160 : TOTAL;
+  g = { my: 0, cpu: 0, clock: tot, total: tot, practice, los: 25, down: 1, fd: 35, poss: 'me', pend: null, running: false, runLeft: 0, to: 3, half: false, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0 } };
   camX = 10; presnap();
 }
+function endPractice() {
+  const k = g.practice, win = g.my > g.cpu, q = POS.find(x => x.k === k);
+  let msg;
+  if (win && roster.tr[k] < 4) { roster.tr[k]++; msg = 'TRAINING COMPLETE! ' + roster.nm[k] + ' got stronger (+¼ star) 💪'; }
+  else if (win) msg = 'Already fully trained!';
+  else msg = 'You have to WIN to train. Try again!';
+  const earn = win ? 40 : 15; coins += earn; tickInjuries(); rotateMarket(); saveAll(); updCoins();
+  $('fbOverTitle').textContent = win ? 'PRACTICE WON! 🏋️' : 'Practice lost...';
+  $('fbOverText').textContent = q.label + ' practice: Bobcats ' + g.my + ' – Scrubs ' + g.cpu + '  ·  ' + msg + '  ·  +' + earn + ' 🪙';
+  if (win) sfx.fanfare(); else sfx.bad();
+  setPhase('over');
+}
 function endGame() {
+  if (g.practice) return endPractice();
+  tickInjuries(); rotateMarket();
   const win = g.my > g.cpu, tie = g.my === g.cpu;
   if (!tie) { if (win) rec.w++; else rec.l++; try { localStorage.setItem('papaBowlW', rec.w); localStorage.setItem('papaBowlL', rec.l); } catch (e) {} }
   const earn = (win ? 150 : tie ? 100 : 60) + 15 * g.tds; coins += earn; saveAll(); updCoins();
@@ -1337,46 +1376,59 @@ function endRef() {
 // ---------- recruiting 🎓 ----------
 function updCoins() {
   $('fbCoins').textContent = 'Coins: ' + coins.toLocaleString() + ' 🪙';
-  $('rcCoins').textContent = 'You have ' + coins.toLocaleString() + ' 🪙. Look at your players, recruit better ones, or train them!';
+  $('rcCoins').textContent = 'You have ' + coins.toLocaleString() + ' 🪙 · Win or lose, you earn coins!';
 }
-let rcTab = 'team';
-const attrsOf = (k, lv, tr, bias) => { const eff = (lv >= 6 ? 7 : lv) + tr * .25; return ATTR[k].map((n, i) => ({ n, v: clamp(Math.round(28 + eff * 10 + bias[i]), 1, 99) })); };
+let rcTab = 'team', rcPos = 'qb';
+const NUM = { qb: 12, rb: 22, wr: 81, ol: 66, dl: 99, db: 24, k: 3 };
+const attrsOf = (k, lv, tr, bias, inj) => { const eff = Math.max(1, (lv >= 6 ? 7 : lv) + tr * .25 - (inj > 0 ? 2 : 0)); return ATTR[k].map((n, i) => ({ n, v: clamp(Math.round(28 + eff * 10 + bias[i]), 1, 99) })); };
 const ovrOf = a => Math.round(a.reduce((t, x) => t + x.v, 0) / a.length);
 const barsHtml = a => a.map(x => '<div class="at"><span>' + x.n + '</span><i><u style="width:' + x.v + '%"></u></i><b>' + x.v + '</b></div>').join('');
 const starsOf = lv => lv >= 6 ? '★★★★★ OP 🔥' : '★'.repeat(lv) + '☆'.repeat(5 - lv);
-const trainCost = k => { const lv = roster.lv[k]; return Math.round(Math.max(60, price(k, Math.min(6, lv + 1)) * .12) * (roster.tr[k] + 1) / 10) * 10; };
+const healCost = k => Math.max(50, Math.round(price(k, Math.min(6, roster.lv[k] + 1)) * .1 / 10) * 10);
+function tickInjuries() { POS.forEach(q => { if (roster.inj[q.k] > 0) roster.inj[q.k]--; }); }
+function rotateMarket() { POS.forEach(q => { const i = Math.floor(Math.random() * 5), old = roster.market[q.k][i]; roster.market[q.k][i] = makeCand(q.k, old.lv); }); }
 function renderRecruit() {
   $('tabTeam').classList.toggle('sel', rcTab === 'team'); $('tabShop').classList.toggle('sel', rcTab === 'shop'); $('tabTrain').classList.toggle('sel', rcTab === 'train');
+  $('rcPos').style.display = rcTab === 'shop' ? '' : 'none';
+  $('rcPos').innerHTML = POS.map(q => '<button class="btn tab' + (q.k === rcPos ? ' sel' : '') + '" data-act="pos" data-k="' + q.k + '">' + q.label.split(' ')[0] + ' ' + q.k.toUpperCase() + '</button>').join('');
+  if (rcTab === 'shop') {
+    const q = POS.find(x => x.k === rcPos), k = rcPos, lv = roster.lv[k], a = attrsOf(k, lv, roster.tr[k], roster.bias[k], roster.inj[k]);
+    $('rcList').innerHTML = '<p><small>Your ' + q.label + ': <b>' + roster.nm[k] + '</b> · ' + starsOf(lv) + ' · OVR ' + ovrOf(a) + '</small></p>' + roster.market[k].map((c, i) => {
+      const ca = attrsOf(k, c.lv, 0, c.bias, 0), cost = price(k, c.lv), diff = ovrOf(ca) - ovrOf(a), up = c.lv > lv;
+      return '<div class="rcrow"><div class="rcl"><div class="jersey">' + NUM[k] + '</div><b>' + c.nm + '</b><br>' + starsOf(c.lv) + ' <span class="ovr">OVR ' + ovrOf(ca) + '</span> <span class="' + (diff >= 0 ? 'good' : 'bad') + '">(' + (diff >= 0 ? '+' : '') + diff + ')</span></div><div class="rcr">' + barsHtml(ca) +
+        '<button class="btn" style="margin-top:6px" data-act="buy" data-k="' + k + '" data-i="' + i + '"' + ((!up || coins < cost) ? ' disabled' : '') + '>' + (up ? (c.lv === 6 ? '🔥 Recruit OP ' : 'Recruit ') + cost.toLocaleString() + ' 🪙' : 'Not an upgrade') + '</button></div></div>';
+    }).join('');
+    return;
+  }
   $('rcList').innerHTML = POS.map(q => {
-    const k = q.k, lv = roster.lv[k], tr = roster.tr[k], a = attrsOf(k, lv, tr, roster.bias[k]);
+    const k = q.k, lv = roster.lv[k], tr = roster.tr[k], inj = roster.inj[k], a = attrsOf(k, lv, tr, roster.bias[k], inj);
+    const hurt = inj > 0 ? ' <span class="bad">🤕 INJURED (' + inj + ' game' + (inj > 1 ? 's' : '') + ')</span>' : '';
     if (rcTab === 'team') {
-      return '<div class="rcrow"><div class="rcl"><b>' + q.label + '</b><br>' + roster.nm[k] + '<br>' + starsOf(lv) + ' <span class="ovr">OVR ' + ovrOf(a) + '</span><br><small>' + q.txt + '</small></div><div class="rcr">' + barsHtml(a) + '</div></div>';
+      return '<div class="rcrow"><div class="rcl"><div class="jersey">' + NUM[k] + '</div><b>' + q.label + '</b><br>' + roster.nm[k] + hurt + '<br>' + starsOf(lv) + ' <span class="ovr">OVR ' + ovrOf(a) + '</span><br><small>' + q.txt + '</small></div><div class="rcr">' + barsHtml(a) +
+        (inj > 0 ? '<button class="btn" style="margin-top:6px" data-act="heal" data-k="' + k + '"' + (coins < healCost(k) ? ' disabled' : '') + '>🩹 Heal now ' + healCost(k).toLocaleString() + ' 🪙</button>' : '') + '</div></div>';
     }
-    if (rcTab === 'shop') {
-      if (lv >= 6) return '<div class="rcrow"><div class="rcl"><b>' + q.label + '</b><br>' + roster.nm[k] + '</div><div class="rcr"><b>🔥 OP MAXED</b></div></div>';
-      const c = roster.cand[k], ca = attrsOf(k, lv + 1, 0, c.bias), diff = ovrOf(ca) - ovrOf(a), cost = price(k, lv + 1);
-      return '<div class="rcrow"><div class="rcl"><b>' + q.label + '</b><br><small>Now: ' + roster.nm[k] + ' · OVR ' + ovrOf(a) + '</small><br>Recruit: <b>' + c.nm + '</b><br>' + starsOf(lv + 1) + ' <span class="ovr">OVR ' + ovrOf(ca) + '</span> <span class="good">(+' + diff + ')</span></div><div class="rcr">' + barsHtml(ca) +
-        '<button class="btn" style="margin-top:6px" data-act="buy" data-k="' + k + '"' + (coins < cost ? ' disabled' : '') + '>' + (lv === 5 ? '🔥 Recruit OP ' : 'Recruit ') + cost.toLocaleString() + ' 🪙</button></div></div>';
-    }
-    const cost = trainCost(k);
-    return '<div class="rcrow"><div class="rcl"><b>' + q.label + '</b><br>' + roster.nm[k] + ' <span class="ovr">OVR ' + ovrOf(a) + '</span><br>Training: ' + '●'.repeat(tr) + '○'.repeat(4 - tr) + '<br><small>Each session = +¼ star of power</small></div><div class="rcr">' + barsHtml(a) +
-      (tr >= 4 ? '<b>💪 Fully trained!</b>' : '<button class="btn" style="margin-top:6px" data-act="train" data-k="' + k + '"' + (coins < cost ? ' disabled' : '') + '>🏋️ Train ' + cost.toLocaleString() + ' 🪙</button>') + '</div></div>';
+    return '<div class="rcrow"><div class="rcl"><div class="jersey">' + NUM[k] + '</div><b>' + q.label + '</b><br>' + roster.nm[k] + hurt + '<br>Training: ' + '●'.repeat(tr) + '○'.repeat(4 - tr) + '<br><small>Beat the Scrubs in a practice game to get +¼ star!</small></div><div class="rcr">' + barsHtml(a) +
+      (tr >= 4 ? '<b>💪 Fully trained!</b>' : '<button class="btn" style="margin-top:6px" data-act="practice" data-k="' + k + '">🏈 Practice game</button>') + '</div></div>';
   }).join('');
 }
 function openRecruit() { rcTab = 'team'; updCoins(); renderRecruit(); $('fbRecruit').classList.add('show'); }
-$('rcList').onclick = e => {
+$('rcList').onclick = $('rcPos').onclick = e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
-  const k = b.dataset.k, lv = roster.lv[k];
-  if (b.dataset.act === 'buy') {
-    if (lv >= 6) return;
-    const c = price(k, lv + 1); if (coins < c) return;
-    coins -= c; roster.lv[k] = lv + 1; roster.nm[k] = roster.cand[k].nm; roster.bias[k] = roster.cand[k].bias; roster.tr[k] = 0;
-    roster.cand[k] = roster.lv[k] < 6 ? makeCand(k, roster.lv[k] + 1) : null;
+  const act = b.dataset.act, k = b.dataset.k;
+  if (act === 'pos') { rcPos = k; renderRecruit(); return; }
+  if (act === 'buy') {
+    const c = roster.market[k][+b.dataset.i];
+    if (!c || c.lv <= roster.lv[k]) return;
+    const cost = price(k, c.lv); if (coins < cost) return;
+    coins -= cost; roster.lv[k] = c.lv; roster.nm[k] = c.nm; roster.bias[k] = c.bias; roster.tr[k] = 0; roster.inj[k] = 0;
+    roster.market[k][+b.dataset.i] = makeCand(k, c.lv);
     saveAll(); sfx.fanfare(); updCoins(); renderRecruit();
-  } else if (b.dataset.act === 'train') {
+  } else if (act === 'heal') {
+    const c = healCost(k); if (coins < c || !(roster.inj[k] > 0)) return;
+    coins -= c; roster.inj[k] = 0; saveAll(); sfx.catchB(); updCoins(); renderRecruit();
+  } else if (act === 'practice') {
     if (roster.tr[k] >= 4) return;
-    const c = trainCost(k); if (coins < c) return;
-    coins -= c; roster.tr[k]++; saveAll(); sfx.catchB(); updCoins(); renderRecruit();
+    $('fbRecruit').classList.remove('show'); newGame(k);
   }
 };
 $('tabTeam').onclick = () => { rcTab = 'team'; renderRecruit(); };
@@ -1392,7 +1444,7 @@ function update() {
   tick++;
   if (!isOpen() || paused || !g) return;
   const dt = 1 / 60;
-  if (!g.half && TOTAL - g.clock >= TOTAL / 2) { g.half = true; g.to = 3; }
+  const tt = g.total || TOTAL; if (!g.half && tt - g.clock >= tt / 2) { g.half = true; g.to = 3; }
   if (toastT > 0) toastT--;
   if (phase === 'play') updatePlay(dt);
   else if (phase === 'presnap') {
@@ -1455,7 +1507,7 @@ function drawField() {
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, top); ctx.lineTo(W, top); ctx.moveTo(0, bot); ctx.lineTo(W, bot); ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = 'bold ' + Math.round(scale * 2) + 'px system-ui';
   ctx.save(); ctx.translate(sx(-2), sy(15)); ctx.rotate(-Math.PI / 2); ctx.fillText('BOBCATS', 0, 0); ctx.restore();
-  ctx.save(); ctx.translate(sx(102), sy(15)); ctx.rotate(Math.PI / 2); ctx.fillText('COYOTES', 0, 0); ctx.restore();
+  ctx.save(); ctx.translate(sx(102), sy(15)); ctx.rotate(Math.PI / 2); ctx.fillText(g && g.practice ? 'SCRUBS' : 'COYOTES', 0, 0); ctx.restore();
   if (IMG.complete && IMG.naturalWidth) {
     const w = 7 * scale, h = w * IMG.naturalHeight / IMG.naturalWidth;
     ctx.globalAlpha = .95; ctx.drawImage(IMG, sx(-8.5), sy(15) - h / 2 - 8 * scale, w, h); ctx.drawImage(IMG, sx(-8.5), sy(15) - h / 2 + 8 * scale, w, h); ctx.globalAlpha = 1;
@@ -1542,9 +1594,9 @@ function drawHUD() {
   if (IMG.complete && IMG.naturalWidth) ctx.drawImage(IMG, x + 8, 12, 62, 46);
   ctx.textAlign = 'left'; ctx.fillStyle = TAN; ctx.font = 'bold 13px system-ui'; ctx.fillText('BOBCATS' + (me ? ' 🏈' : ''), x + 76, 28);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 26px system-ui'; ctx.fillText(g.my, x + 76, 55);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#ff9aa0'; ctx.font = 'bold 13px system-ui'; ctx.fillText((me ? '' : '🏈 ') + 'COYOTES', x + w - 12, 28);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ff9aa0'; ctx.font = 'bold 13px system-ui'; ctx.fillText((me ? '' : '🏈 ') + (g.practice ? 'SCRUBS' : 'COYOTES'), x + w - 12, 28);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 26px system-ui'; ctx.fillText(g.cpu, x + w - 12, 55);
-  const el = TOTAL - g.clock, q = Math.min(4, Math.floor(el / QLEN) + 1), left = g.clock <= 0 ? 0 : Math.ceil(QLEN - (el - (q - 1) * QLEN));
+  const tt = g.total || TOTAL, ql = tt / 4, el = tt - g.clock, q = Math.min(4, Math.floor(el / ql) + 1), left = g.clock <= 0 ? 0 : Math.ceil(ql - (el - (q - 1) * ql));
   ctx.textAlign = 'center'; ctx.fillStyle = '#ffe14d'; ctx.font = 'bold 15px system-ui'; ctx.fillText('Q' + q, x + w / 2 + 20, 28);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 20px system-ui'; ctx.fillText(Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'), x + w / 2 + 20, 54);
   const togo = (me ? g.fd >= 100 : g.fd <= 0) ? 'Goal' : Math.max(1, Math.round((g.fd - g.los) * d));
@@ -1677,7 +1729,7 @@ function close() {
 }
 function togglePause() { paused = !paused; $('fbPause').classList.toggle('show', paused); }
 $('playFB').onclick = open;
-$('fbGo').onclick = newGame; $('fbAgain').onclick = () => { if (g && g.ref) newRefGame(); else newGame(); };
+$('fbGo').onclick = newGame; $('fbAgain').onclick = () => { if (g && g.ref) newRefGame(); else newGame(g && g.practice); };
 $('fbMenu1').onclick = $('fbMenu2').onclick = $('fbMenu3').onclick = close;
 $('fbPauseBtn').onclick = togglePause; $('fbResume').onclick = togglePause;
 addEventListener('blur', () => { if (isOpen() && !paused && phase !== 'idle' && phase !== 'over') togglePause(); });
