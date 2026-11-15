@@ -448,7 +448,7 @@
       const BAR = [['D4',0],['D4',1],['D5',2],['A4',4],['G#4',7],['G4',9],['F4',11],['D4',13],['F4',14],['G4',15]];
       const SHIFTS = [0,-2,-3,-4], g = [], b = [];
       for (let p = 0; p < 8; p++) {
-        const sh = SHIFTS[p % 4], off = p*16;
+        const sh = SHIFTS[Math.floor(p / 2)], off = p*16;
         BAR.forEach(([n,s]) => { const nn = shiftNote(n, sh); if (nn) g.push({n:nn, s:off+s, l:1}); });
         const root = shiftNote('D4', sh);
         [0,2,4,6,8,10,12,14].forEach(s => b.push({n:root, s:off+s, l:1}));
