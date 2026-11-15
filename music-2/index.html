@@ -455,12 +455,12 @@
     const melD = [melC[0], melC[1],
       [[0,77,4],[4,81,2],[6,84,2],[8,81,4],[12,77,2],[14,81,2]],
       [[0,84,16]]];
-    const melody = (p, m) => m.forEach((bar, b) => bar.forEach(([s, n, l]) => add(p, 0, b * 16 + s, l, n)));
+    const melody = (p, m) => m.forEach((bar, b) => bar.forEach(([s, n, l]) => add(p, 0, b * 16 + s, l, n - 12)));
     const bass = (p, prog, eighths) => prog.forEach(([root], b) => {
       if (eighths) evens.forEach(s => add(p, 1, b * 16 + s, 1, root));
       else { add(p, 1, b * 16, 8, root); add(p, 1, b * 16 + 8, 8, root); }
     });
-    const bells = (p, prog, up) => prog.forEach(([, tri], b) => [0,1,2,1,0,1,2,1].forEach((ix, i) => add(p, 3, b * 16 + i * 2, 2, tri[ix] + (up ? 12 : 0))));
+    const bells = (p, prog, up) => prog.forEach(([, tri], b) => [0,1,2,1,0,1,2,1].forEach((ix, i) => add(p, 3, b * 16 + i * 2, 2, tri[ix] - 12 + (up ? 12 : 0))));
     const guitar = (p, prog, rhythm) => prog.forEach(([root], b) => {
       (b === 3 && rhythm === "end" ? [[0, 16]] : rhythm === "big" || rhythm === "end" ? [[0,8],[8,8]] : [[0,6],[6,2],[8,6],[14,2]])
         .forEach(([s, l]) => { add(p, 2, b * 16 + s, l, root); add(p, 2, b * 16 + s, l, root + 7); });
@@ -482,7 +482,7 @@
     pats[0] = A; pats[1] = B; pats[2] = C; pats[3] = D;
     tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "guitar"; tracks[3].inst = "bell";
     tracks[0].vol = 0.7; tracks[2].vol = 0.6; tracks[3].vol = 0.6;
-    $("bpm").value = 128;
+    $("bpm").value = 92;
     if (!songMode) $("mode").click();
     applyPat(0); syncUI(); selectTrack(0);
     say("Hero Song loaded! Press Play and feel the power 🌟");
