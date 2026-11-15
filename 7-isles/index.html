@@ -670,9 +670,10 @@
   function claim(pi, nm) {
     G.isl[nm].owner = G.isl[nm].seat = pi; if (!G.startIsland) G.startIsland = nm;
     say('🏝️ ' + (pi === 0 ? 'You chose ' : G.players[pi].name + ' chose ') + nm + '!');
-    G.pickIdx++; refresh(); later(nextPick, 400);
+    G.pickIdx++; nextPick();
   }
-  function botPick(p) {                                    // bots like islands next to their own (that means rolling twice in a row!)
+  function botPick(p) {
+    if (G.phase !== 'draft' || G.pickList[G.pickIdx] !== p) return;      // only the ruler whose turn it is can pick                                    // bots like islands next to their own (that means rolling twice in a row!)
     var free = NORMAL.filter(function (nm) { return G.isl[nm].owner < 0; });
     if (!free.length) { nextPick(); return; }
     var near = free.filter(function (nm) { var i = SEATS.indexOf(nm); return [1, SEATS.length - 1].some(function (d) { return G.isl[SEATS[(i + d) % SEATS.length]].seat === p; }); });
@@ -727,7 +728,7 @@
   // bots trade with each other too. You only see it if you own a Robber Boat!
   function botTrade(pi) {
     if (G.n < 3 || !hasBoat(pi) || Math.random() > 0.6) return;
-    var others = G.players.map(function (p, i) { return i; }).filter(function (i) { return i !== pi && i !== 0; });
+    var others = G.players.map(function (p, i) { return i; }).filter(function (i) { return i !== pi && i !== 0 && !G.players[i].out; });
     if (!others.length) return;
     var qi = pick(others), P = G.players[pi], Q = G.players[qi];
     var spare = Object.keys(P.res).filter(function (k) { return P.res[k] >= 2; }), want = Object.keys(Q.res).filter(function (k) { return Q.res[k] >= 1; });
@@ -769,11 +770,34 @@
     NORMAL.forEach(function (nm) { if (G.ally.members.indexOf(G.isl[nm].owner) >= 0) G.isl[nm].owner = pi; });
     say('🤝 Alliance formed! ' + (pi === 0 ? 'You lead' : G.players[pi].name + ' leads') + ' with ' + yes.map(function (i) { return G.players[i].name; }).join(', ') + '. Income ×' + G.ally.members.length + '!');
   }
-  function endAlliance() { say('💔 The alliance ended. The leader keeps all the islands.'); G.ally = null; }
+  function takeSeats(from, to) { NORMAL.forEach(function (nm) { if (G.isl[nm].seat === from) G.isl[nm].seat = to; }); }   // the leader gets those islands' turns too
+  function knockOut(m, leader) {                         // someone with no islands left either dies or must join someone else
+    var P = G.players[m]; if (P.out || ownedBy(m).length) return;
+    var options = G.players.map(function (p, i) { return i; }).filter(function (i) { return i !== m && i !== leader && !G.players[i].out; });
+    G.voyages = G.voyages.filter(function (v) { return v.from !== m && v.to !== m; });
+    if (options.length && Math.random() < 0.5) {
+      var r = pick(options), R = G.players[r];
+      Object.keys(P.res).forEach(function (k) { R.res[k] = (R.res[k] || 0) + P.res[k]; });
+      Object.keys(P.items).forEach(function (k) { R.items[k] = (R.items[k] || 0) + P.items[k]; });
+      P.res = {}; P.items = {}; P.out = 'joined'; P.joinedTo = r;
+      say('➡️ ' + P.name + ' had no islands left and had to join ' + (r === 0 ? 'you' : G.players[r].name) + '!');
+    } else {
+      P.res = {}; P.items = {}; P.out = 'dead';
+      say('☠️ ' + P.name + ' had no islands left and is out of the game!');
+    }
+  }
+  function endAlliance() {
+    var A = G.ally, L = A.leader; G.ally = null;
+    A.members.forEach(function (m) { if (m !== L) takeSeats(m, L); });
+    say('💔 The alliance ended. ' + (L === 0 ? 'You keep' : G.players[L].name + ' keeps') + ' all the islands!');
+    A.members.forEach(function (m) { if (m !== L) knockOut(m, L); });
+  }
   function leaveAlliance(pi) {
-    G.ally.members = G.ally.members.filter(function (m) { return m !== pi; });
-    say('👋 ' + G.players[pi].name + ' left the alliance (keeps resources and items, no islands).');
-    if (G.ally.members.length < 2) G.ally = null;
+    var A = G.ally, L = A.leader; A.members = A.members.filter(function (m) { return m !== pi; });
+    takeSeats(pi, L);
+    say('👋 ' + G.players[pi].name + ' left the alliance and lost their islands.');
+    if (A.members.length < 2) G.ally = null;
+    knockOut(pi, L);
   }
 
   // ----- drawing the screens -----
@@ -809,7 +833,7 @@
     var h = '<details data-k="r"' + (hudOpen.r ? ' open' : '') + '><summary>Rulers</summary>';
     G.players.forEach(function (p, i) {
       var inAlly = G.ally && G.ally.members.indexOf(i) >= 0;
-      h += '<div class="prow' + (G.turn === i ? ' turn' : '') + '">' + (G.turn === i ? '▶' : '&nbsp;') + p.dot + ' ' + p.name + ' <span style="margin-left:auto">🏝️' + ownedBy(i).length + (inAlly ? (G.ally.leader === i ? ' 👑' : ' 🤝') : '') + '</span></div>';
+      h += '<div class="prow' + (G.turn === i ? ' turn' : '') + '">' + (G.turn === i ? '▶' : '&nbsp;') + p.dot + ' ' + (p.out ? '<s>' + p.name + '</s>' : p.name) + ' <span style="margin-left:auto">' + (p.out === 'dead' ? '☠️ out' : p.out === 'joined' ? '➡️ joined ' + G.players[p.joinedTo].dot : '🏝️' + ownedBy(i).length + (inAlly ? (G.ally.leader === i ? ' 👑' : ' 🤝') : '')) + '</span></div>';
     });
     h += '</details><details data-k="a"' + (hudOpen.a ? ' open' : '') + '><summary>Your alliance</summary>';
     if (G.ally && G.ally.members.indexOf(0) >= 0) {
@@ -869,39 +893,38 @@
     }
     box.innerHTML = h; box.style.display = 'block';
   }
-  var shopTab = 'Boats', TABS = ['Boats', 'Food', 'Special Items', 'Buildings', '🎒 My items'];
-  function renderShop() {
-    var me = G.players[0], mine = G.turn === 0, h = '<h2>🛒 Shop</h2>';
+  var SHORT = { 'Trade Boat': 'Carries 10 things', 'Exploding Boat': 'Blows up a boat', 'Robber Boat': 'Steals 5 · breaks after 3 uses', 'Flying Boat': "Can't be robbed", 'Bread': 'Feeds 5 people', 'Golden Bread': 'Feeds a whole island',
+                'Drought': 'Island stops for 1 turn', 'Power Drought': 'Island stops for 3 turns', 'Tent': 'Holds 1 person', 'Cabin': 'Holds 5 people' };
+  function renderShop() {                                  // one simple page: see it, press Craft
+    var me = G.players[0], mine = G.turn === 0 && G.phase === 'play', h = '<h2>🛒 Shop</h2>';
     h += '<div>' + (Object.keys(me.res).filter(function (k) { return me.res[k] > 0; }).map(function (k) { return '<span class="chip">' + RES[k] + ' ' + me.res[k] + '</span>'; }).join('') || '<span class="chip">No resources yet</span>') + '</div>';
     if (!mine) h += '<div class="need" style="margin-top:6px">⏳ Wait for your turn to craft.</div>';
-    h += '<div class="tabs">' + TABS.map(function (t) { return '<button class="btn' + (t === shopTab ? ' on' : '') + '" data-tab="' + t + '">' + t + '</button>'; }).join('') + '</div>';
-    if (shopTab !== '🎒 My items') {
-      h += '<div class="cards">';
-      RECIPES.filter(function (r) { return r.g === shopTab; }).forEach(function (r) {
-        var cost = Object.keys(r.cost).map(function (k) { var ok = (me.res[k] || 0) >= r.cost[k]; return '<span class="' + (ok ? 'have' : 'need') + '">' + r.cost[k] + RES[k] + '</span>'; }).join(' ');
-        var needs = Object.keys(r.needs || {}).map(function (k) { var ok = (me.items[k] || 0) >= r.needs[k]; return '<span class="' + (ok ? 'have' : 'need') + '">' + r.needs[k] + ' ' + recipe(k).icon + ' ' + k + '</span>'; }).join(' ');
-        h += '<div class="card"><b>' + r.icon + ' ' + r.name + '</b><div class="use">' + r.use + '</div><div>Cost: ' + cost + ' ' + needs + '</div>' +
-             '<button class="btn" data-craft="' + r.name + '" style="margin-top:6px"' + (mine && canAfford(me, r) ? '' : ' disabled') + '>🔨 Craft</button></div>';
-      });
-      h += '</div><div class="tip" style="margin-top:8px"><span class="have">Green</span> = you have enough · <span class="need">red</span> = you need more</div>';
-    } else {
-      var have = Object.keys(me.items).filter(function (k) { return me.items[k] > 0; });
-      if (!have.length) h += '<div>Nothing yet. Craft something in the other tabs!</div>';
-      have.forEach(function (k) {
-        var r = recipe(k), usable = r.turns || r.cap;
-        h += '<span class="chip">' + r.icon + ' ' + k + ' ×' + me.items[k] + (usable && mine ? ' <button class="btn" data-use="' + k + '" style="padding:2px 8px;font-size:13px">' + (r.cap ? 'Place' : 'Use') + '</button>' : '') + '</span>';
-      });
+    var usable = Object.keys(me.items).filter(function (k) { return me.items[k] > 0 && (recipe(k).turns || recipe(k).cap); });
+    if (usable.length && mine) {
+      h += '<div class="grp">Use your items</div>' + usable.map(function (k) {
+        var r = recipe(k); return '<span class="chip">' + r.icon + ' ' + k + ' ×' + me.items[k] + ' <button class="btn" data-use="' + k + '" style="padding:2px 8px;font-size:13px">' + (r.cap ? 'Place' : 'Use') + '</button></span>';
+      }).join('');
       if (pendingUse) {
-        h += '<div class="grp">Pick an island for ' + pendingUse + '</div>';
-        (recipe(pendingUse).cap ? ownedBy(0) : NORMAL).forEach(function (nm) { h += '<button class="btn" data-target="' + nm + '" style="margin:2px">' + ISL[nm].icon + ' ' + nm + ' (' + ownerName(G.isl[nm].owner) + ')</button>'; });
+        h += '<div style="margin-top:6px">Pick an island for <b>' + pendingUse + '</b>:</div>';
+        (recipe(pendingUse).cap ? ownedBy(0) : NORMAL).forEach(function (nm) { h += '<button class="btn" data-target="' + nm + '" style="margin:2px">' + ISL[nm].icon + ' ' + nm + '</button>'; });
       }
     }
+    var g = '';
+    RECIPES.forEach(function (r) {
+      if (r.g !== g) { if (g) h += '</div>'; g = r.g; h += '<div class="grp">' + g + '</div><div class="cards">'; }
+      var cost = Object.keys(r.cost).map(function (k) { return '<span class="' + ((me.res[k] || 0) >= r.cost[k] ? 'have' : 'need') + '">' + r.cost[k] + RES[k] + '</span>'; }).join(' ');
+      var needs = Object.keys(r.needs || {}).map(function (k) { return '<span class="' + ((me.items[k] || 0) >= r.needs[k] ? 'have' : 'need') + '">' + r.needs[k] + recipe(k).icon + '</span>'; }).join(' ');
+      var ok = mine && canAfford(me, r);
+      h += '<div class="card"><b>' + r.icon + ' ' + r.name + '</b><div class="use">' + SHORT[r.name] + '</div><div>' + cost + ' ' + needs + '</div>' +
+           '<button class="btn' + (ok ? ' go' : '') + '" data-craft="' + r.name + '" style="margin-top:6px"' + (ok ? '' : ' disabled') + '>🔨 Craft</button></div>';
+    });
+    h += '</div>';
     $('shopBody').innerHTML = h;
   }
   function renderAlli() {
     var h = '<h2>🤝 Alliances</h2>', n = G.n;
     if (G.allyResult) h += '<div class="card" style="margin:6px 0"><b>Last invite:</b><div>' + G.allyResult + '</div></div>';
-    h += '<div>Work together! A bigger alliance makes more income: ×1 for 1 player, ×2 for 2, and so on. The <b>leader</b> owns all the islands and collects everything. You can only make <b>one</b> alliance, and it cannot include every player.</div>';
+    h += '<div>Work together! A bigger alliance makes more income: ×1 for 1 player, ×2 for 2, and so on. The <b>leader</b> owns all the islands and collects everything. You can only make <b>one</b> alliance, and it cannot include every player. <b>If it ends, the leader keeps all the islands, and the other members either die ☠️ or have to join someone else.</b></div>';
     if (G.ally) {
       var A = G.ally;
       h += '<div class="grp">Your alliance</div><div>👑 Leader: ' + G.players[A.leader].dot + ' ' + G.players[A.leader].name + '</div><div>Members: ' + A.members.map(function (m) { return G.players[m].dot + ' ' + G.players[m].name; }).join(', ') + '</div><div>Income: <b>×' + A.members.length + '</b></div>';
@@ -912,7 +935,7 @@
       h += '<div class="grp">Wait for your turn to make an alliance.</div>';
     } else {
       h += '<div class="grp">Who do you invite? (you will be the leader)</div>';
-      for (var i = 1; i < n; i++) h += '<label class="chip"><input type="checkbox" data-pick="' + i + '"> ' + G.players[i].dot + ' ' + G.players[i].name + '</label>';
+      for (var i = 1; i < n; i++) if (!G.players[i].out) h += '<label class="chip"><input type="checkbox" data-pick="' + i + '"> ' + G.players[i].dot + ' ' + G.players[i].name + '</label>';
       h += '<div id="allyChosen" class="tip">You chose: nobody yet</div><div><button class="btn" data-ally="form" style="margin-top:8px">🤝 Form alliance</button></div><div id="allyMsg" class="need"></div>';
     }
     $('alliBody').innerHTML = h;
@@ -1106,7 +1129,9 @@
         h += '<span class="chip">' + RES[k] + ' ' + k + ' <button class="btn" data-ld="' + k + '|-1" style="padding:1px 8px">−</button> <b>' + (trade.load[k] || 0) + '</b> <button class="btn" data-ld="' + k + '|1" style="padding:1px 8px">＋</button></span>';
       });
       h += '<div class="grp">3. Trade with</div>';
-      for (var i = 1; i < G.n; i++) h += '<button class="btn" data-partner="' + i + '" style="margin:2px;' + (trade.partner === i ? 'background:#e0457b' : '') + '">' + G.players[i].dot + ' ' + G.players[i].name + '</button>';
+      var partners = G.players.map(function (p, i) { return i; }).filter(function (i) { return i > 0 && !G.players[i].out; });
+      if (partners.indexOf(trade.partner) < 0) trade.partner = partners[0];
+      partners.forEach(function (i) { h += '<button class="btn" data-partner="' + i + '" style="margin:2px;' + (trade.partner === i ? 'background:#e0457b' : '') + '">' + G.players[i].dot + ' ' + G.players[i].name + '</button>'; });
       h += '<div class="grp">4. You get</div><select id="tGet">' + opts(Object.keys(RES), trade.get) + '</select><select id="tGetN">' + nums(10, trade.getN) + '</select>';
       h += '<div class="tip" style="margin-top:8px">Rulers like fair trades: load at least as many as you ask for. Your boat sails and arrives at the start of your next turn. A rival with a 🏴‍☠️ Robber Boat could grab from it!</div>';
       h += '<div style="margin-top:10px"><button class="btn go" data-trade="offer">⛵ Send the boat!</button></div>';
@@ -1192,7 +1217,6 @@
   ['shopM', 'alliM', 'tradeM', 'invM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
   $('shopBody').addEventListener('click', function (e) {
     var t = e.target; if (!t.dataset) return;
-    if (t.dataset.tab) { shopTab = t.dataset.tab; pendingUse = null; renderShop(); return; }
     if (t.dataset.craft && G.turn === 0) { var r = recipe(t.dataset.craft); if (craft(0, r)) say('🔨 You made ' + r.icon + ' ' + r.name); refresh(); }
     if (t.dataset.use) { pendingUse = t.dataset.use; renderShop(); }
     if (t.dataset.target && pendingUse && G.turn === 0) { if (recipe(pendingUse).cap) placeBuilding(0, pendingUse, t.dataset.target); else useDrought(0, pendingUse, t.dataset.target); pendingUse = null; refresh(); }
@@ -1210,7 +1234,7 @@
     if (a === 'form') {
       var picks = [].slice.call(document.querySelectorAll('[data-pick]')).filter(function (c) { return c.checked; }).map(function (c) { return +c.dataset.pick; });
       if (!picks.length) { $('allyMsg').textContent = 'Pick at least one player!'; return; }
-      if (picks.length + 1 >= G.n) { $('allyMsg').textContent = 'An alliance cannot include every player!'; return; }
+      if (picks.length + 1 >= G.players.filter(function (p) { return !p.out; }).length) { $('allyMsg').textContent = 'An alliance cannot include every player!'; return; }
       formAlliance(0, picks);
     }
     if (a === 'end') endAlliance();
