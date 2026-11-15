@@ -868,6 +868,13 @@ POS.forEach(q => {
   if (!Array.isArray(roster.market[q.k]) || roster.market[q.k].length < 5 || !roster.market[q.k][0].lv) roster.market[q.k] = genMarket(q.k);
 });
 const L = k => Math.max(1, (roster.lv[k] >= 6 ? 7 : roster.lv[k]) + (roster.tr[k] || 0) * .25 - (roster.inj[k] > 0 ? 2 : 0));   // OP counts as level 7, each training session adds a quarter star
+// one-time clean-up: remove any OP players already on the team (they go back to a regular starter)
+try {
+  if (!localStorage.getItem('papaBowlOPRemoved1')) {
+    POS.forEach(q => { if (roster.lv[q.k] >= 6) { roster.lv[q.k] = 3; roster.nm[q.k] = newName(); roster.bias[q.k] = rb3(); roster.tr[q.k] = 0; roster.inj[q.k] = 0; } });
+    localStorage.setItem('papaBowlOPRemoved1', '1'); localStorage.setItem('papaBowlRoster', JSON.stringify(roster));
+  }
+} catch (e) {}
 try { if (!localStorage.getItem('papaBowlGift10M')) { coins += 10000000; localStorage.setItem('papaBowlGift10M', '1'); localStorage.setItem('papaBowlCoins', coins); } } catch (e) {}
 function saveAll() { try { localStorage.setItem('papaBowlRoster', JSON.stringify(roster)); localStorage.setItem('papaBowlCoins', coins); } catch (e) {} }
 let g = null, P = null, phase = 'idle', paused = false, timer = 0, banner = '', sub = '', camX = 0, tick = 0, kick = null, toast = '', toastT = 0;
