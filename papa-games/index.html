@@ -8,6 +8,8 @@
   html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; overflow:hidden; touch-action:none; user-select:none; }
   #arcade { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; z-index:5; }
   #pauseBtn { position:fixed; top:8px; right:12px; z-index:5; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
+  #botBtn { position:fixed; top:8px; right:120px; z-index:5; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
+  #botBtn.on { background:#1f9d55; border-color:#7dffb0; }
   canvas { position:fixed; inset:0; width:100%; height:100%; }
   .overlay { position:fixed; inset:0; display:none; place-items:center; text-align:center; background:rgba(18,11,46,.85); z-index:4; }
   .overlay.show { display:grid; }
@@ -23,6 +25,7 @@
 <body>
 <a id="arcade" href="../">← Arcade</a>
 <button id="pauseBtn">⏸ Pause</button>
+<button id="botBtn">🤖 Bot: OFF</button>
 <canvas id="c"></canvas>
 
 <div id="menu" class="overlay show">
@@ -31,7 +34,7 @@
     <p>Pick a game!</p>
     <button class="btn" id="playTetris">🧱 Blocks (Tetris)</button>
     <button class="btn off">🔒 More games soon</button>
-    <p style="font-size:14px">← → move · ↑ or Space spin · ↓ fall faster · Enter drop · P pause</p>
+    <p style="font-size:14px">B = robot helper 🤖 · ← → move · ↑ or Space spin · ↓ fall faster · Enter drop · P pause</p>
   </div>
 </div>
 <div id="pause" class="overlay">
@@ -135,7 +138,7 @@ function setState(s) {
   $('menu').classList.toggle('show', s === 'menu');
   $('pause').classList.toggle('show', s === 'pause');
   $('over').classList.toggle('show', s === 'over');
-  $('pauseBtn').style.display = (s === 'play' || s === 'pause') ? 'block' : 'none';
+  $('pauseBtn').style.display = $('botBtn').style.display = (s === 'play' || s === 'pause') ? 'block' : 'none';
 }
 function togglePause() {
   if (state === 'play') setState('pause'); else if (state === 'pause') setState('play');
@@ -182,6 +185,7 @@ function hardDrop() {
 const held = { left: 0, right: 0, down: 0 };
 const KEYMAP = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowDown: 'down', s: 'down', S: 'down' };
 addEventListener('keydown', e => {
+  if (e.key === 'b' || e.key === 'B') { toggleBot(); return; }
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { togglePause(); return; }
   if ((e.key === 'Enter') && state === 'over') { startGame(); return; }
   if (state !== 'play') return;
@@ -219,10 +223,61 @@ $('pauseBtn').onclick = togglePause;
 $('toMenu1').onclick = $('toMenu2').onclick = () => setState('menu');
 addEventListener('blur', () => { if (state === 'play') setState('pause'); });
 
+
+// ---------- the helper bot ----------
+let bot = false, plan = null, botT = 0;
+function toggleBot() {
+  bot = !bot; plan = null;
+  $('botBtn').textContent = '🤖 Bot: ' + (bot ? 'ON' : 'OFF');
+  $('botBtn').classList.toggle('on', bot);
+  held.left = held.right = held.down = 0;
+}
+$('botBtn').onclick = toggleBot;
+function rate(m, x) {
+  let y = cur.y;
+  if (!fits(m, x, y)) return null;
+  while (fits(m, x, y + 1)) y++;
+  const g = grid.map(r => r.slice());
+  m.forEach((row, r) => row.forEach((v, c) => { if (v && y + r >= 0) g[y + r][x + c] = 1; }));
+  let cleared = 0;
+  const rows = g.filter(r => { const f = r.every(v => v); if (f) cleared++; return !f; });
+  while (rows.length < ROWS) rows.unshift(Array(COLS).fill(null));
+  const hs = [];
+  let holes = 0;
+  for (let c = 0; c < COLS; c++) {
+    let top = ROWS;
+    for (let r = 0; r < ROWS; r++) { if (rows[r][c]) { if (top === ROWS) top = r; } else if (top < ROWS) holes++; }
+    hs.push(ROWS - top);
+  }
+  let bump = 0; for (let c = 0; c < COLS - 1; c++) bump += Math.abs(hs[c] - hs[c + 1]);
+  const total = hs.reduce((a, b) => a + b, 0);
+  return -0.51 * total + 0.76 * cleared - 0.36 * holes - 0.18 * bump;
+}
+function makePlan() {
+  let best = null, m = cur.m;
+  for (let rot = 0; rot < 4; rot++) {
+    for (let x = -2; x < COLS; x++) {
+      const sc = rate(m, x);
+      if (sc !== null && (!best || sc > best.sc)) best = { sc, rot, x, piece: cur, done: 0 };
+    }
+    m = rotated(m);
+  }
+  return best || { rot: 0, x: cur.x, piece: cur, done: 0 };
+}
+function botStep() {
+  if (!plan || plan.piece !== cur) plan = makePlan();
+  if (++botT < 3) return;
+  botT = 0;
+  if (plan.done < plan.rot) { plan.done++; rotate(); }
+  else if (cur.x !== plan.x) { if (!move(cur.x < plan.x ? 1 : -1)) hardDrop(); }
+  else hardDrop();
+}
+
 // ---------- update (60 per second) ----------
 function update() {
   if (flashT > 0) flashT--;
   if (state !== 'play') return;
+  if (bot) { botStep(); return; }
   // sideways auto-repeat
   for (const d of ['left', 'right']) {
     if (held[d]) {
