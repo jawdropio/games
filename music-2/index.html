@@ -57,6 +57,7 @@
 <div class="row" id="cards"></div>
 
 <div class="row">
+  <button class="demo" id="storm">⚡ Demo: Storm Rock</button>
   <button id="clearTrack">🧽 Clear this track</button>
   <button id="clearAll">🗑 Clear all</button>
   <button class="demo" id="demo">🎮 Demo: Megalovania riff</button>
@@ -347,6 +348,22 @@
     }
     tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "flute";
     bars = 8; $("bpm").value = 120; syncUI(); selectTrack(0); say("Megalovania riff loaded! Press Play 🎮");
+  };
+
+  $("storm").onclick = () => {
+    tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false));
+    const roots = [52, 55, 50, 57], scale = [64, 67, 69, 71, 74, 76, 74, 71];
+    for (let b = 0; b < 4; b++) {
+      const o = b * 16;
+      for (let s = 0; s < 16; s++) tracks[0].notes.push({s: o + s, l: 1, p: s % 2 === 0 ? 71 : scale[(b * 4 + (s >> 1)) % scale.length]});
+      for (let s = 0; s < 16; s += 2) tracks[1].notes.push({s: o + s, l: 1, p: roots[b] - 12});
+      tracks[2].notes.push({s: o, l: 8, p: roots[b]}, {s: o, l: 8, p: roots[b] + 7}, {s: o + 8, l: 8, p: roots[b]}, {s: o + 8, l: 8, p: roots[b] + 7});
+      for (let s = 0; s < 16; s += 2) drums[0][o + s] = true;
+      for (let s = 0; s < 16; s += 4) drums[3][o + s] = true;
+      drums[2][o + 4] = drums[2][o + 12] = true;
+    }
+    tracks[0].inst = "lead"; tracks[1].inst = "bass"; tracks[2].inst = "lead";
+    bars = 4; $("bpm").value = 130; syncUI(); selectTrack(0); say("Storm Rock loaded! Press Play ⚡");
   };
 
   let slot = 1;
