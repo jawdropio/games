@@ -33,6 +33,9 @@
   .side { position:sticky; left:0; z-index:2; flex:none; }
   canvas { display:block; }
   #roll, #drums { touch-action:none; cursor:crosshair; }
+  .part { width:64px; height:64px; font-size:28px; border-radius:14px; background:#251a5c; border:3px solid var(--c); color:var(--c); }
+  .part.active { background:var(--c); color:#120b2e; box-shadow:0 0 12px var(--c); }
+  .part.has::after { content:" •"; }
   #msg { height:20px; font-size:14px; color:#ffd86b; text-align:center; }
   #pause { position:fixed; inset:0; background:rgba(10,5,30,.82); display:none; place-items:center; font-size:36px; font-weight:800; z-index:10; }
   #pause.show { display:grid; }
@@ -56,12 +59,18 @@
 
 <div class="row" id="cards"></div>
 
+<div class="row" id="partsRow">
+  <b>Song parts:</b>
+  <button class="part" data-i="0" style="--c:#ff6b9d">A</button><button class="part" data-i="1" style="--c:#4db8ff">B</button><button class="part" data-i="2" style="--c:#9be564">C</button><button class="part" data-i="3" style="--c:#ffc94d">D</button>
+  <button id="mode">🔁 Loop this part</button>
+</div>
+
 <div class="row">
   <button class="demo" id="storm">⚡ Demo: Storm Rock</button>
   <button id="clearTrack">🧽 Clear this track</button>
   <button id="copyLow">⬇ Copy lower</button>
   <button id="copyHigh">⬆ Copy higher</button>
-  <button id="clearAll">🗑 Clear all</button>
+  <button id="clearAll">🗑 Clear this part</button>
   <button class="demo" id="demo">🎮 Demo: Megalovania riff</button>
   Slot:
   <button class="slot" data-s="1">1</button><button class="slot" data-s="2">2</button><button class="slot" data-s="3">3</button>
@@ -346,7 +355,7 @@
   }
   $("copyLow").onclick = () => copyShift(-12);
   $("copyHigh").onclick = () => copyShift(12);
-  $("clearAll").onclick = () => { tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false)); dirty = true; say("Everything cleared! ✨"); };
+  $("clearAll").onclick = () => { tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false)); dirty = true; say("This part is empty! ✨"); };
 
   function syncUI() {
     $("bpmV").textContent = $("bpm").value; $("bars").value = bars;
@@ -385,6 +394,45 @@
     bars = 4; $("bpm").value = 130; syncUI(); selectTrack(0); say("Storm Rock loaded! Press Play ⚡");
   };
 
+  // ---------- song parts A B C D ----------
+  const emptyPat = () => ({n: [[], [], [], []], d: DR.map(() => Array(MAXSTEPS).fill(false)), bars: 4});
+  const pats = [0, 1, 2, 3].map(emptyPat);
+  let cur = 0, songMode = false;
+  const fixRow = r => { const x = Array(MAXSTEPS).fill(false); (r || []).slice(0, MAXSTEPS).forEach((v, i) => x[i] = !!v); return x; };
+  const cleanPat = p => ({
+    n: [0, 1, 2, 3].map(k => ((p.n && p.n[k]) || []).filter(n => n && n.p >= LOW && n.p <= HIGH).map(n => ({s: +n.s, l: +n.l, p: +n.p}))),
+    d: DR.map((_, k) => fixRow(p.d && p.d[k])),
+    bars: Math.min(8, Math.max(1, +p.bars || 4))});
+  const isEmpty = p => p.n.every(a => !a.length) && p.d.every(r => !r.some(Boolean));
+  const commit = () => { pats[cur] = {n: tracks.map(t => t.notes), d: drums.map(r => r), bars}; };
+  function applyPat(i) {
+    cur = i; const p = pats[i];
+    tracks.forEach((t, k) => t.notes = p.n[k]);
+    p.d.forEach((r, k) => drums[k] = r);
+    bars = p.bars; $("bars").value = bars; dirty = true; partButtons();
+  }
+  function showPat(i) { commit(); applyPat(i); }
+  function partButtons() {
+    const live = {n: tracks.map(t => t.notes), d: drums};
+    document.querySelectorAll(".part").forEach(b => {
+      const i = +b.dataset.i;
+      b.classList.toggle("active", i === cur);
+      b.classList.toggle("has", !isEmpty(i === cur ? live : pats[i]));
+    });
+  }
+  document.querySelectorAll(".part").forEach(b => b.onclick = () => { showPat(+b.dataset.i); say("Editing part " + "ABCD"[cur] + " 🟦"); });
+  $("mode").onclick = () => {
+    songMode = !songMode;
+    $("mode").textContent = songMode ? "▶▶ Play A → D" : "🔁 Loop this part";
+    $("mode").classList.toggle("active", songMode);
+    say(songMode ? "Play will go through all your parts in order!" : "Play will loop just this part");
+  };
+  function nextPart() {
+    commit();
+    for (let k = 1; k <= 4; k++) { const j = (cur + k) % 4; if (!isEmpty(pats[j])) { applyPat(j); return; } }
+  }
+  setInterval(partButtons, 400);
+
   let slot = 1;
   document.querySelectorAll(".slot").forEach(b => b.onclick = () => {
     slot = +b.dataset.s;
@@ -393,18 +441,20 @@
   document.querySelector('.slot[data-s="1"]').classList.add("active");
   $("save").onclick = () => {
     try {
+      commit();
       localStorage.setItem("songmaker-pro-" + slot, JSON.stringify({
-        t: tracks.map(t => ({inst: t.inst, vol: t.vol, notes: t.notes})), d: drums, bpm: $("bpm").value, bars}));
-      say("Saved to slot " + slot + "! 💾");
+        t: tracks.map(t => ({inst: t.inst, vol: t.vol})), p: pats, bpm: $("bpm").value}));
+      say("Saved all 4 parts to slot " + slot + "! 💾");
     } catch (e) { say("Couldn't save here 😢"); }
   };
   $("load").onclick = () => {
     try {
       const s = JSON.parse(localStorage.getItem("songmaker-pro-" + slot));
       if (!s) { say("Slot " + slot + " is empty"); return; }
-      s.t.forEach((x, i) => { if (tracks[i]) { tracks[i].inst = INSTS[x.inst] ? x.inst : "piano"; tracks[i].vol = +x.vol || 0.8; tracks[i].notes = x.notes.filter(n => n.p >= LOW && n.p <= HIGH); } });
-      s.d.forEach((r, i) => { if (drums[i]) drums[i] = r.slice(0, MAXSTEPS); });
-      bars = Math.min(8, Math.max(1, +s.bars || 4)); $("bpm").value = s.bpm; syncUI(); say("Loaded slot " + slot + "! 📂");
+      s.t.forEach((x, i) => { if (tracks[i]) { tracks[i].inst = INSTS[x.inst] ? x.inst : "piano"; tracks[i].vol = +x.vol || 0.8; } });
+      const list = s.p || [{n: s.t.map(x => x.notes), d: s.d, bars: s.bars}];
+      for (let i = 0; i < 4; i++) pats[i] = list[i] ? cleanPat(list[i]) : emptyPat();
+      $("bpm").value = s.bpm; applyPat(0); syncUI(); say("Loaded slot " + slot + "! 📂");
     } catch (e) { say("Couldn't load that one"); }
   };
 
@@ -413,11 +463,13 @@
   const DT = 1000 / 60;
   function setPlaying(v) {
     playing = v; $("play").textContent = v ? "■ Stop" : "▶ Play"; $("play").classList.toggle("on", v);
-    if (v) { audio(); step = -1; first = true; ticks = 0; }
+    if (v) { if (songMode && cur !== 0 && !isEmpty(pats[0])) showPat(0); audio(); step = -1; first = true; ticks = 0; }
     else { step = -1; dirty = true; }
   }
   function advance() {
-    step = (step + 1) % steps(); dirty = true;
+    let ns = step + 1;
+    if (ns >= steps()) { ns = 0; if (songMode && step >= 0) nextPart(); }
+    step = ns; dirty = true;
     const stepSec = 60 / $("bpm").value / 4;
     tracks.forEach(t => { if (!t.mute) t.notes.forEach(n => { if (n.s === step) playNote(t.inst, n.p, n.l * stepSec, t.vol); }); });
     DR.forEach((n, r) => { if (drums[r][step]) playDrum(n); });
