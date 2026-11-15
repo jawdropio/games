@@ -108,6 +108,10 @@
   #dock .slot .count { position:absolute; bottom:0; right:4px; font:800 14px system-ui; color:#ffd23f; }
   #dock .slot .uses { position:absolute; bottom:0; left:4px; font:800 10px system-ui; color:#ff9a9a; }
   #dockMsg { right:12px; bottom:80px; background:none; border:0; padding:0; display:none; color:#ffd23f; font:800 14px system-ui; text-shadow:0 2px 4px #000; }
+  #coach { top:100px; left:50%; transform:translateX(-50%); width:min(560px,70vw); text-align:center; background:rgba(30,20,80,.94); border:2px solid #ffd23f; font-size:14px; display:none; z-index:6; }
+  body:not(.play) #coachBtn { display:none; }
+  .dmgbar { height:14px; background:rgba(255,255,255,.15); border-radius:99px; overflow:hidden; margin:6px 0; }
+  .dmgbar div { height:100%; background:#e0457b; }
   #boatPop { width:210px; display:none; z-index:7; font-size:13px; }
   .spot.pickme canvas { filter:drop-shadow(0 0 1.4vmin #ffd84a) drop-shadow(0 0 .6vmin #fff); }
   .spot.pickme:not(.pic) { border-color:#ffd84a; border-style:solid; }
@@ -133,7 +137,7 @@
   #start { z-index:9; }
   #start .mbox { text-align:center; }
   #start .btn { display:block; width:100%; margin:8px 0; font-size:18px; }
-  .lbl { position:absolute; left:50%; bottom:-1vmin; transform:translate(-50%,100%); white-space:nowrap; pointer-events:none;
+  .lbl { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; line-height:1.2; white-space:nowrap; pointer-events:none;
          font:800 max(10px,1.5vmin) system-ui, sans-serif; background:rgba(18,11,46,.85); color:#fff; border-radius:99px; padding:.3vmin 1vmin; }
   .spot.pic canvas { filter:drop-shadow(0 0 .9vmin var(--own, transparent)); }
   .spot.sel canvas { filter:drop-shadow(0 0 .8vmin #fff) drop-shadow(0 0 1.6vmin var(--own, #ffd84a)); }
@@ -181,7 +185,7 @@
 </head>
 <body>
 <div id="zoom"><div id="board"></div></div>
-<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="hudBtn" title="Hide or show the side panel">📋</button><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
+<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="hudBtn" title="Hide or show the side panel">📋</button><button class="btn" id="coachBtn" title="Show or hide the tips">🎓</button><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
 <div class="bar" id="right">
   <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="confirm" disabled>✔ Confirm</button><button class="btn" id="cancel" disabled>✖ Cancel</button><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
   <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
@@ -192,6 +196,9 @@
 <div class="ui" id="hud"></div>
 <div class="ui" id="dock"></div>
 <div class="ui" id="dockMsg"></div>
+<div class="ui" id="coach"></div>
+<div class="ui modal" id="atkM"><div class="mbox"><div id="atkBody"></div></div></div>
+<div class="ui modal" id="overM"><div class="mbox" style="text-align:center"><div id="overBody"></div></div></div>
 <div class="ui" id="boatPop"></div>
 <div class="ui modal" id="robM"><div class="mbox"><div id="robBody"></div></div></div>
 <div class="ui" id="resbar" title="Open your inventory"></div>
@@ -532,7 +539,7 @@
   // The crafting recipes (only what is on your recipe list!)
   var RECIPES = [
     { g:'Boats', name:'Trade Boat', icon:'⛵', cost:{ 'Wood':8, 'Stone':3, 'Leather':3 }, use:'Holds 10 resources. You need a boat to trade. Whoever gets the trade keeps the boat.' },
-    { g:'Boats', name:'Exploding Boat', icon:'💥', cost:{ 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use:'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats.' },
+    { g:'Boats', name:'Exploding Boat', icon:'💥', cost:{ 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use:'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats. Also does 3 damage to an island.' },
     { g:'Boats', name:'Robber Boat', icon:'🏴‍☠️', cost:{ 'Iron':3, 'Wood':5 }, use:'Steals 5 resources from another boat. Breaks after 3 uses.' },
     { g:'Boats', name:'Flying Boat', icon:'🎈', cost:{ 'Bird Feathers':2 }, needs:{ 'Trade Boat':1 }, use:'Cannot be blown up or robbed. Never changes hands in a trade.' },
     { g:'Food', name:'Bread', icon:'🍞', cost:{ 'Wheat':3 }, use:'Feeds 5 people.' },
@@ -552,10 +559,10 @@
 
   // ----- starting a game -----
   function startGame(n) {
-    G = { n: n, voyages: [], vid: 0, players: [], isl: {}, turn: 0, rolled: false, rolling: false, choosing: false, phase: 'rolloff', capital: [], pickList: [], pickIdx: 0, seat: 0, startIsland: null, dice: [0, 0], log: [], ally: null, allyUsed: false };
+    G = { n: n, voyages: [], vid: 0, tut: {}, coachOn: true, winner: -1, players: [], isl: {}, turn: 0, rolled: false, rolling: false, choosing: false, phase: 'rolloff', capital: [], pickList: [], pickIdx: 0, seat: 0, startIsland: null, dice: [0, 0], log: [], ally: null, allyUsed: false };
     for (var i = 0; i < n; i++) G.players.push({ name: NAMES[i], dot: DOTS[i], color: COLORS[i], bot: i > 0, res: {}, items: {}, robberUses: 0 });
-    NORMAL.forEach(function (nm) { G.isl[nm] = { owner: -1, seat: -1, hp: ISL[nm].hp, drought: 0, people: 0, housing: 0, focus: Object.keys(ISL[nm].spaces)[0] }; });
-    G.isl.Duneshade = { owner: -1, hp: ISL.Duneshade.hp, drought: 0, people: 0, housing: 0 };
+    NORMAL.forEach(function (nm) { G.isl[nm] = { owner: -1, seat: -1, hp: ISL[nm].hp, drought: 0, people: 0, housing: 0, knights: 0, focus: Object.keys(ISL[nm].spaces)[0] }; });
+    G.isl.Duneshade = { owner: -1, seat: -1, hp: ISL.Duneshade.hp, drought: 0, people: 0, housing: 0, knights: 0 };
     $('start').classList.remove('on');
     ['hud', 'turnbar', 'resbar', 'banner', 'frame'].forEach(function (id) { $(id).style.display = id === 'turnbar' ? 'flex' : 'block'; });
     say('🎲 Everyone rolls! The highest number picks an island first.');
@@ -647,6 +654,7 @@
     var P = G.players[pi], r = recipe(itemName);
     if ((P.items[itemName] || 0) < 1 || G.isl[island].owner !== pi) return;
     P.items[itemName]--; G.isl[island].housing += r.cap; G.isl[island].people += r.cap;
+    if (pi === 0) G.tut.placed = true;
     if (pi === 0) say(r.icon + ' ' + itemName + ' built on ' + island + ' — ' + r.cap + ' more ' + (r.cap > 1 ? 'people' : 'person') + ' moved in!');
   }
 
@@ -686,7 +694,9 @@
   function beginPlay() {
     G.phase = 'play'; G.choosing = false; G.seat = SEATS.indexOf(G.startIsland); G.turn = G.isl[SEATS[G.seat]].seat; G.rolled = false;
     say('▶️ ' + (G.turn === 0 ? 'You start' : G.players[G.turn].name + ' starts') + ' on ' + SEATS[G.seat] + '. Turns go clockwise, island by island!');
-    if (document.body.classList.contains('test')) { testBoat(); testBoat(); say('🧪 Two bot boats are sailing and you have a Robber Boat. Press a boat on the sea to rob it, any time!'); }
+    if (document.body.classList.contains('test')) { testBoat(); testBoat(); say('🧪 Two bot boats are sailing and you have a Robber Boat. Press a boat on the sea to rob it, any time!');
+      var my1 = ownedBy(0)[0]; if (my1) { G.isl[my1].people = 5; G.isl[my1].housing = 5; G.isl[my1].knights = 3; } G.players[0].items['Exploding Boat'] = 6;
+      say('🧪 You also have 6 💥 Exploding Boats and 3 ⚔️ Knights: enough to capture an island (20 ❤️)! Press an island that is not yours, then Attack.'); }
     refresh(); if (G.players[G.turn].bot) later(botTurn, 900);
   }
   function nextSeat() {
@@ -695,6 +705,7 @@
 
   // ----- turns and bots -----
   function endTurn() {
+    if (G.phase === 'over') return;
     var prev = G.turn; nextSeat(); G.turn = G.isl[SEATS[G.seat]].seat; G.rolled = false; pendingUse = null; G.offer = null;
     deliverVoyages(G.turn);                      // boats that were at sea arrive on their sender's turn
     if (G.turn === prev) say('🎲 ' + (G.turn === 0 ? 'You roll' : G.players[G.turn].name + ' rolls') + ' again, because their islands are side by side!');
@@ -703,20 +714,23 @@
     if (G.players[G.turn].bot) later(botTurn, 900);
   }
   function botTurn() {
+    if (G.phase !== 'play') return;
     var pi = G.turn;
     doRoll(pi, function () { later(function () {
-      botBuild(pi); botTrade(pi); refresh();
+      botBuild(pi); botTrade(pi); botAttack(pi); refresh();
+      if (G.phase === 'over') return;
       if (maybeOffer(pi)) { refresh(); waitOffer(function () { later(endTurn, 600); }); } else later(endTurn, 1000);
     }, 900); });
   }
   function botBuild(pi) {
-    var P = G.players[pi], opts = RECIPES.filter(function (r) { return r.name !== 'Exploding Boat' && r.name !== 'Robber Boat' && !(r.name === 'Flying Boat' && Math.random() < 0.8); });   // bots rarely make Flying Boats, so you get chances to rob
+    var P = G.players[pi], opts = RECIPES.filter(function (r) { return !(r.name === 'Exploding Boat' && Math.random() < 0.5) && r.name !== 'Robber Boat' && !(r.name === 'Flying Boat' && Math.random() < 0.8); });   // bots rarely make Flying Boats, so you get chances to rob
     for (var k = 0; k < 2; k++) {
       var ok = opts.filter(function (r) { return canAfford(P, r); });
       if (!ok.length) break;
       var r = pick(ok); craft(pi, r); say(P.dot + ' ' + P.name + ' crafted something');
       if (r.cap && ownedBy(pi).length) placeBuilding(pi, r.name, pick(ownedBy(pi)));
     }
+    var made = 0; ownedBy(pi).forEach(function (nm) { while (made < 2 && G.isl[nm].people > 0 && canKnight(pi) && Math.random() < 0.6) { makeKnight(pi, nm); made++; } });
     ['Power Drought', 'Drought'].forEach(function (d) {
       if ((P.items[d] || 0) > 0 && Math.random() < 0.6) {
         var targets = NORMAL.filter(function (nm) { var o = G.isl[nm].owner; return o >= 0 && o !== pi && G.isl[nm].drought === 0 && !(G.ally && G.ally.members.indexOf(o) >= 0 && G.ally.members.indexOf(pi) >= 0); });
@@ -739,6 +753,105 @@
     sendVoyage(pi, qi, boat, l, r);
     say('👀 ' + P.dot + ' ' + P.name + ' sent a boat to ' + Q.dot + ' ' + Q.name + ' (' + n + RES[give] + ' ⇄ ' + n + RES[get] + ')', true);
   }
+
+  // ----- knights, attacking islands, and winning -----
+  function escH(t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function knightsOf(pi) { return NORMAL.reduce(function (a, nm) { return a + (G.isl[nm].owner === pi ? (G.isl[nm].knights || 0) : 0); }, 0); }
+  function peopleOf(pi) { return NORMAL.reduce(function (a, nm) { return a + (G.isl[nm].owner === pi ? (G.isl[nm].people || 0) : 0); }, 0); }
+  function canKnight(pi) { var P = G.players[pi]; return (P.res['Iron'] || 0) >= 2 && (P.res['Horses'] || 0) >= 1; }
+  function makeKnight(pi, nm) {                            // a person living in a tent or cabin upgrades into a Knight: 2 Iron + 1 Horse
+    var P = G.players[pi], I = G.isl[nm];
+    if (!I || I.owner !== pi || !(I.people > 0) || !canKnight(pi)) return false;
+    P.res['Iron'] -= 2; P.res['Horses'] -= 1; I.people--; I.knights = (I.knights || 0) + 1;
+    if (pi === 0) { G.tut.knight = true; say('⚔️ A person on ' + nm + ' became a Knight!'); }
+    return true;
+  }
+  function attackOptions(pi) {                             // Exploding Boats do 3 damage; Knights do 1 and ride on Trade Boats (10 per boat)
+    var P = G.players[pi];
+    return { ex: P.items['Exploding Boat'] || 0, kn: Math.min(knightsOf(pi), 10 * (P.items['Trade Boat'] || 0)) };
+  }
+  function resolveAttack(pi, nm, ex, kn) {
+    var P = G.players[pi], I = G.isl[nm], o = attackOptions(pi);
+    if (!I || I.owner === pi || G.phase !== 'play' || G.turn !== pi) return null;
+    ex = Math.max(0, Math.min(ex, o.ex)); kn = Math.max(0, Math.min(kn, o.kn));
+    var dmg = ex * 3 + kn; if (dmg < 1) return null;
+    P.items['Exploding Boat'] = (P.items['Exploding Boat'] || 0) - ex;     // exploding boats are used up
+    var who = pi === 0 ? 'You' : P.name, hp = I.hp, prev = I.owner;
+    if (pi === 0) G.tut.attacked = true;
+    if (dmg >= hp) {
+      I.knights = 0; I.owner = pi; I.seat = nm === 'Duneshade' ? -1 : pi; I.hp = ISL[nm].hp;
+      say('⚔️ ' + who + ' attacked ' + nm + ' with ' + ex + '💥 and ' + kn + '⚔️ for ' + dmg + ' damage and CAPTURED it!');
+      if (nm === 'Duneshade') { G.winner = pi; G.phase = 'over'; refresh(); showOver(); return 'win'; }
+      if (prev >= 0) knockOut(prev, pi);                  // if they have no islands left they die or must join someone else
+      return 'captured';
+    }
+    say('⚔️ ' + who + ' hit ' + nm + ' for ' + dmg + ' damage, but it has ' + hp + ' ❤️. Damage does not carry over!');
+    return 'failed';
+  }
+  function botAttack(pi) {
+    if (G.phase !== 'play') return;
+    var o = attackOptions(pi), dmg = o.ex * 3 + o.kn; if (dmg < 1) return;
+    var mates = G.ally && G.ally.members.indexOf(pi) >= 0 ? G.ally.members : [pi];
+    var targets = Object.keys(G.isl).filter(function (nm) { return mates.indexOf(G.isl[nm].owner) < 0 && G.isl[nm].hp <= dmg; });
+    if (!targets.length) return;
+    targets.sort(function (a, b) { return (b === 'Duneshade') - (a === 'Duneshade') || G.isl[b].hp - G.isl[a].hp; });
+    resolveAttack(pi, targets[0], o.ex, o.kn);
+  }
+  function showOver() {
+    var w = G.winner, P = G.players[w];
+    $('overBody').innerHTML = '<div style="font-size:64px">' + (w === 0 ? '🏆' : '🏴') + '</div><h2>' + (w === 0 ? 'YOU WIN!' : P.name + ' wins!') + '</h2><div>' + (w === 0 ? 'You captured Duneshade!' : P.name + ' captured Duneshade.') + '</div><div style="margin-top:12px"><button class="btn go" id="again">Play again</button></div>';
+    $('overM').classList.add('on');
+  }
+  $('overBody').addEventListener('click', function (e) { if (e.target.id === 'again') location.reload(); });
+  var atk = { nm: null, ex: 0, kn: 0, msg: '' };
+  function openAtk(nm) { atk = { nm: nm, ex: 0, kn: 0, msg: '' }; $('atkM').classList.add('on'); renderAtk(); }
+  function renderAtk() {
+    var I = G.isl[atk.nm], D = ISL[atk.nm], o = attackOptions(0), mine = G.turn === 0 && G.phase === 'play';
+    atk.ex = Math.min(atk.ex, o.ex); atk.kn = Math.min(atk.kn, o.kn);
+    var dmg = atk.ex * 3 + atk.kn, pct = Math.min(100, Math.round(dmg / I.hp * 100)), row = function (key, icon, name, per, have, note) {
+      return '<div class="card" style="margin:6px 0"><b>' + icon + ' ' + name + '</b> <span style="opacity:.8">(' + per + ' damage each · you can send ' + have + ')</span>' + (note ? '<div class="need">' + note + '</div>' : '') +
+             '<div style="margin-top:4px"><button class="btn" data-atk="' + key + '|-1" style="padding:1px 10px">−</button> <b style="font-size:18px">' + atk[key] + '</b> <button class="btn" data-atk="' + key + '|1" style="padding:1px 10px">＋</button></div></div>';
+    };
+    var h = '<h2>⚔️ Attack ' + D.icon + ' ' + atk.nm + '</h2><div>Owner: ' + ownerName(I.owner) + ' · ❤️ Health: <b>' + I.hp + '</b></div>';
+    h += '<div class="tip" style="margin:6px 0">All your damage has to happen in <b>one turn</b>. Extra damage does not carry over, and Exploding Boats are used up.</div>';
+    h += row('ex', '💥', 'Exploding Boats', 3, o.ex, '');
+    h += row('kn', '⚔️', 'Knights', 1, o.kn, knightsOf(0) > o.kn ? 'You have ' + knightsOf(0) + ' knights, but only ' + o.kn + ' fit on your Trade Boats. Knights ride on Trade Boats (10 per boat)!' : (knightsOf(0) === 0 ? 'You have no knights yet. Make one from a person (2⚙️ + 1🐴).' : ''));
+    h += '<div style="margin-top:8px">Damage: <b>' + dmg + '</b> / ' + I.hp + '</div><div class="dmgbar"><div style="width:' + pct + '%"></div></div>';
+    h += '<div style="margin-top:8px"><button class="btn go" data-atkgo="1"' + (mine && dmg >= 1 ? '' : ' disabled') + '>⚔️ Attack!</button> <button class="btn" data-atkcancel="1">Cancel</button></div>';
+    if (!mine) h += '<div class="need" style="margin-top:6px">Wait for your turn to attack.</div>';
+    if (atk.msg) h += '<div class="card" style="margin-top:8px">' + atk.msg + '</div>';
+    $('atkBody').innerHTML = h;
+  }
+  $('atkBody').addEventListener('click', function (e) {
+    var d = e.target.dataset || {};
+    if (d.atk) { var p = d.atk.split('|'), o = attackOptions(0); atk[p[0]] = Math.max(0, Math.min(p[0] === 'ex' ? o.ex : o.kn, atk[p[0]] + +p[1])); atk.msg = ''; renderAtk(); }
+    if (d.atkgo) {
+      var r = resolveAttack(0, atk.nm, atk.ex, atk.kn);
+      if (r === 'failed') { atk.msg = '💨 Not enough damage! The island keeps all its ❤️. (Damage does not carry over.)'; atk.ex = atk.kn = 0; refresh(); return; }
+      $('atkM').classList.remove('on'); refresh();
+    }
+    if (d.atkcancel) $('atkM').classList.remove('on');
+  });
+
+  // ----- 🎓 the guide: tells you what to do next, one step at a time -----
+  function coachText() {
+    if (!G || !G.coachOn || G.phase === 'over') return '';
+    var t = G.tut, me = G.players[0];
+    if (G.phase === 'rolloff') return '🎓 Step 1: everyone rolls two dice. The highest roll picks an island first. Press Roll!';
+    if (G.phase === 'draft') return G.pickList[G.pickIdx] === 0 ? '🎓 Step 2: press a glowing 👆 island to claim it. Islands side by side mean you roll twice in a row!' : '🎓 Step 2: the other rulers are picking their islands…';
+    if (G.phase === 'capital') return '🎓 Step 3: press one of YOUR islands (⭐) to give it a 👑 crown. That is your capital.';
+    if (G.turn !== 0) return '🎓 The others are playing. You can rob a boat sailing on the sea at ANY time. Press one!';
+    if (!G.rolled) return '🎓 Your turn! Press 🎲 Roll. Every island makes something, and lucky numbers give a bonus.';
+    if (!t.crafted) return '🎓 Press 🛒 Shop and craft something. Try a ⛺ Tent!';
+    if (!t.placed && ((me.items['Tent'] || 0) + (me.items['Cabin'] || 0)) > 0) return '🎓 Open 🛒 Shop and press Place next to your Tent. People move in and give you +1 resource each.';
+    if (!t.knight) return '🎓 Press one of your islands, then ⚔️ Make a Knight (2⚙️ + 1🐴). A person becomes a fighter!';
+    if (!t.traded) return '🎓 Press 🔁 Trade: load a boat, pick a ruler, and send it. It arrives on your next turn.';
+    if (!t.robbed && (me.items['Robber Boat'] || 0) > 0) return '🎓 You have a 🏴‍☠️ Robber Boat! Press a boat sailing on the sea, then Rob.';
+    if (!t.attacked) return '🎓 Time to attack! Press an island that is not yours, then ⚔️ Attack. 💥 Exploding Boats do 3 damage and ⚔️ Knights do 1 (they ride on Trade Boats). Capture 🏜️ Duneshade (50 ❤️) to WIN!';
+    return '🎓 You know how to play! Press End turn ➜ when you are done.';
+  }
+  function renderCoach() { var c = $('coach'), t = coachText(); if (!t) { c.style.display = 'none'; return; } c.textContent = t; c.style.display = 'block'; }
+  $('coachBtn').onclick = function () { if (!G) return; G.coachOn = !G.coachOn; refresh(); };
 
   // ----- crafting -----
   function canAfford(P, r) {
@@ -806,7 +919,8 @@
     if (!G) return;
     window.MY_RES = G.players[0].res;
     renderHud(); renderResbar(); renderTurn(); renderLabels(); renderInfo();
-    renderOffer(); renderDock(); renderSails();
+    renderOffer(); renderDock(); renderSails(); renderCoach();
+    if ($('atkM').classList.contains('on')) renderAtk();
     if ($('robM').classList.contains('on')) renderRob();
     if ($('invM').classList.contains('on')) renderInv();
     if ($('tradeM').classList.contains('on')) renderTrade();
@@ -820,6 +934,7 @@
     h += rs.length ? '<div class="invgrid">' + rs.map(function (k) { return '<div class="inv"><span class="e">' + RES[k] + '</span><b>' + me.res[k] + '</b><small>' + k + '</small></div>'; }).join('') + '</div>' : '<div>Nothing yet. Roll the dice!</div>';
     h += '<div class="invh">Items you made</div>';
     h += is.length ? '<div class="invgrid">' + is.map(function (k) { return '<div class="inv"><span class="e">' + recipe(k).icon + '</span><b>' + me.items[k] + '</b><small>' + k + (k === 'Robber Boat' ? ' (' + (3 - me.robberUses) + ' uses left)' : '') + '</small></div>'; }).join('') + '</div>' : '<div>Nothing yet. Craft in the 🛒 Shop!</div>';
+    if (knightsOf(0)) h += '<div class="invh">Fighters</div><div class="invgrid"><div class="inv"><span class="e">⚔️</span><b>' + knightsOf(0) + '</b><small>Knights</small></div></div>';
     return h;
   }
   function renderInv() { $('invBody').innerHTML = '<h2>🎒 Your inventory</h2>' + invHtml(); }
@@ -848,22 +963,22 @@
     $('who').textContent = mine ? '🔵 Your turn' : P.dot + ' ' + P.name + ' is playing…';
     showDice();
     $('rollBtn').disabled = !(mine && !G.rolled && !G.rolling && !setup);
-    $('endBtn').disabled = !(mine && G.rolled);
+    $('endBtn').disabled = !(mine && G.rolled && !setup);
     $('shopBtn').disabled = setup; $('alliBtn').disabled = setup; $('tradeBtn').disabled = setup;
     $('rollBtn').classList.toggle('go', !$('rollBtn').disabled); $('endBtn').classList.toggle('go', !$('endBtn').disabled);
     var bn = $('banner'); bn.className = mine ? 'mine' : 'other';
-    bn.textContent = G.phase === 'draft' ? (G.pickList[G.pickIdx] === 0 ? '👆 Pick your island!' : (G.players[G.pickList[G.pickIdx]] || G.players[0]).dot + ' is picking…') : setup ? (G.choosing ? '👑 Pick your capital!' : '🎲 Getting ready…') : (mine ? '✅ YOUR TURN!' : P.dot + ' ' + P.name + "'s turn");
+    bn.textContent = G.phase === 'over' ? '🏁 Game over!' : G.phase === 'draft' ? (G.pickList[G.pickIdx] === 0 ? '👆 Pick your island!' : (G.players[G.pickList[G.pickIdx]] || G.players[0]).dot + ' is picking…') : setup ? (G.choosing ? '👑 Pick your capital!' : '🎲 Getting ready…') : (mine ? '✅ YOUR TURN!' : P.dot + ' ' + P.name + "'s turn");
     bn.style.borderColor = mine ? '#7dffa8' : P.color;
     $('frame').style.borderColor = mine && !setup ? '#1f9d55' : 'transparent';
     $('turnbar').classList.toggle('mine', mine); $('who').style.color = mine ? '#7dffa8' : '#fff';
-    $('hint').textContent = G.phase === 'rolloff' ? '🎲 Roll to see who picks first!' : G.phase === 'draft' ? (G.pickList[G.pickIdx] === 0 ? '👆 Your pick! Click a glowing island to claim it.' : '⏳ ' + (G.players[G.pickList[G.pickIdx]] || G.players[0]).name + ' is picking an island…') : G.choosing ? '👑 Choose your capital: click one of your islands!' : !mine ? '⏳ ' + P.name + ' is taking a turn…' : (G.rolling ? '🎲 Rolling…' : (!G.rolled ? '👉 Step 1: roll the dice!' : '👉 Step 2: craft in the Shop, make an alliance, or end your turn.'));
+    $('hint').textContent = G.phase === 'over' ? '🏁 The game is over.' : G.phase === 'rolloff' ? '🎲 Roll to see who picks first!' : G.phase === 'draft' ? (G.pickList[G.pickIdx] === 0 ? '👆 Your pick! Click a glowing island to claim it.' : '⏳ ' + (G.players[G.pickList[G.pickIdx]] || G.players[0]).name + ' is picking an island…') : G.choosing ? '👑 Choose your capital: click one of your islands!' : !mine ? '⏳ ' + P.name + ' is taking a turn…' : (G.rolling ? '🎲 Rolling…' : (!G.rolled ? '👉 Step 1: roll the dice!' : '👉 Step 2: craft in the Shop, make an alliance, or end your turn.'));
   }
   function renderLabels() {
     document.querySelectorAll('.spot').forEach(function (s) {
       var nm = s.dataset.name, I = G.isl[nm]; if (!I) return;
       var l = s.querySelector('.lbl'); if (!l) { l = document.createElement('div'); l.className = 'lbl'; s.appendChild(l); }
       var pickable = G.phase === 'draft' && G.pickList[G.pickIdx] === 0 && I.owner < 0 && NORMAL.indexOf(nm) >= 0;
-      l.textContent = (pickable ? '👆 ' : (G.phase === 'play' && SEATS[G.seat] === nm ? '▶ ' : '')) + (I.owner === 0 ? '⭐ YOURS: ' : (I.owner >= 0 ? G.players[I.owner].dot + ' ' : '⚪ ')) + nm + (I.drought ? ' ☀️' : '');
+      l.innerHTML = (pickable ? '👆 ' : (G.phase === 'play' && SEATS[G.seat] === nm ? '▶ ' : '')) + (I.owner === 0 ? '⭐ YOURS: ' : (I.owner >= 0 ? G.players[I.owner].dot + ' ' : '⚪ ')) + nm + (I.drought ? ' ☀️' : '') + '<br><span style="font-weight:600">❤️' + I.hp + (I.people ? ' · 👥' + I.people : '') + (I.knights ? ' · ⚔️' + I.knights : '') + '</span>';
       s.classList.toggle('pickme', pickable); s.classList.toggle('mine', I.owner === 0);
       l.style.background = I.owner >= 0 ? G.players[I.owner].color : ''; l.style.color = I.owner >= 0 ? '#101030' : ''; l.style.border = I.owner === 0 ? '3px solid #fff' : '';
       s.style.setProperty('--own', I.owner >= 0 ? G.players[I.owner].color : ''); if (I.owner < 0) s.style.removeProperty('--own');
@@ -878,7 +993,9 @@
     var box = $('info'); if (!selected) { box.style.display = 'none'; return; }
     var D = ISL[selected], I = G.isl[selected], last = G.dice[0] ? G.dice[0] + G.dice[1] : 0;
     var h = '<button class="btn" id="infoX" style="float:right;padding:2px 9px">✖</button><h3>' + D.icon + ' ' + selected + '</h3><div>Owner: ' + ownerName(I.owner) + '</div>' + (G.capital[0] === selected ? '<div>👑 Your capital</div>' : '') + '<div>❤️ Health: <b>' + I.hp + '</b></div>';
-    h += '<div>👥 People: <b>' + I.people + '</b> / ' + I.housing + ' housing</div>';
+    h += '<div>👥 People: <b>' + I.people + '</b> / ' + I.housing + ' housing' + (I.knights ? ' · ⚔️ Knights: <b>' + I.knights + '</b>' : '') + '</div>';
+    if (I.owner === 0 && I.people > 0) h += '<button class="btn" data-mk="1" style="margin:4px 0"' + (canKnight(0) && G.turn === 0 && G.phase === 'play' ? '' : ' disabled') + '>⚔️ Make a Knight (2⚙️ 1🐴)</button>';
+    if (I.owner !== 0 && G.phase === 'play') h += '<button class="btn go" data-atkopen="1" style="margin:4px 0;width:100%">⚔️ Attack ' + selected + '</button>';
     if (I.drought) h += '<div>☀️ Drought: ' + I.drought + ' turn' + (I.drought > 1 ? 's' : '') + ' left</div>';
     if (I.owner === 0 && I.people && D.spaces && Object.keys(D.spaces).length) h += '<div style="margin-top:6px">Workers collect: <select id="focusSel">' + Object.keys(D.spaces).map(function (r) { return '<option' + (I.focus === r ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></div>';
     var keys = Object.keys(D.spaces);
@@ -891,23 +1008,26 @@
       });
       h += '</table><div class="tip">Every roll this island makes 1 resource. Roll a 🎲 number above for a bonus +1!</div>';
     }
+    var N = window.ISLES && window.ISLES[selected];
+    if (N && !N.soon) h += '<details style="margin-top:8px"><summary>📖 About this island</summary><div style="font-size:12.5px;line-height:1.4"><b>Main feature:</b> ' + escH(N.main) + '<br><b>Strength:</b> ' + escH(N.strength) + '<br><b>Resources:</b> ' + escH(N.resources) + '<br><b>Culture:</b> ' + N.culture.map(escH).join(' · ') + '<br><b>Important place:</b> ' + escH(N.place) + '<br><b>' + escH(N.extra[0]) + ':</b> ' + escH(N.extra[1]) + '</div></details>';
     box.innerHTML = h; box.style.display = 'block';
   }
-  var SHORT = { 'Trade Boat': 'Carries 10 things', 'Exploding Boat': 'Blows up a boat', 'Robber Boat': 'Steals 5 · breaks after 3 uses', 'Flying Boat': "Can't be robbed", 'Bread': 'Feeds 5 people', 'Golden Bread': 'Feeds a whole island',
+  var SHORT = { 'Trade Boat': 'Carries 10 things', 'Exploding Boat': 'Blows up a boat · 3 damage to an island', 'Robber Boat': 'Steals 5 · breaks after 3 uses', 'Flying Boat': "Can't be robbed", 'Bread': 'Feeds 5 people', 'Golden Bread': 'Feeds a whole island',
                 'Drought': 'Island stops for 1 turn', 'Power Drought': 'Island stops for 3 turns', 'Tent': 'Holds 1 person', 'Cabin': 'Holds 5 people' };
   function renderShop() {                                  // one simple page: see it, press Craft
     var me = G.players[0], mine = G.turn === 0 && G.phase === 'play', h = '<h2>🛒 Shop</h2>';
     h += '<div>' + (Object.keys(me.res).filter(function (k) { return me.res[k] > 0; }).map(function (k) { return '<span class="chip">' + RES[k] + ' ' + me.res[k] + '</span>'; }).join('') || '<span class="chip">No resources yet</span>') + '</div>';
     if (!mine) h += '<div class="need" style="margin-top:6px">⏳ Wait for your turn to craft.</div>';
-    var usable = Object.keys(me.items).filter(function (k) { return me.items[k] > 0 && (recipe(k).turns || recipe(k).cap); });
+    var usable = Object.keys(me.items).filter(function (k) { return me.items[k] > 0 && recipe(k) && (recipe(k).turns || recipe(k).cap); });
     if (usable.length && mine) {
       h += '<div class="grp">Use your items</div>' + usable.map(function (k) {
         var r = recipe(k); return '<span class="chip">' + r.icon + ' ' + k + ' ×' + me.items[k] + ' <button class="btn" data-use="' + k + '" style="padding:2px 8px;font-size:13px">' + (r.cap ? 'Place' : 'Use') + '</button></span>';
       }).join('');
-      if (pendingUse) {
-        h += '<div style="margin-top:6px">Pick an island for <b>' + pendingUse + '</b>:</div>';
-        (recipe(pendingUse).cap ? ownedBy(0) : NORMAL).forEach(function (nm) { h += '<button class="btn" data-target="' + nm + '" style="margin:2px">' + ISL[nm].icon + ' ' + nm + '</button>'; });
-      }
+    }
+    if (pendingUse && mine) {
+      var tg = pendingUse === 'Knight' ? NORMAL.filter(function (nm) { return G.isl[nm].owner === 0 && G.isl[nm].people > 0; }) : (recipe(pendingUse).cap ? ownedBy(0) : NORMAL);
+      h += '<div style="margin-top:8px">Pick an island for <b>' + pendingUse + '</b>:</div>';
+      h += tg.length ? tg.map(function (nm) { return '<button class="btn" data-target="' + nm + '" style="margin:2px">' + ISL[nm].icon + ' ' + nm + (pendingUse === 'Knight' ? ' (' + G.isl[nm].people + ' people)' : '') + '</button>'; }).join('') : '<div class="need">No island has a person to upgrade. Place a Tent or Cabin first!</div>';
     }
     var g = '';
     RECIPES.forEach(function (r) {
@@ -918,7 +1038,10 @@
       h += '<div class="card"><b>' + r.icon + ' ' + r.name + '</b><div class="use">' + SHORT[r.name] + '</div><div>' + cost + ' ' + needs + '</div>' +
            '<button class="btn' + (ok ? ' go' : '') + '" data-craft="' + r.name + '" style="margin-top:6px"' + (ok ? '' : ' disabled') + '>🔨 Craft</button></div>';
     });
-    h += '</div>';
+    h += '</div><div class="grp">Fighters</div><div class="cards">';
+    var kok = mine && canKnight(0) && peopleOf(0) > 0;
+    h += '<div class="card"><b>⚔️ Knight</b><div class="use">A person becomes a fighter · 1 damage · rides on Trade Boats</div><div><span class="' + ((me.res['Iron'] || 0) >= 2 ? 'have' : 'need') + '">2' + RES['Iron'] + '</span> <span class="' + ((me.res['Horses'] || 0) >= 1 ? 'have' : 'need') + '">1' + RES['Horses'] + '</span> <span class="' + (peopleOf(0) > 0 ? 'have' : 'need') + '">1👤</span></div>' +
+         '<button class="btn' + (kok ? ' go' : '') + '" data-knight="1" style="margin-top:6px"' + (kok ? '' : ' disabled') + '>⚔️ Make a Knight</button></div></div>';
     $('shopBody').innerHTML = h;
   }
   function renderAlli() {
@@ -985,6 +1108,7 @@
       P.res[k] = (P.res[k] || 0) + n; got[k] = (got[k] || 0) + n; total += n;
     });
     var txt = Object.keys(got).map(function (k) { return got[k] + RES[k]; }).join(' ');
+    if (pi === 0) G.tut.robbed = true;
     useRobber(pi);
     say('🏴‍☠️ ' + (pi === 0 ? 'You robbed' : P.name + ' robbed') + ' a boat' + (txt ? ' and stole ' + txt + '!' : ' but took nothing!'));
   }
@@ -1152,6 +1276,7 @@
     ret[trade.get] = trade.getN;
     var v = sendVoyage(0, trade.partner, b, loadCopy, ret);
     trade.msg = '✅ ' + bot.name + ' said yes! Your ' + recipe(b).icon + ' ' + b + ' set sail with ' + gave.join(' ') + '. It arrives, bringing back ' + trade.getN + RES[trade.get] + ', at the start of your next turn. ' + (b === 'Flying Boat' ? 'Nobody can rob a Flying Boat!' : 'Watch out for robbers!') + (v.boatLost ? ' 💥 Your Robber Boat broke on this trip.' : '');
+    G.tut.traded = true;
     say('⛵ Your boat sailed to ' + bot.name + ' with ' + gave.join(' '));
     trade.load = {};
   }
@@ -1217,9 +1342,10 @@
   ['shopM', 'alliM', 'tradeM', 'invM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
   $('shopBody').addEventListener('click', function (e) {
     var t = e.target; if (!t.dataset) return;
-    if (t.dataset.craft && G.turn === 0) { var r = recipe(t.dataset.craft); if (craft(0, r)) say('🔨 You made ' + r.icon + ' ' + r.name); refresh(); }
+    if (t.dataset.craft && G.turn === 0) { var r = recipe(t.dataset.craft); if (craft(0, r)) { say('🔨 You made ' + r.icon + ' ' + r.name); G.tut.crafted = true; } refresh(); }
+    if (t.dataset.knight && G.turn === 0) { pendingUse = 'Knight'; renderShop(); }
     if (t.dataset.use) { pendingUse = t.dataset.use; renderShop(); }
-    if (t.dataset.target && pendingUse && G.turn === 0) { if (recipe(pendingUse).cap) placeBuilding(0, pendingUse, t.dataset.target); else useDrought(0, pendingUse, t.dataset.target); pendingUse = null; refresh(); }
+    if (t.dataset.target && pendingUse && G.turn === 0) { if (pendingUse === 'Knight') makeKnight(0, t.dataset.target); else if (recipe(pendingUse).cap) placeBuilding(0, pendingUse, t.dataset.target); else useDrought(0, pendingUse, t.dataset.target); pendingUse = null; refresh(); }
   });
   $('alliBody').addEventListener('change', function (e) {
     if (!e.target.dataset || !e.target.dataset.pick) return;
@@ -1241,7 +1367,12 @@
     if (a === 'leave') leaveAlliance(0);
     refresh();
   });
-  $('info').addEventListener('click', function (e) { if (e.target.id === 'infoX') { selected = null; refresh(); } });
+  $('info').addEventListener('click', function (e) {
+    var d = e.target.dataset || {};
+    if (e.target.id === 'infoX') { selected = null; refresh(); }
+    if (d.mk && selected) { makeKnight(0, selected); refresh(); }
+    if (d.atkopen && selected) openAtk(selected);
+  });
   $('info').addEventListener('change', function (e) { if (e.target.id === 'focusSel' && selected) { G.isl[selected].focus = e.target.value; } });
   // Which island is under the mouse? Look at the real picture pixels, so see-through corners of a neighbour don't steal the click.
   function islandAt(x, y) {
@@ -1309,6 +1440,7 @@
   var HOUSE = {};                         // tents and cabins on each island, e.g. HOUSE.Skyreach = { tents: 2, cabins: 1 }
   function housing(n) { var h = HOUSE[n] || {}; return { t: h.tents || 0, c: h.cabins || 0 }; }
   function popText(n) { var h = housing(n); return (h.t + h.c * 5) + ' <span style="opacity:.7;font-size:12px">(⛺ ' + h.t + ' tents · 🏠 ' + h.c + ' cabins)</span>'; }
+  window.ISLES = ISLES;                    // the game's island box reads these notes too
   var card = document.getElementById('isleCard'), current = null, ATK = '<button class="atk" id="atkBtn">⚔️ Attack</button><div id="atkMsg"></div>';
   function esc(t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
   function show(name) {
@@ -1359,7 +1491,7 @@
   var SECTIONS = [
     { title: '⛵ Boats', items: [
       { icon: '⛵', name: 'Trade Boat', cost: { 'Wood':8, 'Stone':3, 'Leather':3 }, use: 'Holds 10 resources. You need a boat to trade. Whoever gets the trade keeps the boat.' },
-      { icon: '💥', name: 'Exploding Boat', cost: { 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use: 'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats.' },
+      { icon: '💥', name: 'Exploding Boat', cost: { 'Iron':3, 'Wood':5, 'Crystal Shards':2 }, use: 'Destroys a Normal Boat and everything on it. Cannot destroy Flying Boats. Also does 3 damage to an island.' },
       { icon: '🏴‍☠️', name: 'Robber Boat', cost: { 'Iron':3, 'Wood':5 }, use: 'Steals 5 resources from another boat. Breaks after 3 uses.' },
       { icon: '🎈', name: 'Flying Boat', cost: { 'Bird Feathers':2 }, needs: ['1 ⛵ Trade Boat'], use: 'Cannot be blown up or robbed. Never changes hands in a trade.' } ] },
     { title: '🍞 Food', items: [
@@ -1371,6 +1503,8 @@
     { title: '🏕️ Buildings', items: [
       { icon: '⛺', name: 'Tent', cost: { 'Wood':2, 'Leather':2, 'Iron':2 }, use: 'Holds 1 person.' },
       { icon: '🏠', name: 'Cabin', cost: { 'Wood':8 }, needs: ['1 ⛺ Tent'], use: 'Holds 5 people.' } ] },
+    { title: '⚔️ Fighters', items: [
+      { icon: '⚔️', name: 'Knight', cost: { 'Iron':2, 'Horses':1 }, needs: ['1 👤 person in a tent or cabin'], use: 'The person upgrades into a fighter. 1 damage. Rides on Trade Boats.' } ] },
     { title: '🎒 Resources', items: [
       { icon: '🪶', name: 'Bird Feathers', from: 'Skyreach', use: 'Used for flying machines.' },
       { icon: '💎', name: 'Crystal Shards', from: 'Skyreach', use: 'Used for powerful items and healing.' },
