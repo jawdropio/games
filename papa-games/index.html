@@ -70,6 +70,26 @@
   .jersey { width:44px; height:44px; border-radius:10px; background:#c8a465; color:#0a1f5c; font-weight:900; font-size:22px; display:inline-grid; place-items:center; margin-right:8px; vertical-align:middle; border:3px solid #fff; }
   #rcPos .tab { padding:6px 10px !important; font-size:14px !important; }
   #fbPauseBtn { position:fixed; top:8px; right:12px; z-index:6; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
+  #fr { position:fixed; inset:0; z-index:8; background:#0b1636; color:#f4f1ff; display:none; overflow:auto; padding:10px 10px 40px; box-sizing:border-box; }
+  #fr.show { display:block; }
+  #frTop { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 auto 8px; max-width:900px; padding-left:90px; box-sizing:border-box; }
+  #frTop b { font-size:20px; flex:1; } #frTop .btn { margin:0; min-width:0; font-size:15px; padding:6px 12px; }
+  #frTabs { display:flex; gap:6px; flex-wrap:wrap; max-width:900px; margin:0 auto 8px; }
+  #frTabs button { background:#16308a; color:#fff; border:2px solid #c8a465; border-radius:10px; padding:6px 10px; font-size:14px; font-weight:700; cursor:pointer; }
+  #frTabs button.sel { background:#c8a465; color:#0a1f5c; }
+  #frBody { max-width:900px; margin:0 auto; text-align:left; }
+  .frc { background:linear-gradient(135deg,#0a1f5c,#16308a); border:2px solid #c8a465; border-radius:12px; padding:10px 12px; margin:8px 0; }
+  .frc h2 { margin:0 0 6px; font-size:20px; } .frc h3 { margin:6px 0 4px; font-size:16px; } #frBody > h3 { margin:12px 0 2px; }
+  .frg { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:8px; margin-top:6px; }
+  .pl { background:#0d1d52; border:2px solid #3a4f9a; border-radius:10px; padding:8px; font-size:13px; } .pl.sel { border-color:#ffe14d; } .pl b { font-size:14px; }
+  .pr { display:grid; grid-template-columns:1fr 1fr; gap:0 10px; margin:4px 0; } .pr .at span { width:30px; }
+  .fbtn { background:#6a4cff; color:#fff; border:0; border-radius:8px; padding:5px 9px; font-size:13px; font-weight:700; cursor:pointer; margin:3px 3px 0 0; }
+  .fbtn:disabled { background:#2a2f55; color:#8a90b8; cursor:default; } .fbtn.red { background:#c0262d; } .fbtn.gold { background:#c8a465; color:#0a1f5c; }
+  .frt { width:100%; border-collapse:collapse; font-size:14px; } .frt td, .frt th { padding:3px 6px; text-align:left; border-bottom:1px solid #2a3f8a; } .frt tr.me { background:#2a4a9a; font-weight:800; }
+  .parade { overflow:hidden; white-space:nowrap; font-size:46px; background:#1b1245; border-radius:12px; margin:6px 0; } .parade span { display:inline-block; animation:march 7s linear infinite; }
+  @keyframes march { from { transform:translateX(100%); } to { transform:translateX(-100%); } }
+  .badge { display:inline-block; background:#e6a100; color:#222; border-radius:8px; padding:2px 8px; font-weight:800; font-size:12px; margin:2px; }
+  #fr select { font-size:15px; padding:4px; border-radius:6px; }
   canvas { position:fixed; inset:0; width:100%; height:100%; }
   .overlay { overflow:auto; position:fixed; inset:0; display:none; place-items:center; text-align:center; background:rgba(18,11,46,.85); z-index:4; }
   .overlay.show { display:grid; }
@@ -138,10 +158,10 @@
   <div id="fbStart" class="overlay show"><div>
     <img id="fbLogo" src="assets/screenshot-2026-11-14-at-7.21.36-pm.png" alt="Bobcats logo" style="width:200px;border-radius:16px">
     <h1>Bobcat Bowl</h1><p>You are the Bobcats! Beat the Coyotes. 🏈</p><p id="fbRec"></p>
-    <p id="fbCoins"></p><button class="btn" id="fbGo">🏈 Kickoff!</button><button class="btn" id="fbRefGo">🚩 Ref mode</button><button class="btn" id="fbRecBtn">🎓 Recruit players</button><button class="btn" id="fbMenu1">Menu</button>
+    <p id="fbCoins"></p><button class="btn" id="fbGo">🏈 Kickoff!</button><button class="btn" id="fbRefGo">🚩 Ref mode</button><button class="btn" id="fbSeasonBtn">🏆 Season mode</button><button class="btn" id="fbRecBtn">🎓 Team &amp; recruiting</button><button class="btn" id="fbMenu1">Menu</button>
     <p style="font-size:14px;max-width:460px">OFFENSE: call a play (Quick pass, Deep pass, Run or QB run), read the coverage tip, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Man, Zone or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch to the player near the ball (you have to press it!). Tackle the ball carrier!<br>REF MODE: throw the flag (Space) when you see a foul: a player over the blue line before the snap, a player jumping early, a yellow line between two players, or a hit on the QB.<br>After a touchdown, kick the extra point (+1) or GO FOR 2!<br>T = timeout (stops the clock). Watch out for 🚩 penalties! After you score you can try an ONSIDE kick. P pauses.</p>
   </div></div>
-  <div id="fbOver" class="overlay"><div><h1 id="fbOverTitle"></h1><p id="fbOverText"></p><button class="btn" id="fbAgain">Play again</button><button class="btn" id="fbRecBtn2">🎓 Recruit players</button><button class="btn" id="fbMenu2">Menu</button></div></div>
+  <div id="fbOver" class="overlay"><div><h1 id="fbOverTitle"></h1><p id="fbOverText"></p><button class="btn" id="fbAgain">Play again</button><button class="btn" id="fbRecBtn2">🎓 Team &amp; recruiting</button><button class="btn" id="fbFRBack" style="display:none">🏆 Back to Season</button><button class="btn" id="fbMenu2">Menu</button></div></div>
   <div id="fbRecruit" class="overlay"><div class="lockerwrap">
     <div class="lockerhead">🏟️ LOCKER ROOM</div><br><span id="rcCoins"></span>
     <div class="row"><button class="btn tab" id="tabTeam">👥 My team</button><button class="btn tab" id="tabShop">🛒 Recruit</button><button class="btn tab" id="tabTrain">🏋️ Training</button></div>
@@ -149,6 +169,7 @@
     <div id="rcList"></div><button class="btn" id="rcBack">Back</button></div></div>
   <div id="fbPause" class="overlay"><div><h1>⏸ Paused</h1><button class="btn" id="fbResume">Resume</button><button class="btn" id="fbMenu3">Menu</button></div></div>
 </div>
+<div id="fr"><div id="frTop"><b>🏆 BOBCATS FRANCHISE</b><span id="frCoins"></span><button class="btn" id="frClose">✕ Close</button></div><div id="frTabs"></div><div id="frBody"></div></div>
 <div id="pause" class="overlay">
   <div><h1>⏸ Paused</h1><button class="btn" id="resume">Resume</button><button class="btn" id="toMenu1">Menu</button></div>
 </div>
@@ -867,7 +888,7 @@ POS.forEach(q => {
   roster.inj[q.k] = Math.max(0, roster.inj[q.k] | 0);
   if (!Array.isArray(roster.market[q.k]) || roster.market[q.k].length < 5 || !roster.market[q.k][0].lv) roster.market[q.k] = genMarket(q.k);
 });
-const L = k => Math.max(1, (roster.lv[k] >= 6 ? 7 : roster.lv[k]) + (roster.tr[k] || 0) * .25 - (roster.inj[k] > 0 ? 2 : 0));   // OP counts as level 7, each training session adds a quarter star
+const L = k => (window.FR && window.FR.ready) ? window.FR.L(k) : Math.max(1, (roster.lv[k] >= 6 ? 7 : roster.lv[k]) + (roster.tr[k] || 0) * .25 - (roster.inj[k] > 0 ? 2 : 0));   // OP counts as level 7, each training session adds a quarter star
 // one-time clean-up: remove any OP players already on the team (they go back to a regular starter)
 try {
   if (!localStorage.getItem('papaBowlOPRemoved1')) {
@@ -920,7 +941,7 @@ function reroute() {
 }
 function setupFormation() {
   const d = g.poss === 'me' ? 1 : -1, los = g.los, X = o => los + d * o, off = g.poss, def = off === 'me' ? 'cpu' : 'me';
-  const recs = [4, 26, 21].map((y, i) => ({ x: los, y, wp: [], i: 0, v: off === 'me' ? 6 + .3 * L('wr') : (g.practice ? 5.4 : 6.4), n: i + 1, team: off }));
+  const recs = [4, 26, 21].map((y, i) => ({ x: los, y, wp: [], i: 0, v: off === 'me' ? 6 + .3 * L('wr') : 6.4 * (g.om || 1), n: i + 1, team: off }));
   const cr = Math.random();
   P = {
     dir: d, type: 'pass', sel: 'quick', t: 0, qb: { x: X(-5), y: 15, team: off }, rb: { x: X(-5), y: 17.65, team: off }, recs,
@@ -1102,7 +1123,7 @@ function aiRun(c, dt) {
   let vy = (15 - c.y) * .3;
   if (nd && nds < 5) vy = clamp((c.y - nd.y) * 2.4 + .5, -5.5, 5.5);
   if (nd && nds < 1.9 && P.jukeCd <= 0 && Math.random() < .05) { P.juke = .3; P.jukeCd = 4; }
-  const sp = (g.poss === 'me' ? (c === P.rb ? 6 + .3 * L('rb') : (c.v || 6.5)) : (c === P.rb ? 6.1 : 5.9) * (g.practice ? .8 : 1)) * (P.juke > 0 ? 1.12 : 1);
+  const sp = (g.poss === 'me' ? (c === P.rb ? 6 + .3 * L('rb') : (c.v || 6.5)) : (c === P.rb ? 6.1 : 5.9) * (g.om || 1)) * (P.juke > 0 ? 1.12 : 1);
   c.x += d * sp * dt; c.y = clamp(c.y + vy * dt, 1, 29);
 }
 function boostOn(want, dt) {
@@ -1154,7 +1175,8 @@ function updatePlay(dt) {
   }
   // defenders
   const inAir = B.mode === 'flying';
-  const mm = o => meOff ? (g.practice ? .8 : .97) : (g.practice ? 1.2 : 1.05) * (o.role === 'db' ? 1 + .04 * (L('db') - 3) : o.role === 'lb' ? 1 + .02 * ((L('dl') + L('db')) / 2 - 3) : 1 + .04 * (L('dl') - 3));
+  const om = g.om || 1;
+  const mm = o => meOff ? .97 * om : 1.05 * (1 + (1 - om) * .7) * (o.role === 'db' ? 1 + .04 * (L('db') - 3) : o.role === 'lb' ? 1 + .02 * ((L('dl') + L('db')) / 2 - 3) : 1 + .04 * (L('dl') - 3));
   P.dl.forEach((o, i) => { if (P.t < P.delay) { P.ol[i].x = o.x - d * .9; P.ol[i].y = o.y; } });
   for (const o of P.defs) {
     if (o.stun > 0) { o.stun -= dt; continue; }
@@ -1206,7 +1228,7 @@ function resolveCatch() {
   const r = P.target, meOff = g.poss === 'me';
   const dd = Math.min(...P.defs.map(o => dist(o, r)));
   let pc = dd > 3 ? .97 : dd > 1.8 ? .82 : dd > 1 ? .55 : .3;
-  if (meOff) pc += .05 + .03 * (L('qb') - 3) + .02 * (L('wr') - 3); else pc -= g.practice ? .25 : .03;
+  if (meOff) pc += .05 + .03 * (L('qb') - 3) + .02 * (L('wr') - 3); else pc -= .03 + (1 - (g.om || 1)) * 1.2;
   if (P.flight0 > 30) pc *= .85;
   if (r.y < .8 || r.y > 29.2) pc = 0;
   pc = clamp(pc, 0, .99);
@@ -1223,6 +1245,7 @@ function resolveCatch() {
 const ord = n => ['', '1st', '2nd', '3rd', '4th'][n];
 function rollInjury() {
   if (Math.random() >= .05) return;
+  if (window.FR && window.FR.ready) { const m = window.FR.injure(g.poss === 'me' ? ['qb', 'rb', 'wr', 'ol'] : ['dl', 'db']); if (m) { sub = (sub ? sub + ' · ' : '') + m; sfx.bad(); } return; }
   const pool = (g.poss === 'me' ? ['qb', 'rb', 'wr', 'ol'] : ['dl', 'db']).filter(k => !(roster.inj[k] > 0));
   if (!pool.length) return;
   const k = pool[Math.floor(Math.random() * pool.length)];
@@ -1308,11 +1331,22 @@ function after() {
   }
   presnap();
 }
-function newGame(practice) {
-  practice = typeof practice === 'string' ? practice : null;
-  const tot = practice ? 160 : TOTAL;
-  g = { my: 0, cpu: 0, clock: tot, total: tot, practice, los: 25, down: 1, fd: 35, poss: 'me', pend: null, running: false, runLeft: 0, to: 3, half: false, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0 } };
+function newGame(o) {
+  const opts = (o && typeof o === 'object' && o.kind) ? o : null;
+  const practice = typeof o === 'string' ? o : null;
+  const tot = opts ? opts.total : (practice ? 160 : TOTAL);
+  g = { my: 0, cpu: 0, clock: tot, total: tot, practice, season: opts, om: opts ? opts.om : (practice ? .8 : 1), oppName: opts ? opts.oppName : (practice ? 'SCRUBS' : 'COYOTES'), los: 25, down: 1, fd: 35, poss: 'me', pend: null, running: false, runLeft: 0, to: 3, half: false, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0 } };
+  $('fbAgain').style.display = opts ? 'none' : ''; $('fbRecBtn2').style.display = opts ? 'none' : ''; $('fbFRBack').style.display = opts ? '' : 'none';
   camX = 10; presnap();
+}
+function endSeasonGame() {
+  const o = g.season, win = g.my > g.cpu;
+  let m = '';
+  try { m = (window.FR && window.FR.onGameEnd(o, { my: g.my, cpu: g.cpu, tds: g.tds, st: g.st })) || ''; } catch (e) { m = 'Game over'; }
+  $('fbOverTitle').textContent = g.my === g.cpu ? "It's a tie! 🤝" : win ? 'BOBCATS WIN! 🏆' : g.oppName + ' win... 😢';
+  $('fbOverText').textContent = 'Final: Bobcats ' + g.my + ' – ' + g.oppName + ' ' + g.cpu + '  ·  Pass ' + g.st.comp + '/' + g.st.att + ' for ' + g.st.py + ' yds  ·  Rush ' + g.st.ry + ' yds  ·  Sacks ' + g.st.sacks + '  ·  INTs ' + g.st.ints + '   ' + m;
+  if (win) sfx.fanfare(); else sfx.bad();
+  setPhase('over');
 }
 function endPractice() {
   const k = g.practice, win = g.my > g.cpu, q = POS.find(x => x.k === k);
@@ -1327,6 +1361,7 @@ function endPractice() {
   setPhase('over');
 }
 function endGame() {
+  if (g.season) return endSeasonGame();
   if (g.practice) return endPractice();
   tickInjuries(); rotateMarket();
   const win = g.my > g.cpu, tie = g.my === g.cpu;
@@ -1342,6 +1377,7 @@ function endGame() {
 const FOUL = { offsides: 'Offsides', falsestart: 'False start', holding: 'Holding', dpi: 'Pass interference', roughing: 'Roughing the passer' };
 function newRefGame() {
   g = { ref: true, my: 0, cpu: 0, clock: 99999, los: 50, down: 1, fd: 40, poss: 'cpu', pend: null, running: false, runLeft: 0, to: 3, half: true, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0 }, refScore: 0, refPlays: 0, refCorrect: 0 };
+  $('fbFRBack').style.display = 'none'; $('fbAgain').style.display = ''; $('fbRecBtn2').style.display = 'none';
   camX = 40; refPresnap();
 }
 function refPresnap() {
@@ -1442,7 +1478,9 @@ $('tabTeam').onclick = () => { rcTab = 'team'; renderRecruit(); };
 $('tabShop').onclick = () => { rcTab = 'shop'; renderRecruit(); };
 $('tabTrain').onclick = () => { rcTab = 'train'; renderRecruit(); };
 $('rcBack').onclick = () => $('fbRecruit').classList.remove('show');
-$('fbRecBtn').onclick = $('fbRecBtn2').onclick = openRecruit;
+$('fbRecBtn').onclick = $('fbRecBtn2').onclick = () => window.FR.open('roster');
+$('fbSeasonBtn').onclick = () => window.FR.open('home');
+$('fbFRBack').onclick = () => window.FR.open('home');
 $('fbRefGo').onclick = newRefGame;
 $('callFlag').onclick = flag;
 
@@ -1514,7 +1552,7 @@ function drawField() {
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, top); ctx.lineTo(W, top); ctx.moveTo(0, bot); ctx.lineTo(W, bot); ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = 'bold ' + Math.round(scale * 2) + 'px system-ui';
   ctx.save(); ctx.translate(sx(-2), sy(15)); ctx.rotate(-Math.PI / 2); ctx.fillText('BOBCATS', 0, 0); ctx.restore();
-  ctx.save(); ctx.translate(sx(102), sy(15)); ctx.rotate(Math.PI / 2); ctx.fillText(g && g.practice ? 'SCRUBS' : 'COYOTES', 0, 0); ctx.restore();
+  ctx.save(); ctx.translate(sx(102), sy(15)); ctx.rotate(Math.PI / 2); ctx.fillText((g && g.oppName) || 'COYOTES', 0, 0); ctx.restore();
   if (IMG.complete && IMG.naturalWidth) {
     const w = 7 * scale, h = w * IMG.naturalHeight / IMG.naturalWidth;
     ctx.globalAlpha = .95; ctx.drawImage(IMG, sx(-8.5), sy(15) - h / 2 - 8 * scale, w, h); ctx.drawImage(IMG, sx(-8.5), sy(15) - h / 2 + 8 * scale, w, h); ctx.globalAlpha = 1;
@@ -1601,7 +1639,7 @@ function drawHUD() {
   if (IMG.complete && IMG.naturalWidth) ctx.drawImage(IMG, x + 8, 12, 62, 46);
   ctx.textAlign = 'left'; ctx.fillStyle = TAN; ctx.font = 'bold 13px system-ui'; ctx.fillText('BOBCATS' + (me ? ' 🏈' : ''), x + 76, 28);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 26px system-ui'; ctx.fillText(g.my, x + 76, 55);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#ff9aa0'; ctx.font = 'bold 13px system-ui'; ctx.fillText((me ? '' : '🏈 ') + (g.practice ? 'SCRUBS' : 'COYOTES'), x + w - 12, 28);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ff9aa0'; ctx.font = 'bold 13px system-ui'; ctx.fillText((me ? '' : '🏈 ') + (g.oppName || 'COYOTES'), x + w - 12, 28);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 26px system-ui'; ctx.fillText(g.cpu, x + w - 12, 55);
   const tt = g.total || TOTAL, ql = tt / 4, el = tt - g.clock, q = Math.min(4, Math.floor(el / ql) + 1), left = g.clock <= 0 ? 0 : Math.ceil(ql - (el - (q - 1) * ql));
   ctx.textAlign = 'center'; ctx.fillStyle = '#ffe14d'; ctx.font = 'bold 15px system-ui'; ctx.fillText('Q' + q, x + w / 2 + 20, 28);
@@ -1742,9 +1780,598 @@ $('fbPauseBtn').onclick = togglePause; $('fbResume').onclick = togglePause;
 addEventListener('blur', () => { if (isOpen() && !paused && phase !== 'idle' && phase !== 'over') togglePause(); });
 
 const STEP = 1000 / 60; let last = performance.now(), acc = 0;
+function startFromFR(o) {
+  $('menu').classList.remove('show'); $('fb').classList.add('show'); paused = false; $('fbPause').classList.remove('show'); $('fbRecruit').classList.remove('show');
+  g = null; P = null; newGame(o);
+}
+window.BowlAPI = { coins: () => coins, add(n) { coins += n; saveAll(); updCoins(); }, start: startFromFR };
 function frame(now) { acc += Math.min(now - last, 250); last = now; while (acc >= STEP) { update(); acc -= STEP; } draw(); requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
 })();
 </script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 0.5;
+const KEY = 'papaBowlSeason';
+const API = () => window.BowlAPI;
+
+// ---------- data ----------
+const POSS = ['qb', 'rb', 'wr', 'ol', 'dl', 'db', 'k'];
+const PLABEL = { qb: '🎯 QB', rb: '🏃 RB', wr: '🙌 WR', ol: '🧱 OL', dl: '💪 DL', db: '🛡️ DB', k: '🦵 K' };
+const RK = ['spd', 'str', 'cat', 'thr', 'tck', 'sta'];
+const AB = { spd: 'SPD', str: 'STR', cat: 'CAT', thr: 'THR', tck: 'TCK', sta: 'STA' };
+const WT = { qb: { thr: .6, sta: .2, spd: .2 }, rb: { spd: .5, str: .3, sta: .2 }, wr: { spd: .45, cat: .45, sta: .1 }, ol: { str: .6, tck: .2, sta: .2 }, dl: { str: .4, tck: .4, spd: .2 }, db: { spd: .4, tck: .3, cat: .3 }, k: { thr: .8, sta: .2 } };
+const BIAS = {
+  qb: { spd: -5, str: -10, cat: -15, thr: 15, tck: -25, sta: 0 }, rb: { spd: 12, str: 5, cat: -5, thr: -30, tck: -15, sta: 5 },
+  wr: { spd: 12, str: -15, cat: 15, thr: -30, tck: -25, sta: 0 }, ol: { spd: -25, str: 18, cat: -30, thr: -30, tck: 0, sta: 5 },
+  dl: { spd: -5, str: 12, cat: -30, thr: -30, tck: 12, sta: 0 }, db: { spd: 10, str: -20, cat: 10, thr: -30, tck: 5, sta: 0 },
+  k: { spd: -20, str: -20, cat: -20, thr: 10, tck: -30, sta: 5 }
+};
+const COUNTS = { qb: 2, rb: 2, wr: 3, ol: 3, dl: 3, db: 3, k: 1 };
+const MAXROSTER = 24, CAP = 120;
+const NA = ['Turbo', 'Blaze', 'Storm', 'Rocket', 'Ninja', 'Thunder', 'Comet', 'Sparky', 'Shadow', 'Flash', 'Mega', 'Zippy', 'Captain', 'Mighty', 'Lucky'];
+const NB = ['Whiskers', 'Claw', 'Paws', 'Fang', 'Tail', 'Pounce', 'Prowl', 'Stripe', 'Growl', 'Leap', 'Hoof', 'Wing', 'Tusk', 'Scale', 'Fur'];
+const TEAMS = [['Bobcats', '🐱'], ['Coyotes', '🐺'], ['Ice Wolves', '🥶'], ['Gold Tigers', '🐯'], ['Cosmic Cows', '🐮'], ['Neon Owls', '🦉'], ['Jungle Cobras', '🐍'], ['Mighty Moose', '🫎'],
+  ['Sea Sharks', '🦈'], ['Fire Dragons', '🐉'], ['Giant Pandas', '🐼'], ['Sky Falcons', '🦅'], ['Rocket Raccoons', '🦝'], ['Thunder Bears', '🐻'], ['Turbo Turtles', '🐢'], ['Laser Lizards', '🦎']];
+const CONF = ['Claw Conference', 'Fang Conference'];
+const ROUND = { wc: 'Wild Card', div: 'Divisional Round', conf: 'Conference Championship', sb: 'Super Bowl' };
+const STADIUMS = ['Backyard Field', 'Small Stadium', 'Big Stadium', 'Super Stadium', 'Mega Dome', 'Palace of Football'];
+
+let S = null, tab = 'home', tr = { mine: null, team: 1, theirs: null }, confirm1 = null, msg = '';
+
+// ---------- players ----------
+const ovr = p => { const w = WT[p.pos]; let t = 0; for (const k in w) t += w[k] * p.r[k]; return Math.round(t); };
+const salary = p => Math.max(1, Math.round((ovr(p) - 40) / 4));
+function genPlayer(pos, target, age, rookie) {
+  const r = {};
+  RK.forEach(k => { r[k] = clamp(Math.round(target + BIAS[pos][k] + ri(-8, 8)), 1, 99); });
+  const p = { id: S.nextId++, nm: pick(NA) + ' ' + pick(NB), pos, age, r, pot: 0, rookie: !!rookie, inj: 0, cap: false, peak: 0, tr: 0, sal: 1 };
+  const diff = target - ovr(p);
+  RK.forEach(k => { p.r[k] = clamp(p.r[k] + diff, 1, 99); });
+  p.pot = clamp(ovr(p) + (age < 25 ? ri(4, 22) : ri(0, 4)), 40, 99); p.peak = ovr(p); p.sal = salary(p);
+  return p;
+}
+function autoLineup(t) { POSS.forEach(pos => { const best = t.players.filter(p => p.pos === pos).sort((a, b) => ovr(b) - ovr(a))[0]; if (best) t.lineup[pos] = best.id; }); }
+function fixLineup(t) {
+  POSS.forEach(pos => {
+    if (!t.players.find(p => p.id === t.lineup[pos] && p.pos === pos)) {
+      const best = t.players.filter(p => p.pos === pos).sort((a, b) => ovr(b) - ovr(a))[0]; if (best) t.lineup[pos] = best.id;
+    }
+  });
+}
+function makeTeam(i, mine) {
+  const t = { id: i, nm: TEAMS[i][0], em: TEAMS[i][1], conf: i < 8 ? 0 : 1, w: 0, l: 0, pf: 0, pa: 0, players: [], lineup: {}, coach: mine ? null : { nm: pick(NA) + ' ' + pick(NB), lvl: ri(1, 4) }, pr: i + 1, prevPr: i + 1 };
+  const tier = ri(-8, 8);
+  POSS.forEach(pos => {
+    for (let n = 0; n < COUNTS[pos]; n++) {
+      const target = mine ? (n === 0 ? ri(70, 78) : ri(52, 62)) : (n === 0 ? 60 + tier + ri(-4, 4) : 60 + tier - ri(8, 16));
+      t.players.push(genPlayer(pos, clamp(target, 35, 95), n === 0 ? ri(22, 31) : ri(21, 30), false));
+    }
+  });
+  autoLineup(t); return t;
+}
+const payroll = t => t.players.reduce((s, p) => s + p.sal, 0);
+
+// ---------- strength ----------
+function starter(t, pos) {
+  const p = t.players.find(x => x.id === t.lineup[pos] && x.pos === pos);
+  if (p && p.inj > 0) { const alt = t.players.filter(x => x.pos === pos && !(x.inj > 0)).sort((a, b) => ovr(b) - ovr(a))[0]; if (alt) return alt; }
+  return p || t.players.filter(x => x.pos === pos).sort((a, b) => ovr(b) - ovr(a))[0];
+}
+const compL = p => p ? clamp((ovr(p) - 28) / 10 - (p.inj > 0 ? 2 : 0), 1, 8) : 1;
+const capCount = t => t.players.filter(p => p.cap).length;
+const teamL = (t, pos) => clamp(compL(starter(t, pos)) + .12 * (t.coach ? t.coach.lvl : 0) + .1 * capCount(t), 1, 9);
+const strength = t => POSS.reduce((s, pos) => s + teamL(t, pos), 0) / POSS.length;
+function simGame(ia, ib) {
+  const A = S.teams[ia], B = S.teams[ib]; let d = strength(A) - strength(B) + .15;
+  if (ia === 0) d += .08 * S.stadium;
+  let sa = Math.max(0, Math.round(22 + 4 * d + gauss() * 7)), sb = Math.max(0, Math.round(22 - 4 * d + gauss() * 7));
+  if (sa === sb) { if (Math.random() < .5 + .1 * d) sa += 3; else sb += 3; }
+  return [sa, sb];
+}
+
+// ---------- season setup ----------
+function makeSchedule() {
+  let arr = [...Array(16).keys()]; const rounds = [];
+  for (let r = 0; r < 15; r++) {
+    const pairs = [];
+    for (let i = 0; i < 8; i++) { let a = arr[i], b = arr[15 - i]; if ((r + i) % 2) { const x = a; a = b; b = x; } pairs.push([a, b]); }
+    rounds.push(pairs); arr = [arr[0], arr[15], ...arr.slice(1, 15)];
+  }
+  for (let i = rounds.length - 1; i > 0; i--) { const j = ri(0, i), x = rounds[i]; rounds[i] = rounds[j]; rounds[j] = x; }
+  rounds.push(rounds[0].map(([a, b]) => [b, a]), rounds[1].map(([a, b]) => [b, a]));
+  return rounds;
+}
+function setRival() { S.rivalWeek = S.sched.findIndex(pairs => pairs.some(([a, b]) => (a === 0 && b === 1) || (a === 1 && b === 0))) + 1; }
+function genProspects() {
+  const out = [], pw = ['qb', 'qb', 'rb', 'rb', 'rb', 'wr', 'wr', 'wr', 'wr', 'wr', 'ol', 'ol', 'ol', 'ol', 'dl', 'dl', 'dl', 'dl', 'db', 'db', 'db', 'db', 'k'];
+  for (let i = 0; i < 34; i++) {
+    const p = genPlayer(pick(pw), ri(36, 68), 21, true);
+    p.pot = clamp(ovr(p) + ri(8, 30), 45, 99); p.scouted = false;
+    const est = (ovr(p) + p.pot) / 2 + ri(-8, 8);
+    p.grade = est >= 72 ? 'A+' : est >= 66 ? 'A' : est >= 60 ? 'B+' : est >= 55 ? 'B' : est >= 50 ? 'C+' : est >= 45 ? 'C' : 'D';
+    out.push(p);
+  }
+  return out;
+}
+const genFA = () => Array.from({ length: 14 }, () => genPlayer(pick(POSS), ri(45, 74), ri(23, 34), false));
+function genCoaches() { return [ri(1, 2), ri(2, 3), ri(3, 4), 5].map(l => ({ nm: pick(NA) + ' ' + pick(NB), lvl: l, cost: l * l * 800 })); }
+function createSeason() {
+  S = { nextId: 1, year: 1, week: 0, phase: 'draft', teams: [], sched: [], rivalWeek: 0, results: [], po: null, fa: [], draft: null, prospects: [], news: [], hist: [], hof: [], awards: [], stadium: 0, parade: false, myOut: '', last: '', coachOptions: [], cur: null, champ: null, proBowl: [] };
+  for (let i = 0; i < 16; i++) S.teams.push(makeTeam(i, i === 0));
+  S.sched = makeSchedule(); setRival(); S.fa = genFA(); S.prospects = genProspects(); S.coachOptions = genCoaches();
+  startDraft(null); saveS();
+}
+function saveS() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+function loadS() { try { const r = JSON.parse(localStorage.getItem(KEY)); if (r && r.teams && r.teams.length === 16 && r.sched) return r; } catch (e) {} return null; }
+
+// ---------- standings & rankings ----------
+const standings = c => S.teams.filter(t => t.conf === c).sort((a, b) => b.w - a.w || (b.pf - b.pa) - (a.pf - a.pa));
+const pwr = t => strength(t) * 12 + (t.w - t.l) * 1.5 + (t.pf - t.pa) / 20;
+const rankings = () => S.teams.slice().sort((a, b) => pwr(b) - pwr(a));
+function updateRanks() { rankings().forEach((t, i) => { t.prevPr = t.pr; t.pr = i + 1; }); }
+function applyResult(a, b, sa, sb, label, playoff) {
+  const A = S.teams[a], B = S.teams[b];
+  if (!playoff) { A.pf += sa; A.pa += sb; B.pf += sb; B.pa += sa; if (sa > sb) { A.w++; B.l++; } else { B.w++; A.l++; } }
+  S.results.push({ l: label, a, b, sa, sb });
+}
+
+// ---------- weeks & playoffs ----------
+function playRegWeek(myRes) {
+  const pairs = S.sched[S.week - 1]; let best = null;
+  pairs.forEach(([a, b]) => {
+    let sa, sb;
+    if (a === 0 || b === 0) { sa = a === 0 ? myRes[0] : myRes[1]; sb = a === 0 ? myRes[1] : myRes[0]; } else [sa, sb] = simGame(a, b);
+    applyResult(a, b, sa, sb, 'Week ' + S.week, false);
+    const m = Math.abs(sa - sb) + Math.random() * 3;
+    if (!best || m > best.m) best = { m, w: sa > sb ? a : b };
+  });
+  // Player of the Week
+  const t = S.teams[best.w], pos = pick(['qb', 'rb', 'wr']), p = starter(t, pos);
+  const stat = pos === 'qb' ? ri(250, 420) + ' passing yards, ' + ri(2, 5) + ' TDs' : pos === 'rb' ? ri(110, 200) + ' rushing yards, ' + ri(1, 3) + ' TDs' : ri(110, 190) + ' receiving yards, ' + ri(1, 3) + ' TDs';
+  S.news.unshift('⭐ Week ' + S.week + ' Player of the Week: ' + p.nm + ' (' + t.nm + ') – ' + stat + (best.w === 0 ? ' +100 🪙' : ''));
+  if (best.w === 0) API().add(100);
+  S.news = S.news.slice(0, 12);
+  S.week++;
+  S.teams[0].players.forEach(q => { if (q.inj > 0) q.inj--; });
+  S.fa.splice(0, 4); S.fa.push(...Array.from({ length: 4 }, () => genPlayer(pick(POSS), ri(45, 74), ri(23, 34), false)));
+  updateRanks();
+  if (S.week > 17) endRegular();
+}
+function endRegular() {
+  const seeds = [0, 1].map(c => standings(c).slice(0, 6).map(t => t.id));
+  S.po = { round: 'wc', conf: seeds.map(s => ({ seeds: s, alive: s.slice() })), champ: null };
+  S.phase = 'po'; S.myOut = seeds.flat().includes(0) ? '' : 'Missed the playoffs';
+  // Pro Bowl
+  const want = { qb: 1, rb: 1, wr: 2, ol: 2, dl: 2, db: 2, k: 1 }; S.proBowl = [];
+  [0, 1].forEach(c => POSS.forEach(pos => {
+    const all = []; S.teams.filter(t => t.conf === c).forEach(t => t.players.filter(p => p.pos === pos).forEach(p => all.push({ p, t })));
+    all.sort((x, y) => ovr(y.p) + Math.random() * 6 - ovr(x.p)).slice(0, want[pos]).forEach(e => S.proBowl.push({ nm: e.p.nm, pos, team: e.t.nm, ovr: ovr(e.p), mine: e.t.id === 0 }));
+  }));
+  const mine = S.proBowl.filter(x => x.mine);
+  if (mine.length) { API().add(100 * mine.length); S.news.unshift('🌟 Pro Bowl: ' + mine.map(x => x.nm).join(', ') + ' made it! +' + 100 * mine.length + ' 🪙'); }
+}
+function poPairs() {
+  const po = S.po, out = [];
+  if (po.round === 'sb') { out.push([po.conf[0].alive[0], po.conf[1].alive[0]]); return out; }
+  po.conf.forEach(c => {
+    const rank = id => c.seeds.indexOf(id);
+    if (po.round === 'wc') { const s = c.seeds; out.push([s[2], s[5]], [s[3], s[4]]); }
+    else { const a = c.alive.slice().sort((x, y) => rank(x) - rank(y)); if (po.round === 'div') out.push([a[0], a[3]], [a[1], a[2]]); else out.push([a[0], a[1]]); }
+  });
+  return out;
+}
+function playPoRound(myRes) {
+  const po = S.po, pairs = poPairs(), winners = [], cr = po.round;
+  pairs.forEach(([a, b]) => {
+    let sa, sb;
+    if (a === 0 || b === 0) { sa = a === 0 ? myRes[0] : myRes[1]; sb = a === 0 ? myRes[1] : myRes[0]; } else [sa, sb] = simGame(a, b);
+    applyResult(a, b, sa, sb, ROUND[cr], true); winners.push(sa > sb ? a : b);
+  });
+  if (pairs.some(([a, b]) => a === 0 || b === 0) && !winners.includes(0)) S.myOut = 'Lost in the ' + ROUND[cr];
+  if (cr === 'wc') po.conf.forEach(c => { c.alive = [c.seeds[0], c.seeds[1], ...winners.filter(id => c.seeds.includes(id))]; });
+  else if (cr === 'div' || cr === 'conf') po.conf.forEach(c => { c.alive = winners.filter(id => c.alive.includes(id)); });
+  if (cr === 'sb') { po.champ = winners[0]; po.round = 'done'; finishSeason(); }
+  else po.round = { wc: 'div', div: 'conf', conf: 'sb' }[cr];
+}
+function nextGame() {
+  if (S.phase === 'reg') {
+    const pr = S.sched[S.week - 1].find(([a, b]) => a === 0 || b === 0);
+    return { opp: pr[0] === 0 ? pr[1] : pr[0], home: pr[0] === 0, label: 'Week ' + S.week + (S.week === S.rivalWeek ? ' · 🔥 RIVALRY WEEK' : '') };
+  }
+  if (S.phase === 'po') {
+    const pr = poPairs().find(([a, b]) => a === 0 || b === 0); if (!pr) return null;
+    return { opp: pr[0] === 0 ? pr[1] : pr[0], home: pr[0] === 0, label: ROUND[S.po.round] };
+  }
+  return null;
+}
+function finishGame(sm, so, played, tds) {
+  const ng = nextGame(); if (!ng) return '';
+  const opp = S.teams[ng.opp]; let note = '';
+  if (sm === so) { if (Math.random() < .5 + .08 * (strength(S.teams[0]) - strength(opp))) sm += 3; else so += 3; note = ' (decided in overtime)'; }
+  const win = sm > so, wasPo = S.phase === 'po', round = wasPo ? S.po.round : null, wk = S.week, rival = !wasPo && S.week === S.rivalWeek;
+  if (wasPo) playPoRound([sm, so]); else playRegWeek([sm, so]);
+  let got = win ? 150 : 60; if (!played) got = Math.floor(got / 2); if (played) got += 15 * (tds || 0);
+  if (rival) got *= 2; if (win && ng.home) got += 30 * S.stadium;
+  if (wasPo && win) got += { wc: 300, div: 300, conf: 300, sb: 2000 }[round];
+  API().add(got);
+  S.last = (wasPo ? ROUND[round] : 'Week ' + wk) + ': Bobcats ' + sm + ' – ' + opp.nm + ' ' + so + (win ? ' WIN! ' : ' loss. ') + '+' + got + ' 🪙' + note + (rival ? ' (Rivalry week: double coins!)' : '');
+  S.cur = null; saveS();
+  return S.last;
+}
+function simMyGame() {
+  const ng = nextGame(); if (!ng) return;
+  let r = ng.home ? simGame(0, ng.opp) : simGame(ng.opp, 0).reverse();
+  finishGame(r[0], r[1], false, 0);
+}
+function simRound() { if (S.phase === 'po') { playPoRound([0, 0]); saveS(); } }
+function playGame() {
+  const ng = nextGame(); if (!ng) return;
+  const opp = S.teams[ng.opp], om = clamp(1 + .09 * (strength(opp) - 3), .8, 1.25);
+  S.cur = { home: ng.home }; hide();
+  API().start({ kind: 'season', oppName: opp.nm, om, total: 200, home: ng.home });
+}
+
+// ---------- awards, hall of fame, next season ----------
+function mvpList() {
+  const out = [];
+  S.teams.forEach(t => POSS.forEach(pos => { const p = starter(t, pos); if (p) out.push({ p, t, sc: ovr(p) + (pos === 'qb' ? 12 : pos === 'rb' || pos === 'wr' ? 4 : pos === 'k' ? -15 : 0) + t.w * 2.5 }); }));
+  return out.sort((a, b) => b.sc - a.sc).slice(0, 5);
+}
+function finishSeason() {
+  S.champ = S.po.champ; S.phase = 'end';
+  const me = S.teams[0];
+  S.hist.unshift({ year: S.year, w: me.w, l: me.l, res: S.champ === 0 ? 'Champions 🏆' : (S.myOut || 'Missed the playoffs') });
+  // awards
+  const mv = mvpList()[0], avgS = S.teams.reduce((s, t) => s + strength(t), 0) / 16;
+  let coy = null, cb = -99, roy = null;
+  S.teams.forEach(t => {
+    const v = t.w - 17 * clamp(.5 + .09 * (strength(t) - avgS), .1, .9); if (t.coach && v > cb) { cb = v; coy = t; }
+    t.players.forEach(p => { if (p.rookie && (!roy || ovr(p) > ovr(roy.p))) roy = { p, t }; });
+  });
+  const off = S.teams.slice().sort((a, b) => b.pf - a.pf)[0], def = S.teams.slice().sort((a, b) => a.pa - b.pa)[0];
+  S.awards.unshift({ year: S.year, mvp: mv.p.nm + ' (' + mv.t.nm + ')', coy: coy ? coy.coach.nm + ' (' + coy.nm + ')' : '–', roy: roy ? roy.p.nm + ' (' + roy.t.nm + ')' : '–', off: off.nm, def: def.nm, champ: S.teams[S.champ].nm });
+  let bonus = 0;
+  if (mv.t.id === 0) bonus += 1000; if (coy && coy.id === 0) bonus += 1000; if (roy && roy.t.id === 0) bonus += 500;
+  if (bonus) { API().add(bonus); S.news.unshift('🏅 Your team won season awards! +' + bonus + ' 🪙'); }
+  if (S.champ === 0) { S.parade = true; API().add(5000); S.news.unshift('🏆 BOBCATS WIN THE SUPER BOWL! +5000 🪙'); }
+  saveS();
+}
+function progress(p, t) {
+  p.age++; const o = ovr(p);
+  let base = p.age <= 25 ? (o < p.pot ? ri(2, 6) : ri(0, 2)) : p.age <= 29 ? ri(-1, 3) : p.age <= 32 ? ri(-3, 1) : ri(-5, -1);
+  base += (t.coach ? t.coach.lvl * .4 : 0);
+  RK.forEach(k => { p.r[k] = clamp(p.r[k] + Math.round(base) + ri(-2, 2), 1, 99); });
+  p.rookie = false; p.inj = 0; p.tr = 0; p.sal = salary(p); p.peak = Math.max(p.peak || 0, ovr(p));
+}
+function nextSeason() {
+  const rec = S.teams.map(t => t.w);
+  S.teams.forEach(t => {
+    const keep = [];
+    t.players.forEach(p => {
+      p.peak = Math.max(p.peak || 0, ovr(p));
+      if (p.age >= 35 || (p.age >= 32 && Math.random() < .3)) {
+        if (p.peak >= 78) { S.hof.unshift({ nm: p.nm, pos: p.pos, team: t.nm, year: S.year, peak: p.peak }); if (t.id === 0) { API().add(300); S.news.unshift('🏛️ ' + p.nm + ' retired and goes into the Hall of Fame! +300 🪙'); } }
+        return;
+      }
+      progress(p, t); keep.push(p);
+    });
+    t.players = keep;
+    POSS.forEach(pos => { while (t.players.filter(p => p.pos === pos).length < (t.id === 0 ? 1 : COUNTS[pos])) t.players.push(genPlayer(pos, ri(48, 64), 22, true)); });
+    t.w = t.l = t.pf = t.pa = 0;
+    if (t.id === 0) fixLineup(t); else { autoLineup(t); if (t.coach && Math.random() < .3) t.coach.lvl = clamp(t.coach.lvl + ri(-1, 1), 1, 5); }
+  });
+  S.year++; S.week = 0; S.phase = 'draft'; S.po = null; S.parade = false; S.myOut = ''; S.last = ''; S.results = [];
+  S.sched = makeSchedule(); setRival(); S.coachOptions = genCoaches(); S.fa = genFA(); S.proBowl = [];
+  updateRanks(); startDraft(rec); saveS();
+}
+
+// ---------- draft ----------
+function startDraft(rec) {
+  const ids = S.teams.map(t => t.id).sort((a, b) => ((rec ? rec[a] : 0) + Math.random() * .6) - ((rec ? rec[b] : 0) + Math.random() * .6));
+  S.draft = { order: ids.concat(ids), idx: 0, log: [], done: false };
+  draftAdvance();
+}
+function takeProspect(p, t) { S.prospects = S.prospects.filter(x => x.id !== p.id); p.rookie = true; p.sal = salary(p); p.scouted = true; t.players.push(p); }
+function draftAdvance() {
+  const d = S.draft;
+  while (d.idx < d.order.length && d.order[d.idx] !== 0) {
+    const t = S.teams[d.order[d.idx]];
+    const need = pos => t.players.filter(p => p.pos === pos).length < COUNTS[pos] ? 12 : 0;
+    if (!S.prospects.length) break;
+    const best = S.prospects.slice().sort((a, b) => (ovr(b) + b.pot * .5 + need(b.pos)) - (ovr(a) + a.pot * .5 + need(a.pos)))[0];
+    takeProspect(best, t); d.log.unshift(t.em + ' ' + t.nm + ' drafted ' + best.nm + ' (' + best.pos.toUpperCase() + ')'); d.idx++;
+  }
+  if (d.idx >= d.order.length || !S.prospects.length) finishDraft();
+}
+function finishDraft() {
+  const d = S.draft; d.done = true;
+  S.fa.push(...S.prospects.slice(0, 8).map(p => { p.rookie = false; return p; }));
+  S.prospects = genProspects();
+  S.teams.forEach(t => { if (t.id === 0) fixLineup(t); else autoLineup(t); });
+}
+function draftPick(id) {
+  const d = S.draft, me = S.teams[0], p = S.prospects.find(x => x.id === id);
+  if (!p || d.done || d.order[d.idx] !== 0) return;
+  if (payroll(me) + salary(p) > CAP) { msg = '💸 Not enough salary cap room for ' + p.nm + '!'; return; }
+  if (me.players.length >= MAXROSTER) { msg = 'Your roster is full (' + MAXROSTER + ')! Release someone first.'; return; }
+  takeProspect(p, me); d.log.unshift('🐱 Bobcats drafted ' + p.nm + ' (' + p.pos.toUpperCase() + ')'); d.idx++; msg = '🎓 You drafted ' + p.nm + '!';
+  draftAdvance();
+}
+function autoDraft() {
+  const d = S.draft, me = S.teams[0];
+  while (!d.done && d.order[d.idx] === 0) {
+    const fits = S.prospects.filter(p => payroll(me) + salary(p) <= CAP && me.players.length < MAXROSTER);
+    if (fits.length) {
+      const need = pos => me.players.filter(p => p.pos === pos).length < COUNTS[pos] ? 12 : 0;
+      const best = fits.sort((a, b) => (ovr(b) + b.pot * .5 + need(b.pos)) - (ovr(a) + a.pot * .5 + need(a.pos)))[0];
+      takeProspect(best, me); d.log.unshift('🐱 Bobcats drafted ' + best.nm + ' (' + best.pos.toUpperCase() + ')');
+    }
+    d.idx++; draftAdvance();
+  }
+}
+const canTrade = () => S.phase === 'draft' || (S.phase === 'reg' && S.week <= 8);
+
+// ---------- actions ----------
+const value = p => { const o = ovr(p); return o + (p.age < 26 ? (p.pot - o) * .6 : 0) - (p.age > 31 ? (p.age - 31) * 3 : 0); };
+function act(name, d) {
+  const me = S.teams[0]; d = d || {}; msg = '';
+  const pid = +d.id;
+  if (name === 'tab') { tab = d.t; }
+  else if (name === 'startseason') {
+    if (S.draft && !S.draft.done) autoDraft();
+    S.phase = 'reg'; S.week = 1; S.last = '';
+    S.news.unshift('🏈 Season ' + S.year + ' begins! Rookie Draft complete.');
+  }
+  else if (name === 'play') { playGame(); return; }
+  else if (name === 'sim') simMyGame();
+  else if (name === 'simround') simRound();
+  else if (name === 'finishpo') { let n = 0; while (S.phase === 'po' && n++ < 6) { if (nextGame()) simMyGame(); else simRound(); } }
+  else if (name === 'simseason') { let n = 0; while (S.phase === 'reg' && n++ < 20) simMyGame(); }
+  else if (name === 'parade') { S.parade = false; }
+  else if (name === 'nextseason') { nextSeason(); tab = 'draft'; }
+  else if (name === 'captain') {
+    const p = me.players.find(x => x.id === pid);
+    if (p) { if (p.cap) p.cap = false; else if (capCount(me) >= 2) msg = '⭐ You can only have 2 captains!'; else p.cap = true; }
+  }
+  else if (name === 'release') {
+    const p = me.players.find(x => x.id === pid);
+    if (p) {
+      if (me.players.filter(x => x.pos === p.pos).length <= 1) msg = 'You need at least 1 ' + p.pos.toUpperCase() + '!';
+      else if (confirm1 !== pid) { confirm1 = pid; msg = 'Click Release again to cut ' + p.nm + '.'; return render(); }
+      else { me.players = me.players.filter(x => x.id !== pid); fixLineup(me); msg = p.nm + ' was released.'; }
+    }
+    confirm1 = null;
+  }
+  else if (name === 'lineup') { const p = me.players.find(x => x.id === pid); if (p) me.lineup[p.pos] = p.id; }
+  else if (name === 'train') {
+    const p = me.players.find(x => x.id === pid);
+    if (p && p.tr < 4) { hide(); API().start({ kind: 'practice', oppName: 'SCRUBS', om: .8, total: 160, pid: p.id }); return; }
+  }
+  else if (name === 'sign') {
+    const p = S.fa.find(x => x.id === pid), cost = p ? p.sal * 40 : 0;
+    if (p) {
+      if (me.players.length >= MAXROSTER) msg = 'Roster full! Release someone first.';
+      else if (payroll(me) + p.sal > CAP) msg = '💸 Not enough salary cap room!';
+      else if (API().coins() < cost) msg = 'Not enough coins!';
+      else { API().add(-cost); S.fa = S.fa.filter(x => x.id !== pid); me.players.push(p); msg = '✅ Signed ' + p.nm + '!'; }
+    }
+  }
+  else if (name === 'trsel') { if (d.k === 'mine') tr.mine = pid; else tr.theirs = pid; }
+  else if (name === 'trteam') { tr.team = +d.v; tr.theirs = null; }
+  else if (name === 'trade') {
+    const opp = S.teams[tr.team], mine = me.players.find(p => p.id === tr.mine), th = opp.players.find(p => p.id === tr.theirs);
+    if (!canTrade()) msg = '⏰ The trade deadline passed!';
+    else if (!mine || !th) msg = 'Pick one of your players and one of theirs.';
+    else if (mine.pos !== th.pos && me.players.filter(p => p.pos === mine.pos).length <= 1) msg = 'You would have no ' + mine.pos.toUpperCase() + '!';
+    else if (payroll(me) - mine.sal + th.sal > CAP) msg = '💸 That trade breaks your salary cap!';
+    else if (value(mine) < value(th) * 1.05) msg = '❌ ' + opp.nm + ' said no. They want more value!';
+    else {
+      me.players = me.players.filter(p => p !== mine); opp.players = opp.players.filter(p => p !== th);
+      mine.cap = false; th.cap = false; me.players.push(th); opp.players.push(mine);
+      fixLineup(me); autoLineup(opp); tr.mine = tr.theirs = null; msg = '🔁 Trade done! You got ' + th.nm + '.';
+    }
+  }
+  else if (name === 'scout') {
+    const p = S.prospects.find(x => x.id === pid);
+    if (p && !p.scouted) { if (API().coins() < 30) msg = 'Scouting costs 30 coins!'; else { API().add(-30); p.scouted = true; msg = '🔍 Scouted ' + p.nm + '!'; } }
+  }
+  else if (name === 'draft') draftPick(pid);
+  else if (name === 'autodraft') { autoDraft(); msg = 'Auto-draft done.'; }
+  else if (name === 'hire') {
+    const c = S.coachOptions[+d.i];
+    if (c) { if (API().coins() < c.cost) msg = 'Not enough coins!'; else { API().add(-c.cost); me.coach = { nm: c.nm, lvl: c.lvl }; S.coachOptions.splice(+d.i, 1); msg = '🧢 Hired coach ' + c.nm + '!'; } }
+  }
+  else if (name === 'stadium') {
+    const cost = 1500 * Math.pow(S.stadium + 1, 2);
+    if (S.stadium >= 5) msg = 'Your stadium is maxed out!'; else if (API().coins() < cost) msg = 'Not enough coins!'; else { API().add(-cost); S.stadium++; msg = '🏟️ Stadium upgraded to ' + STADIUMS[S.stadium] + '!'; }
+  }
+  else if (name === 'reset') { if (confirm1 !== 'reset') { confirm1 = 'reset'; msg = 'Click again to start a brand new league (your coins stay).'; return render(); } createSeason(); confirm1 = null; tab = 'home'; msg = 'New league created!'; }
+  if (name !== 'release') { if (name !== 'reset') confirm1 = null; }
+  saveS(); render();
+}
+
+// ---------- screens ----------
+const rbars = p => '<div class="pr">' + RK.map(k => '<div class="at"><span>' + AB[k] + '</span><i><u style="width:' + p.r[k] + '%"></u></i><b>' + p.r[k] + '</b></div>').join('') + '</div>';
+function plCard(p, t, btns, sel) {
+  const st = t && t.lineup[p.pos] === p.id;
+  return '<div class="pl' + (sel ? ' sel' : '') + '"><b>' + p.nm + '</b> ' + (p.cap ? '<span class="badge">⭐ CAPTAIN</span>' : '') + (st ? '<span class="badge" style="background:#5df07a">STARTER</span>' : '') + (p.inj > 0 ? '<span class="badge" style="background:#ff7a7a">🤕 ' + p.inj + ' game' + (p.inj > 1 ? 's' : '') + '</span>' : '') + (p.rookie ? '<span class="badge" style="background:#9ad7ff">🆕</span>' : '') +
+    '<br>' + PLABEL[p.pos] + ' · age ' + p.age + ' · <span class="ovr">OVR ' + ovr(p) + '</span> · pot ' + p.pot + ' · $' + p.sal + 'M' + rbars(p) + (btns || '') + '</div>';
+}
+const fb = (label, act2, attrs, cls, dis) => '<button class="fbtn ' + (cls || '') + '" data-act="' + act2 + '" ' + (attrs || '') + (dis ? ' disabled' : '') + '>' + label + '</button>';
+const recStr = t => t.w + '-' + t.l;
+const phaseLabel = () => S.phase === 'draft' ? '🎓 Preseason · Rookie Draft' : S.phase === 'reg' ? 'Regular season · Week ' + S.week + ' of 17' : S.phase === 'po' ? '🏆 Playoffs · ' + ROUND[S.po.round] : '🏁 Season over';
+
+function homeHtml() {
+  const me = S.teams[0], rank = standings(0).findIndex(t => t.id === 0) + 1;
+  let h = '<div class="frc"><h2>🐱 Bobcats · Season ' + S.year + '</h2><b>' + phaseLabel() + '</b><br>Record <span class="ovr">' + recStr(me) + '</span> · #' + rank + ' in the ' + CONF[0] + ' · Team power ' + strength(me).toFixed(1) + ' · Cap $' + payroll(me) + 'M / $' + CAP + 'M</div>';
+  const events = [];
+  if (S.phase === 'draft') events.push('🎓 <b>ROOKIE DRAFT</b> is happening! Open the Draft tab to pick rookies, then press Start Season.');
+  if (S.phase === 'reg') {
+    if (S.week === S.rivalWeek) events.push('🔥 <b>RIVALRY WEEK!</b> Beat the Coyotes for double coins!');
+    if (S.week <= 8) events.push('⏰ Trade Deadline is after Week 8' + (S.week === 8 ? ' – <b>LAST CHANCE to trade!</b>' : '.')); else events.push('⏰ The trade deadline has passed.');
+  }
+  if (S.phase === 'po' || S.phase === 'end') { if (S.proBowl.length) events.push('🌟 <b>Pro Bowl</b> stars: ' + S.proBowl.filter(x => x.mine).map(x => x.nm).join(', ') + (S.proBowl.some(x => x.mine) ? '' : 'none from the Bobcats this year')); }
+  if (events.length) h += '<div class="frc">' + events.map(e => '<div>' + e + '</div>').join('') + '</div>';
+  if (S.parade && S.champ === 0) h += '<div class="frc"><h2>🏆 CHAMPIONSHIP PARADE! 🎉</h2><div class="parade"><span>🐱🏆🎺🥁🎉🏈🐱🎊🚒🎉🐱🏆</span></div>' + fb('Continue', 'parade', '', 'gold') + '</div>';
+  if (S.last) h += '<div class="frc">📰 ' + S.last + '</div>';
+  if (S.phase === 'draft') h += '<div class="frc">' + fb('🎓 Go to the Draft', 'tab', 'data-t="draft"', 'gold') + fb('🏈 Start Season (auto-drafts for you)', 'startseason') + '</div>';
+  else if (S.phase === 'reg' || S.phase === 'po') {
+    const ng = nextGame();
+    if (ng) {
+      const o = S.teams[ng.opp];
+      h += '<div class="frc"><h2>' + ng.label + '</h2><div style="font-size:18px">' + (ng.home ? '🏠 Home' : '✈️ Away') + ' vs ' + o.em + ' <b>' + o.nm + '</b> (' + recStr(o) + ') · power ' + strength(o).toFixed(1) + '</div>' +
+        fb('▶ PLAY THE GAME', 'play', '', 'gold') + fb('⏩ Sim the game', 'sim') + (S.phase === 'reg' ? fb('⏭ Sim the whole season', 'simseason', '', 'red') : '') + '</div>';
+    } else h += '<div class="frc"><h2>' + (S.po.round === 'wc' && S.po.conf.every(c => c.seeds.slice(0, 2).indexOf(0) < 0) ? 'Your season ended' : 'No game for you this round') + '</h2>' + (S.myOut ? S.myOut + '. ' : 'You have a bye! ') + fb('⏩ Sim this round', 'simround', '', 'gold') + fb('⏭ Sim the rest of the playoffs', 'finishpo') + '</div>';
+    if (S.phase === 'po' && nextGame()) h += '<div class="frc">' + fb('⏭ Sim the rest of the playoffs', 'finishpo') + '</div>';
+  } else if (S.phase === 'end') {
+    h += '<div class="frc"><h2>🏁 Season ' + S.year + ' is over!</h2>Champion: ' + S.teams[S.champ].em + ' <b>' + S.teams[S.champ].nm + '</b><br>' + fb('➡️ Start next season (aging, retirements, draft)', 'nextseason', '', 'gold') + '</div>';
+  }
+  if (S.phase === 'po') {
+    const pr = poPairs();
+    h += '<div class="frc"><h3>Playoff bracket: ' + ROUND[S.po.round] + '</h3>' + pr.map(([a, b]) => '<div>' + S.teams[a].em + ' ' + S.teams[a].nm + ' vs ' + S.teams[b].em + ' ' + S.teams[b].nm + '</div>').join('') + '</div>';
+  }
+  if (S.phase === 'end' || S.phase === 'po') {
+    const po = S.po || { conf: [] };
+    h += '<div class="frc"><h3>Playoff teams</h3>' + po.conf.map((c, i) => '<div><b>' + CONF[i] + ':</b> ' + c.seeds.map((id, k) => (k + 1) + '. ' + S.teams[id].em + S.teams[id].nm).join(' · ') + '</div>').join('') + '</div>';
+  }
+  const rr = S.results.slice(-8).reverse().filter(r => r.l === 'Week ' + (S.phase === 'reg' ? S.week - 1 : 17) || S.phase !== 'reg').slice(0, 8);
+  if (rr.length) h += '<div class="frc"><h3>Latest scores</h3>' + rr.map(r => '<div>' + r.l + ': ' + S.teams[r.a].nm + ' ' + r.sa + ' – ' + S.teams[r.b].nm + ' ' + r.sb + '</div>').join('') + '</div>';
+  return h;
+}
+function standingsHtml() {
+  let h = '';
+  [0, 1].forEach(c => {
+    h += '<div class="frc"><h2>' + CONF[c] + '</h2><table class="frt"><tr><th>#</th><th>Team</th><th>W-L</th><th>PF</th><th>PA</th></tr>' +
+      standings(c).map((t, i) => '<tr class="' + (t.id === 0 ? 'me' : '') + '"><td>' + (i + 1) + (i < 6 ? '' : '') + '</td><td>' + t.em + ' ' + t.nm + '</td><td>' + recStr(t) + '</td><td>' + t.pf + '</td><td>' + t.pa + '</td></tr>').join('') + '</table><small>Top 6 make the playoffs (seeds 1 & 2 skip the Wild Card round).</small></div>';
+  });
+  h += '<div class="frc"><h2>📈 Team Power Rankings</h2><table class="frt"><tr><th>Rank</th><th>Team</th><th>Record</th><th>Power</th><th>Move</th></tr>' +
+    rankings().map((t, i) => '<tr class="' + (t.id === 0 ? 'me' : '') + '"><td>' + (i + 1) + '</td><td>' + t.em + ' ' + t.nm + '</td><td>' + recStr(t) + '</td><td>' + strength(t).toFixed(1) + '</td><td>' + (t.prevPr > i + 1 ? '🔼' : t.prevPr < i + 1 ? '🔽' : '➖') + '</td></tr>').join('') + '</table></div>';
+  return h;
+}
+function rosterHtml() {
+  const me = S.teams[0];
+  let h = '<div class="frc"><h2>👥 Your roster (' + me.players.length + '/' + MAXROSTER + ')</h2>Salary cap: <b>$' + payroll(me) + 'M</b> of $' + CAP + 'M · Captains: ' + capCount(me) + '/2 (each gives your whole team a little boost)</div>';
+  POSS.forEach(pos => {
+    h += '<h3>' + PLABEL[pos] + '</h3><div class="frg">' + me.players.filter(p => p.pos === pos).sort((a, b) => ovr(b) - ovr(a)).map(p =>
+      plCard(p, me, fb(p.cap ? '⭐ Remove captain' : '⭐ Make captain', 'captain', 'data-id="' + p.id + '"', 'gold') + fb(confirm1 === p.id ? 'Sure? Release!' : 'Release', 'release', 'data-id="' + p.id + '"', 'red') + fb('🏋️ Train ' + p.tr + '/4', 'train', 'data-id="' + p.id + '"', '', p.tr >= 4))).join('') + '</div>';
+  });
+  return h;
+}
+function lineupHtml() {
+  const me = S.teams[0];
+  return '<div class="frc"><h2>📋 Starting lineup</h2>Pick your starter at each spot. If a starter is hurt, the best healthy backup plays automatically.</div>' + POSS.map(pos => {
+    const list = me.players.filter(p => p.pos === pos).sort((a, b) => ovr(b) - ovr(a)), cur = starter(me, pos);
+    return '<div class="frc"><h3>' + PLABEL[pos] + ' · team skill ' + teamL(me, pos).toFixed(1) + '</h3><div class="frg">' + list.map(p => plCard(p, me, fb(me.lineup[pos] === p.id ? '✅ Starting' : 'Start him', 'lineup', 'data-id="' + p.id + '"', 'gold', me.lineup[pos] === p.id), cur && cur.id === p.id)).join('') + '</div></div>';
+  }).join('');
+}
+function faHtml() {
+  const me = S.teams[0];
+  return '<div class="frc"><h2>🛒 Free agents</h2>Sign players with coins (salary × 40 🪙). You have <b>' + API().coins().toLocaleString() + ' 🪙</b> and <b>$' + (CAP - payroll(me)) + 'M</b> of cap room. New free agents show up every week!</div><div class="frg">' +
+    S.fa.slice().sort((a, b) => ovr(b) - ovr(a)).map(p => plCard(p, null, fb('Sign ' + (p.sal * 40).toLocaleString() + ' 🪙', 'sign', 'data-id="' + p.id + '"', 'gold', API().coins() < p.sal * 40 || payroll(me) + p.sal > CAP))).join('') + '</div>';
+}
+function tradeHtml() {
+  const me = S.teams[0], opp = S.teams[tr.team];
+  if (!canTrade()) return '<div class="frc"><h2>🔁 Trades</h2>⏰ The trade deadline has passed (trades are open in the preseason and through Week 8).</div>';
+  const mine = me.players.find(p => p.id === tr.mine), th = opp.players.find(p => p.id === tr.theirs);
+  let h = '<div class="frc"><h2>🔁 Trades</h2>Swap one of your players for one of theirs. The other team says yes only if it is a good deal for them!</div>';
+  h += '<div class="frc"><h3>Your player ' + (mine ? '→ ' + mine.nm : '(pick one)') + '</h3><div class="frg">' + me.players.slice().sort((a, b) => ovr(b) - ovr(a)).map(p => plCard(p, me, fb(tr.mine === p.id ? '✅ Offering' : 'Offer him', 'trsel', 'data-k="mine" data-id="' + p.id + '"', 'gold'), tr.mine === p.id)).join('') + '</div></div>';
+  h += '<div class="frc"><h3>Trade with: <select data-act="trteam">' + S.teams.filter(t => t.id !== 0).map(t => '<option value="' + t.id + '"' + (t.id === tr.team ? ' selected' : '') + '>' + t.em + ' ' + t.nm + '</option>').join('') + '</select></h3><div class="frg">' +
+    opp.players.slice().sort((a, b) => ovr(b) - ovr(a)).map(p => plCard(p, opp, fb(tr.theirs === p.id ? '✅ Asking' : 'Ask for him', 'trsel', 'data-k="theirs" data-id="' + p.id + '"', 'gold'), tr.theirs === p.id)).join('') + '</div></div>';
+  h += '<div class="frc">' + (mine && th ? 'You give <b>' + mine.nm + '</b> (value ' + Math.round(value(mine)) + ') and get <b>' + th.nm + '</b> (value ' + Math.round(value(th)) + ') ' : 'Pick a player on each side. ') + fb('🤝 Propose trade', 'trade', '', 'gold', !(mine && th)) + '</div>';
+  return h;
+}
+function protH(p, i) {
+  return '<div class="pl"><b>' + p.nm + '</b> <span class="badge">Grade ' + p.grade + '</span><br>' + PLABEL[p.pos] + ' · age ' + p.age + ' · Speed ' + p.r.spd + ' · Strength ' + p.r.str + '<br>' +
+    (p.scouted ? '<span class="ovr">OVR ' + ovr(p) + '</span> · potential ' + p.pot + ' · $' + salary(p) + 'M' + rbars(p) : '<small>🔍 Not scouted: other ratings are hidden (OVR ??)</small><br>');
+}
+function draftHtml() {
+  const d = S.draft, me = S.teams[0];
+  let h = '';
+  if (S.phase === 'draft' && d && !d.done) {
+    const pick = d.idx + 1, rd = d.idx < 16 ? 1 : 2, mine = d.order[d.idx] === 0;
+    h += '<div class="frc"><h2>🎓 Rookie Draft · Round ' + rd + ' · Pick ' + pick + '</h2>' + (mine ? '🟢 <b>YOU ARE ON THE CLOCK!</b> Pick a rookie.' : 'Waiting...') + ' (Scouted players show all their ratings.) ' + fb('🤖 Auto-draft my picks', 'autodraft', '', 'gold') + '</div>';
+    h += '<div class="frg">' + S.prospects.slice().sort((a, b) => (ovr(b) + b.pot) - (ovr(a) + a.pot) + (a.scouted ? 0 : 0)).map(p => protH(p) + (mine ? fb('Draft him ($' + salary(p) + 'M)', 'draft', 'data-id="' + p.id + '"', 'gold', payroll(me) + salary(p) > CAP) : '') + (!p.scouted ? fb('🔍 Scout 30 🪙', 'scout', 'data-id="' + p.id + '"') : '') + '</div>').join('') + '</div>';
+    h += '<div class="frc"><h3>Draft log</h3>' + d.log.slice(0, 10).map(x => '<div>' + x + '</div>').join('') + '</div>';
+  } else {
+    h += '<div class="frc"><h2>🔍 Scouting: next year\'s rookies</h2>Spend 30 🪙 to scout a prospect and see all of his ratings and potential before the Rookie Draft.</div><div class="frg">' +
+      S.prospects.slice().sort((a, b) => (b.grade < a.grade ? -1 : 1)).slice(0, 24).map(p => protH(p) + (!p.scouted ? fb('🔍 Scout 30 🪙', 'scout', 'data-id="' + p.id + '"', 'gold') : '') + '</div>').join('') + '</div>';
+  }
+  return h;
+}
+function teamHtml() {
+  const me = S.teams[0], cost = 1500 * Math.pow(S.stadium + 1, 2), coins = API().coins();
+  let h = '<div class="frc"><h2>🧢 Head coach</h2>' + (me.coach ? 'Coach <b>' + me.coach.nm + '</b> · level ' + me.coach.lvl + ' (+' + (me.coach.lvl * .12).toFixed(2) + ' skill for every position, and your players improve more each year)' : '<b>No head coach!</b> Hire one to power up your team.') +
+    '<div class="frg">' + S.coachOptions.map((c, i) => '<div class="pl"><b>' + c.nm + '</b><br>Level ' + '⭐'.repeat(c.lvl) + '<br>' + fb('Hire ' + c.cost.toLocaleString() + ' 🪙', 'hire', 'data-i="' + i + '"', 'gold', coins < c.cost) + '</div>').join('') + '</div></div>';
+  h += '<div class="frc"><h2>🏟️ Stadium: ' + STADIUMS[S.stadium] + '</h2>Level ' + S.stadium + '/5 · home-field boost +' + (.08 * S.stadium).toFixed(2) + ' skill · +' + 30 * S.stadium + ' 🪙 for every home win<br>' + fb(S.stadium >= 5 ? 'MAXED' : 'Upgrade ' + cost.toLocaleString() + ' 🪙', 'stadium', '', 'gold', S.stadium >= 5 || coins < cost) + '</div>';
+  const pay = payroll(me);
+  h += '<div class="frc"><h2>💰 Salary cap</h2>Payroll: <b>$' + pay + 'M</b> of $' + CAP + 'M<div class="at"><i><u style="width:' + clamp(pay / CAP * 100, 0, 100) + '%;background:' + (pay > CAP * .9 ? '#ff7a7a' : '#5df07a') + '"></u></i></div>Top salaries: ' + me.players.slice().sort((a, b) => b.sal - a.sal).slice(0, 5).map(p => p.nm + ' $' + p.sal + 'M').join(' · ') + '</div>';
+  h += '<div class="frc"><h2>⭐ Captains</h2>' + (me.players.filter(p => p.cap).map(p => p.nm + ' (' + p.pos.toUpperCase() + ')').join(', ') || 'No captains yet. Pick up to 2 on the Roster tab.') + '</div>';
+  h += '<div class="frc"><h3>Danger zone</h3>' + fb(confirm1 === 'reset' ? 'Click again to RESET league' : '🗑️ Start a brand new league', 'reset', '', 'red') + '</div>';
+  return h;
+}
+function awardsHtml() {
+  let h = '<div class="frc"><h2>🥇 MVP Race</h2>' + (S.week >= 4 || S.phase !== 'reg' ? '<table class="frt"><tr><th>#</th><th>Player</th><th>Team</th><th>OVR</th></tr>' + mvpList().map((e, i) => '<tr class="' + (e.t.id === 0 ? 'me' : '') + '"><td>' + (i + 1) + '</td><td>' + e.p.nm + ' (' + e.p.pos.toUpperCase() + ')</td><td>' + e.t.nm + ' ' + recStr(e.t) + '</td><td>' + ovr(e.p) + '</td></tr>').join('') + '</table>' : 'The MVP race starts after Week 3!') + '</div>';
+  h += '<div class="frc"><h2>🏅 Season awards</h2>' + (S.awards.length ? S.awards.map(a => '<div><b>Season ' + a.year + '</b> · 🏆 Champs: ' + a.champ + ' · MVP: ' + a.mvp + ' · Coach of the Year: ' + a.coy + ' · Rookie of the Year: ' + a.roy + ' · Best offense: ' + a.off + ' · Best defense: ' + a.def + '</div>').join('') : 'Awards are given at the end of the season.') + '</div>';
+  h += '<div class="frc"><h2>🏛️ Hall of Fame</h2>' + (S.hof.length ? S.hof.slice(0, 15).map(x => '<div>🏛️ ' + x.nm + ' (' + x.pos.toUpperCase() + ', ' + x.team + ') · peak OVR ' + x.peak + ' · retired in Season ' + x.year + '</div>').join('') : 'Great players who retire (peak rating 78+) get inducted here.') + '</div>';
+  h += '<div class="frc"><h2>📖 History</h2>' + (S.hist.length ? S.hist.map(x => '<div>Season ' + x.year + ': ' + x.w + '-' + x.l + ' · ' + x.res + '</div>').join('') : 'Your seasons will show up here.') + '</div>';
+  h += '<div class="frc"><h2>📰 News</h2>' + (S.news.length ? S.news.map(x => '<div>' + x + '</div>').join('') : 'Nothing yet.') + '</div>';
+  return h;
+}
+const TABS = [['home', '🏠 Home'], ['stand', '📊 Standings'], ['roster', '👥 Roster'], ['lineup', '📋 Lineup'], ['fa', '🛒 Free agents'], ['trade', '🔁 Trades'], ['draft', '🎓 Draft & Scout'], ['team', '🏟️ Team'], ['awards', '🏅 Awards']];
+function render() {
+  if (!S) return;
+  $('frCoins').textContent = '🪙 ' + API().coins().toLocaleString();
+  $('frTabs').innerHTML = TABS.map(([k, n]) => '<button class="' + (tab === k ? 'sel' : '') + '" data-act="tab" data-t="' + k + '">' + n + '</button>').join('');
+  const fn = { home: homeHtml, stand: standingsHtml, roster: rosterHtml, lineup: lineupHtml, fa: faHtml, trade: tradeHtml, draft: draftHtml, team: teamHtml, awards: awardsHtml }[tab];
+  $('frBody').innerHTML = (msg ? '<div class="frc" style="border-color:#ffe14d">' + msg + '</div>' : '') + fn();
+}
+function show() { $('fr').classList.add('show'); render(); }
+function hide() { $('fr').classList.remove('show'); }
+$('frBody').onclick = $('frTabs').onclick = e => { const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'SELECT' || b.disabled) return; act(b.dataset.act, b.dataset); };
+$('frBody').onchange = e => { const s = e.target.closest('select[data-act]'); if (s) act(s.dataset.act, { v: s.value }); };
+$('frClose').onclick = hide;
+
+// ---------- hooks used by the football engine ----------
+S = loadS();
+if (!S) createSeason();
+S.teams.forEach(t => { if (!t.coach && t.id !== 0) t.coach = { nm: pick(NA) + ' ' + pick(NB), lvl: 2 }; });
+window.FR = {
+  ready: true,
+  L: k => { const t = S.teams[0]; return clamp(teamL(t, k) + (S.cur && S.cur.home ? .08 * S.stadium : 0), 1, 9); },
+  open: tb => { if (tb) tab = tb; msg = ''; show(); },
+  hide,
+  act,
+  state: () => S,
+  injure: pool => {
+    const t = S.teams[0], pos = pick(pool), p = starter(t, pos);
+    if (!p || p.inj > 0) return null;
+    p.inj = 2;
+    const alt = t.players.filter(x => x.pos === pos && x.id !== p.id && !(x.inj > 0)).sort((a, b) => ovr(b) - ovr(a))[0];
+    saveS();
+    return '🤕 ' + p.nm + ' (' + pos.toUpperCase() + ') is injured for 2 games! ' + (alt ? alt.nm + ' comes in.' : 'No healthy backup!');
+  },
+  onGameEnd: (o, res) => {
+    if (o.kind === 'practice') {
+      const p = S.teams[0].players.find(x => x.id === o.pid), win = res.my > res.cpu;
+      let m;
+      if (p && win && p.tr < 4) {
+        const ks = Object.keys(WT[p.pos]).sort((a, b) => WT[p.pos][b] - WT[p.pos][a]).slice(0, 2);
+        ks.forEach(k => { p.r[k] = clamp(p.r[k] + ri(1, 3), 1, 99); }); p.tr++; p.sal = salary(p);
+        m = '🏋️ TRAINING COMPLETE! ' + p.nm + ' improved: ' + ks.map(k => AB[k]).join(' & ') + ' (now OVR ' + ovr(p) + ')';
+      } else m = win ? 'Already fully trained!' : 'You have to WIN the practice game to train. Try again!';
+      API().add(win ? 40 : 15); saveS();
+      return m + ' · +' + (win ? 40 : 15) + ' 🪙';
+    }
+    return finishGame(res.my, res.cpu, true, res.tds);
+  }
+};
+})();
+</script>
+
 </body>
 </html>
