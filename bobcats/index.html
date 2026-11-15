@@ -38,13 +38,14 @@
   <span>Level <b id="lvl">1</b></span>
   <span class="sp"></span>
   <button id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button>
+  <button id="botBtn" title="Autopilot (B)">🤖 Bot: OFF</button>
   <button id="muteBtn" title="Sound (M)">🔊</button>
 </div>
 <div id="stage">
   <canvas id="c" width="608" height="672"></canvas>
   <div id="overlay" class="show"><div class="card">
     <h1 id="ovTitle">🐾 BOBCATS</h1>
-    <p id="ovMsg">Gobble all the kibble and dodge the coyotes!<br>Grab a 🐟 to turn the tables.<br>Arrow keys or WASD to move.<br><b>HARD MODE:</b> fast coyotes! Press <b>SPACE</b> to ⚡ zap the nearest one (auto-aim!).<br>Eat 30 kibble = +1 zap.</p>
+    <p id="ovMsg">Gobble all the kibble and dodge the coyotes!<br>Grab a 🐟 to turn the tables.<br>Arrow keys or WASD to move.<br><b>HARD MODE:</b> fast coyotes! Press <b>SPACE</b> to ⚡ zap the nearest one (auto-aim!).<br>Eat 30 kibble = +1 zap.<br>Press <b>B</b> for 🤖 autopilot - the bot plays for you!</p>
     <button id="go">Play!</button>
     <a href="../">← Arcade</a>
   </div></div>
@@ -87,6 +88,7 @@ const $ = id => document.getElementById(id);
 // ---------- state ----------
 let grid, pelletsLeft, homeDist, playerStart;
 let state = 'title', paused = false, timer = 0, tick = 0, lifeTick = 0;
+let auto = false;
 let zaps = 3, zapCd = 0, beams = [], kibbleCount = 0;
 let score = 0, hi = 0, lives = 2, level = 1, extraGiven = false;
 let want = null, frightTicks = 0, combo = 0, waveTick = 0, scatter = true, chompFlip = false;
@@ -126,13 +128,13 @@ function buildHomeDist() {
 }
 
 // ---------- actors ----------
-const GCOLORS = ['#e8452c', '#ff8fd0', '#3ee0e8', '#8bdc3c'];
-const CORNERS = [[18,0],[0,0],[18,20],[0,20]];
+const GCOLORS = ['#e8452c', '#ff8fd0', '#3ee0e8', '#8bdc3c', '#ffd23f', '#b366ff'];
+const CORNERS = [[18,0],[0,0],[18,20],[0,20],[9,0],[9,20]];
 function resetActors() {
   player = { x:playerStart.x, y:playerStart.y, dir:null, face:DIRS.L, door:false, anim:0 };
   want = null;
-  const starts = [[9,7,'normal'],[8,9,'house'],[9,9,'house'],[10,9,'house']];
-  ghosts = starts.map((s, i) => ({ i, x:s[0], y:s[1], mode:s[2], dir: i===0 ? DIRS.L : null, door:false, fright:false, rev:false }));
+  const starts = [[9,7,'normal'],[8,9,'house'],[9,9,'house'],[10,9,'house'],[1,1,'normal'],[17,1,'normal']];
+  ghosts = starts.map((s, i) => ({ i, x:s[0], y:s[1], mode:s[2], dir: (i===0 || i===5) ? DIRS.L : i===4 ? DIRS.R : null, door:false, fright:false, rev:false }));
   frightTicks = 0; combo = 0; lifeTick = 0; waveTick = 0; scatter = true; popups = []; beams = []; zapCd = 0;
 }
 function newGame() {
@@ -166,6 +168,7 @@ function advance(e, speed, atCenter) {
 }
 
 function playerCenter(p, cx, cy) {
+  if (auto) want = botChoose(cx, cy);
   if (want && walkable(cx + want.x, cy + want.y, false)) p.dir = want;
   else if (p.dir && !walkable(cx + p.dir.x, cy + p.dir.y, false)) p.dir = null;
 }
@@ -219,6 +222,49 @@ function addScore(n) {
 }
 function popup(x, y, text) { popups.push({ x, y, text, t: 60 }); }
 
+function botChoose(cx, cy) {
+  const danger = ghosts.filter(g => (g.mode === 'normal' || g.mode === 'leave') && !g.fright);
+  const blocked = new Set();
+  for (const g of danger) {
+    const gx = Math.round(g.x), gy = Math.round(g.y);
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++)
+      if (Math.abs(dx) + Math.abs(dy) <= 2) blocked.add(normC(gx + dx) + ',' + (gy + dy));
+  }
+  blocked.delete(cx + ',' + cy);
+  const near = danger.some(g => Math.hypot(g.x - cx, g.y - cy) < 9);
+  const edible = new Set(frightTicks > 90 ? ghosts.filter(g => g.fright && g.mode === 'normal').map(g => normC(Math.round(g.x)) + ',' + Math.round(g.y)) : []);
+  const search = accept => {
+    const seen = new Set([cx + ',' + cy]), q = [];
+    for (const d of DLIST) {
+      const nc = normC(cx + d.x), nr = cy + d.y, k = nc + ',' + nr;
+      if (!walkable(nc, nr, false) || blocked.has(k)) continue;
+      seen.add(k); q.push([nc, nr, d]);
+    }
+    for (let i = 0; i < q.length; i++) {
+      const [c, r, d] = q[i];
+      if (accept(c, r)) return d;
+      for (const e of DLIST) {
+        const nc = normC(c + e.x), nr = r + e.y, k = nc + ',' + nr;
+        if (seen.has(k) || !walkable(nc, nr, false) || blocked.has(k)) continue;
+        seen.add(k); q.push([nc, nr, d]);
+      }
+    }
+    return null;
+  };
+  let d = null;
+  if (edible.size) d = search((c, r) => edible.has(c + ',' + r));
+  if (!d && near) d = search((c, r) => grid[r][c] === 'o');
+  if (!d) d = search((c, r) => grid[r][c] === '.' || grid[r][c] === 'o');
+  if (!d) {
+    let bd = -1;
+    for (const e of DLIST) {
+      if (!walkable(cx + e.x, cy + e.y, false)) continue;
+      const m = danger.length ? Math.min(...danger.map(g => Math.hypot(g.x - cx - e.x, g.y - cy - e.y))) : 0;
+      if (m > bd) { bd = m; d = e; }
+    }
+  }
+  return d || player.dir;
+}
 function zap() {
   if (state !== 'play' || paused || zaps <= 0 || zapCd > 0) return;
   let best = null, bd = Infinity;
@@ -234,6 +280,7 @@ function zap() {
 }
 function updatePlayer() {
   const p = player;
+  if (auto && zaps > 0 && ghosts.some(g => (g.mode === 'normal' || g.mode === 'leave') && !g.fright && Math.hypot(g.x - p.x, g.y - p.y) < 1.8)) zap();
   if (want && p.dir && want === opp(p.dir)) p.dir = want;
   advance(p, 0.125, playerCenter);
   if (p.dir) { p.face = p.dir; p.anim += 0.35; }
@@ -256,7 +303,7 @@ function updateGhosts() {
   if (frightTicks > 0 && --frightTicks === 0) for (const g of ghosts) g.fright = false;
   const k = Math.max(0.3, 1 - (level - 1) * 0.15);
   const rel = [0, 40, 90, 150];
-  const gs = Math.min(0.135, 0.108 + level * 0.005);
+  const gs = Math.min(0.14, 0.114 + level * 0.006);
   for (const g of ghosts) {
     if (g.mode === 'house') { if (lifeTick >= rel[g.i] * k) { g.mode = 'leave'; g.door = true; g.dir = null; } else continue; }
     const sp = g.mode === 'eyes' ? 0.25 : g.fright ? 0.07 : gs;
@@ -443,6 +490,8 @@ function go() {
 }
 $('go').addEventListener('click', go);
 $('pauseBtn').addEventListener('click', () => { audioInit(); if (state === 'title' || state === 'over') return; setPaused(!paused); $('pauseBtn').blur(); });
+$('botBtn').addEventListener('click', () => { audioInit(); toggleBot(); $('botBtn').blur(); });
+function toggleBot() { auto = !auto; $('botBtn').textContent = auto ? '🤖 Bot: ON' : '🤖 Bot: OFF'; if (!auto) want = null; }
 $('muteBtn').addEventListener('click', () => { audioInit(); toggleMute(); $('muteBtn').blur(); });
 
 // ---------- input ----------
@@ -451,14 +500,15 @@ window.addEventListener('keydown', e => {
   audioInit();
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { setPaused(!paused); e.preventDefault(); return; }
   if (e.key === 'm' || e.key === 'M') { toggleMute(); return; }
+  if (e.key === 'b' || e.key === 'B') { toggleBot(); return; }
   const d = KEYS[e.key];
   if (e.key === ' ' && state === 'play' && !paused) { e.preventDefault(); zap(); return; }
   if (d || e.key === ' ' || e.key === 'Enter') e.preventDefault();
   if ((state === 'title' || state === 'over' || paused) && (d || e.key === 'Enter' || e.key === ' ')) {
     if (paused && !(e.key === 'Enter' || e.key === ' ')) return;
-    go(); if (d && !paused) want = DIRS[d]; return;
+    go(); if (d && !paused && !auto) want = DIRS[d]; return;
   }
-  if (d) want = DIRS[d];
+  if (d && !auto) want = DIRS[d];
 });
 let tx0 = 0, ty0 = 0;
 cv.addEventListener('touchstart', e => { audioInit(); tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; }, { passive: true });
