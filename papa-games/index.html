@@ -113,18 +113,19 @@
 <div id="fb">
   <canvas id="fbc"></canvas>
   <div id="fbCalls">
-    <button class="btn" id="callPass">🏈 Pass</button><button class="btn" id="callRun">🏃 Run</button><button class="btn" id="callQB">💨 QB run</button>
+    <button class="btn" id="callQuick">⚡ Quick pass</button><button class="btn" id="callDeep">🚀 Deep pass</button><button class="btn" id="callRun">🏃 Run</button><button class="btn" id="callQB">💨 QB run</button>
     <button class="btn" id="callHike">🏈 HIKE!</button>
     <button class="btn" id="callFG">🥅 Field goal</button><button class="btn" id="callPunt">👢 Punt</button>
-    <button class="btn" id="callCover">🛡️ Cover</button><button class="btn" id="callBlitz">💥 Blitz</button>
+    <button class="btn" id="callMan">🛡️ Man</button><button class="btn" id="callZone">🧱 Zone</button><button class="btn" id="callBlitz">💥 Blitz</button>
     <button class="btn" id="callTO">⏱ Timeout</button>
+    <button class="btn" id="callDeepKick">🏈 Kick deep</button><button class="btn" id="callOnside">🎯 Onside kick!</button><button class="btn" id="callKickNow">🦵 KICK!</button>
   </div>
   <div id="fbTouch"><div><button id="tLeft">◀</button><button id="tUp">▲</button><button id="tDown">▼</button><button id="tRight">▶</button></div><div><button id="tBoost">⚡</button><button id="tJuke">💨</button></div></div>
   <div id="fbStart" class="overlay show"><div>
     <img id="fbLogo" src="assets/screenshot-2026-11-14-at-7.21.36-pm.png" alt="Bobcats logo" style="width:200px;border-radius:16px">
     <h1>Bobcat Bowl</h1><p>You are the Bobcats! Beat the Coyotes. 🏈</p><p id="fbRec"></p>
     <button class="btn" id="fbGo">🏈 Kickoff!</button><button class="btn" id="fbMenu1">Menu</button>
-    <p style="font-size:14px;max-width:460px">OFFENSE: pick Pass, Run or QB run, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Cover or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch player. Tackle the ball carrier!<br>T = timeout (stops the clock). P pauses.</p>
+    <p style="font-size:14px;max-width:460px">OFFENSE: call a play (Quick pass, Deep pass, Run or QB run), read the coverage tip, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Man, Zone or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch player. Tackle the ball carrier!<br>T = timeout (stops the clock). Watch out for 🚩 penalties! After you score you can try an ONSIDE kick. P pauses.</p>
   </div></div>
   <div id="fbOver" class="overlay"><div><h1 id="fbOverTitle"></h1><p id="fbOverText"></p><button class="btn" id="fbAgain">Play again</button><button class="btn" id="fbMenu2">Menu</button></div></div>
   <div id="fbPause" class="overlay"><div><h1>⏸ Paused</h1><button class="btn" id="fbResume">Resume</button><button class="btn" id="fbMenu3">Menu</button></div></div>
@@ -824,7 +825,7 @@ const ftarget = (los, poss) => poss === 'me' ? Math.min(100, los + 10) : Math.ma
 
 function setPhase(ph) {
   phase = ph; timer = 0;
-  $('fbCalls').style.display = ph === 'presnap' ? 'flex' : 'none';
+  $('fbCalls').style.display = (ph === 'presnap' || ph === 'kickoff' || ph === 'onside') ? 'flex' : 'none';
   $('fbTouch').style.display = (ph === 'play' && matchMedia('(pointer:coarse)').matches) ? 'flex' : 'none';
   $('fbStart').classList.toggle('show', ph === 'idle');
   $('fbOver').classList.toggle('show', ph === 'over');
@@ -840,25 +841,37 @@ function makeRoute(type, x0, y0, d) {
   }[type];
   return R.map(([dx, dy]) => ({ x: x0 + d * dx, y: cy(y0 + dy) }));
 }
+const KIND = {
+  quick: [['slant','curl'], ['curl','out'], ['slant','out']],
+  deep: [['go','post'], ['go','post'], ['post','go']],
+  mix: [['go','out','post','curl','slant'], ['go','out','post','curl','slant'], ['slant','curl','out','go']]
+};
+function reroute() {
+  const set = KIND[(P.sel === 'quick' || P.sel === 'deep') ? P.sel : 'mix'], pick = a => a[Math.floor(Math.random() * a.length)];
+  P.recs.forEach((r, i) => { r.wp = makeRoute(pick(set[i]), g.los, r.y, P.dir); r.i = 0; });
+}
 function setupFormation() {
   const d = g.poss === 'me' ? 1 : -1, los = g.los, X = o => los + d * o, off = g.poss, def = off === 'me' ? 'cpu' : 'me';
-  const pick = a => a[Math.floor(Math.random() * a.length)];
-  const ys = [4, 26, 21], kinds = [['go','out','post','curl','slant'], ['go','out','post','curl','slant'], ['slant','curl','out','go']];
-  const recs = ys.map((y, i) => ({ x: los, y, wp: makeRoute(pick(kinds[i]), los, y, d), i: 0, v: 6.4, n: i + 1, team: off }));
+  const recs = [4, 26, 21].map((y, i) => ({ x: los, y, wp: [], i: 0, v: 6.4, n: i + 1, team: off }));
+  const cr = Math.random();
   P = {
-    dir: d, type: 'pass', sel: 'pass', t: 0, qb: { x: X(-5), y: 15, team: off }, rb: { x: X(-5), y: 17, team: off }, recs,
+    dir: d, type: 'pass', sel: 'quick', t: 0, qb: { x: X(-5), y: 15, team: off }, rb: { x: X(-5), y: 17, team: off }, recs,
     dl: [11, 13.7, 16.3, 19].map(y => ({ x: X(1.2), y, role: 'dl', stun: 0, team: def })),
     lb: [10.5, 19.5].map(y => ({ x: X(4.5), y, role: 'lb', stun: 0, team: def })),
-    db: recs.map((r, i) => ({ x: X(7 + Math.random() * 2), y: r.y + (Math.random() - .5) * 2, role: 'db', cov: i, stun: 0, team: def })),
+    db: recs.map((r, i) => ({ x: X(6 + Math.random() * 4), y: r.y + (Math.random() - .5) * 2, role: 'db', cov: i, stun: 0, team: def })),
     ol: [10.5, 12.75, 15, 17.25, 19.5].map(y => ({ x: X(-.6), y, team: off })),
     ball: { x: X(-5), y: 15, z: 0, mode: 'held' }, carrier: null, target: null, flight0: 1,
-    delay: 1.6 + Math.random() * 1, juke: 0, jukeCd: 0, stam: 1, blitz: false, ctl: null, tThrow: 1.4 + Math.random() * 1.3, autoT: 0, snapT: 0
+    delay: 1.6 + Math.random() * 1, juke: 0, jukeCd: 0, stam: 1, ctl: null, tThrow: 1.4 + Math.random() * 1.3, autoT: 0, snapT: 0, pcT: 0,
+    cov: cr < .4 ? 'man' : cr < .8 ? 'zone' : 'blitz', bust: Math.random() < .5 ? Math.floor(Math.random() * 3) : -1
   };
   P.defs = [...P.dl, ...P.lb, ...P.db];
+  reroute();
   if (off === 'cpu') {
     const r = Math.random(), togo = Math.abs(g.fd - g.los);
     P.type = r < .55 ? 'pass' : r < .9 ? 'run' : 'qbrun';
     if (togo <= 3 && Math.random() < .5) P.type = 'run';
+    P.sel = P.type === 'pass' ? (Math.random() < .5 ? 'quick' : 'deep') : P.type; reroute();
+    P.cov = 'zone';
   }
 }
 function fgChance(team) { const dd = team === 'me' ? 100 - g.los + 17 : g.los + 17; return clamp(1.05 - (dd - 20) * 0.018, .08, .95); }
@@ -873,36 +886,80 @@ function presnap() {
   refreshCalls();
 }
 function refreshCalls() {
-  const me = g.poss === 'me', ft = 100 - g.los + 17;
   const show = (id, on) => { $(id).style.display = on ? '' : 'none'; };
-  show('callPass', me); show('callRun', me); show('callQB', me); show('callHike', me);
-  show('callCover', !me && !P.snapT); show('callBlitz', !me && !P.snapT);
-  show('callFG', me && g.down === 4 && ft <= 55); show('callPunt', me && g.down === 4);
+  ['callQuick','callDeep','callRun','callQB','callHike','callFG','callPunt','callMan','callZone','callBlitz','callTO','callDeepKick','callOnside','callKickNow'].forEach(i => show(i, false));
+  if (phase === 'kickoff') { show('callDeepKick', true); show('callOnside', true); return; }
+  if (phase === 'onside') { show('callKickNow', true); return; }
+  const me = g.poss === 'me', ft = 100 - g.los + 17;
+  if (me) {
+    ['callQuick','callDeep','callRun','callQB','callHike'].forEach(i => show(i, true));
+    show('callFG', g.down === 4 && ft <= 55); show('callPunt', g.down === 4);
+  } else if (!P.snapT) ['callMan','callZone','callBlitz'].forEach(i => show(i, true));
   show('callTO', g.running && g.to > 0 && g.runLeft > 0);
   $('callTO').textContent = '⏱ Timeout (' + g.to + ')';
   $('callFG').textContent = '🥅 Field goal (' + Math.round(fgChance('me') * 100) + '%)';
-  [['callPass', 'pass'], ['callRun', 'run'], ['callQB', 'qbrun']].forEach(([id, k]) => $(id).classList.toggle('sel', P.sel === k));
+  [['callQuick', 'quick'], ['callDeep', 'deep'], ['callRun', 'run'], ['callQB', 'qbrun']].forEach(([id, k]) => $(id).classList.toggle('sel', P.sel === k));
 }
 function call(kind) {
-  if (phase !== 'presnap' || paused || !P) return;
+  if (paused || !P) return;
   const me = g.poss === 'me';
-  if (me && (kind === 'pass' || kind === 'run' || kind === 'qbrun')) { P.sel = kind; refreshCalls(); }
+  if (phase === 'kickoff') { if (kind === 'deepkick') presnap(); else if (kind === 'onside') { setPhase('onside'); refreshCalls(); } return; }
+  if (phase === 'onside') { if (kind === 'kicknow') kickNow(); return; }
+  if (phase !== 'presnap') return;
+  if (me && (kind === 'quick' || kind === 'deep' || kind === 'run' || kind === 'qbrun')) { P.sel = kind; reroute(); refreshCalls(); }
   else if (me && kind === 'hike') startPlay(P.sel);
   else if (me && kind === 'fg' && g.down === 4) kickFG('me');
   else if (me && kind === 'punt' && g.down === 4) doPunt('me');
-  else if (!me && (kind === 'cover' || kind === 'blitz') && !P.snapT) { P.blitz = kind === 'blitz'; P.snapT = 50; toast = 'HIKE!'; toastT = 50; refreshCalls(); }
+  else if (!me && (kind === 'man' || kind === 'zone' || kind === 'blitz') && !P.snapT) { P.cov = kind; P.snapT = 50; toast = 'HIKE!'; toastT = 50; refreshCalls(); }
   else if (kind === 'timeout' && g.running && g.to > 0 && g.runLeft > 0) {
     g.to--; g.running = false; g.runLeft = 0; toast = 'TIMEOUT! ⏱️ Clock stopped'; toastT = 110; sfx.whistle(); refreshCalls();
   }
 }
-function startPlay(type) {
+function startPlay(sel) {
+  const type = (sel === 'quick' || sel === 'deep') ? 'pass' : sel, rr = Math.random();
+  if (rr < .03) return applyPenalty({ name: 'False start', off: true, yards: -5 });
+  if (rr > .03 && rr < .07) return applyPenalty({ name: 'Offsides', off: false, yards: 5 });
   P.type = type; sfx.snap(); g.running = false; setPhase('play');
   if (type === 'run') { P.qb.x = g.los - P.dir * 3; P.qb.y = 14; P.carrier = P.rb; P.ball.mode = 'carried'; P.delay = .7; }
   else if (type === 'qbrun') { P.qb.x = g.los - P.dir * 3; P.carrier = P.qb; P.ball.mode = 'carried'; P.delay = .9; }
-  if (g.poss === 'cpu') {
-    P.ctl = P.lb[0];
-    if (P.blitz) { P.lb.forEach(l => { l.role = 'dl'; }); P.delay *= .6; }
+  if (P.cov === 'blitz') { P.lb.forEach(l => { l.role = 'dl'; }); P.delay *= .6; }
+  if (g.poss === 'cpu') P.ctl = P.lb[0];
+}
+// ---------- penalties 🚩 ----------
+function rollPenalty(kind, x) {
+  const r = Math.random(), d = P.dir;
+  if ((kind === 'td' || kind === 'tackle') && r < .05) return { name: 'Offensive holding', off: true, yards: -10 };
+  if (kind === 'tackle' && r >= .05 && r < .09) return { name: 'Face mask', off: false, yards: 15, auto: true };
+  if (kind === 'sack' && r < .1) return { name: 'Roughing the passer', off: false, yards: 15, auto: true };
+  if (kind === 'inc') {
+    if (r < .12) return { name: 'Pass interference', off: false, yards: clamp(Math.round((x - g.los) * d), 5, 40), auto: true };
+    if (r >= .12 && r < .17) return { name: 'Offensive pass interference', off: true, yards: -10 };
   }
+  return null;
+}
+function applyPenalty(f) {
+  const me = g.poss === 'me', d = P.dir;
+  let y = f.yards;
+  const toGoal = me ? 100 - g.los : g.los, toOwn = me ? g.los : 100 - g.los;
+  if (y > toGoal) y = Math.max(1, Math.floor(toGoal / 2));
+  if (-y > toOwn) y = -Math.max(1, Math.floor(toOwn / 2));
+  g.los = clamp(Math.round(g.los + d * y), 1, 99);
+  const on = f.off ? (me ? 'Bobcats' : 'Coyotes') : (me ? 'Coyotes' : 'Bobcats');
+  let txt = Math.abs(y) + ' yard penalty';
+  if (f.auto || (g.los - g.fd) * d >= 0) { g.down = 1; g.fd = ftarget(g.los, g.poss); txt += ' · automatic first down!'; }
+  else txt += ' · replay ' + ord(g.down) + ' down';
+  banner = '🚩 FLAG! ' + f.name; sub = 'on the ' + on + ' · ' + txt;
+  g.pend = null; g.running = false; sfx.whistle(); setPhase('result');
+}
+// ---------- onside kick ----------
+function kickNow() {
+  if (phase !== 'onside') return;
+  const m = .5 + .5 * Math.sin(tick * .07), off = Math.abs(m - .5);
+  const prob = off < .12 ? .55 : off < .3 ? .25 : .08, made = Math.random() < prob;
+  g.clock = Math.max(0, g.clock - 3);
+  if (made) { banner = 'ONSIDE KICK RECOVERED! 🎉'; sub = 'Your ball at midfield!'; g.pend = { poss: 'me', los: 50 }; sfx.fanfare(); }
+  else { banner = 'ONSIDE KICK FAILED 😬'; sub = 'The Coyotes got it at midfield'; g.pend = { poss: 'cpu', los: 55 }; sfx.bad(); }
+  g.running = false; setPhase('result');
 }
 
 // ---------- the play ----------
@@ -1015,7 +1072,13 @@ function updatePlay(dt) {
     } else if (o.role === 'lb') {
       if (P.t < 1) moveToward(o, g.los + d * 4, P.qb.y, 2, dt); else moveToward(o, P.qb.x, P.qb.y, 3.2 * mul, dt);
     } else {
-      const r = P.recs[o.cov]; moveToward(o, r.x + d * 2, r.y, 6 * mul, dt);
+      const r = P.recs[o.cov], bs = o.cov === P.bust ? .7 : 1;
+      if (P.cov === 'zone') {
+        const zx = g.los + d * (o.cov === 2 ? 7 : 10), zy = [6, 24, 15][o.cov];
+        let near = null, nd = 4.5;
+        for (const q of P.recs) { const dd = Math.hypot(q.x - zx, q.y - zy); if (dd < nd) { nd = dd; near = q; } }
+        if (near) moveToward(o, near.x + d * 1.2, near.y, 5.6 * mul * bs, dt); else moveToward(o, zx, zy, 4 * mul, dt);
+      } else moveToward(o, r.x + d * 2, r.y, 6 * mul * bs, dt);
     }
   }
   // tackles and sacks
@@ -1044,10 +1107,12 @@ function resolveCatch() {
 }
 const ord = n => ['', '1st', '2nd', '3rd', '4th'][n];
 function endPlay(kind, x) {
+  const pen = rollPenalty(kind, x);
+  if (pen) return applyPenalty(pen);
   const me = g.poss === 'me', d = P.dir, other = me ? 'cpu' : 'me';
   g.pend = null; let keep = false;
   if (kind === 'td') {
-    if (me) { g.my += 7; banner = 'TOUCHDOWN! 🏈'; sub = '+7 (the extra point is good!)'; sfx.fanfare(); g.pend = { poss: 'cpu', los: 75 }; }
+    if (me) { g.my += 7; banner = 'TOUCHDOWN! 🏈'; sub = '+7 (the extra point is good!)'; sfx.fanfare(); g.pend = { poss: 'cpu', los: 75, kickoff: true }; }
     else { g.cpu += 7; banner = '🐺 COYOTES TOUCHDOWN'; sub = '+7'; sfx.bad(); g.pend = { poss: 'me', los: 25 }; }
   } else if (kind === 'int') {
     banner = me ? 'INTERCEPTED! 😱' : '🎉 YOU PICKED IT OFF!'; sub = me ? 'The Coyotes take over' : 'Your ball!';
@@ -1080,7 +1145,7 @@ function kickFG(team) {
 function finishKick() {
   const k = kick, me = k.team === 'me';
   if (k.made) {
-    if (me) { g.my += 3; banner = 'FIELD GOAL IS GOOD! 🥅'; sub = '+3'; sfx.fanfare(); g.pend = { poss: 'cpu', los: 75 }; }
+    if (me) { g.my += 3; banner = 'FIELD GOAL IS GOOD! 🥅'; sub = '+3'; sfx.fanfare(); g.pend = { poss: 'cpu', los: 75, kickoff: true }; }
     else { g.cpu += 3; banner = '🐺 COYOTES KICK A FIELD GOAL'; sub = '+3'; sfx.bad(); g.pend = { poss: 'me', los: 25 }; }
   } else {
     banner = me ? 'NO GOOD! 😬' : '🎉 THEIR KICK MISSED!'; sub = ''; if (me) sfx.bad(); else sfx.fanfare();
@@ -1100,6 +1165,7 @@ function after() {
   if (g.pend) {
     const n = g.pend; g.pend = null;
     g.poss = n.poss; g.los = n.los; g.down = 1; g.fd = ftarget(n.los, n.poss); g.running = false;
+    if (n.kickoff) { setupFormation(); banner = ''; sub = ''; setPhase('kickoff'); refreshCalls(); return; }
   }
   presnap();
 }
@@ -1131,7 +1197,8 @@ function update() {
       if (g.runLeft <= 0) { g.running = false; refreshCalls(); }
     }
     if (P.snapT > 0) { if (--P.snapT === 0) startPlay(P.type); }
-    else if (g.poss === 'cpu' && ++P.autoT > 480) call('cover');
+    else if (g.poss === 'cpu') { if (++P.autoT > 480) call('zone'); }
+    else { P.pcT += dt; if (P.pcT >= 30) applyPenalty({ name: 'Delay of game', off: true, yards: -5 }); }
   }
   else if (phase === 'result') { if (++timer > 110) after(); }
   else if (phase === 'fgkick') { if (++timer > 100) finishKick(); }
@@ -1262,6 +1329,8 @@ function drawHUD() {
   ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
   ctx.fillText('TIMEOUTS ' + '●'.repeat(g.to) + '○'.repeat(3 - g.to), W / 2 + tw / 2 + 10, 83);
   if (phase === 'presnap') {
+    if (g.poss === 'me' && !P.snapT && P.pcT >= 20) outText('PLAY CLOCK ' + Math.ceil(30 - P.pcT), W / 2, 122, 20, '#ff7a7a');
+    ctx.font = 'bold 12px system-ui';
     ctx.textAlign = 'right'; ctx.fillStyle = g.running ? '#ff7a7a' : '#9ad7ff';
     ctx.fillText(g.running ? '⏱ CLOCK RUNNING' : '⏸ CLOCK STOPPED', W / 2 - tw / 2 - 10, 83);
   }
@@ -1274,9 +1343,11 @@ function drawHUD() {
 }
 function hintText() {
   const me = g.poss === 'me';
+  if (phase === 'kickoff') return 'KICKOFF! Kick deep, or try an ONSIDE kick to keep the ball!';
+  if (phase === 'onside') return 'Press SPACE (or tap) to kick when the line is in the GREEN!';
   if (phase === 'presnap') {
-    if (me) return { pass: 'PASS: press HIKE, then click a receiver to throw (green ring = open)', run: 'RUN: press HIKE, then steer the runner (↑ ↓, → boost)', qbrun: 'QB RUN: press HIKE, then run it yourself!' }[P.sel];
-    return P.snapT ? 'Here we go!' : 'DEFENSE: pick Cover (safe) or Blitz (rush the QB!)';
+    if (me) return { quick: 'QUICK PASS: short routes, throw fast. Press HIKE!', deep: 'DEEP PASS: long routes, big plays. Press HIKE!', run: 'RUN: press HIKE, then steer (↑ ↓, → boost)', qbrun: 'QB RUN: press HIKE, then run it yourself!' }[P.sel];
+    return P.snapT ? 'Here we go!' : 'DEFENSE: pick Man, Zone or Blitz!';
   }
   if (phase === 'play') {
     if (me && P.type === 'pass' && P.ball.mode === 'held' && !P.carrier) return 'Click a receiver (or press 1 2 3) to THROW!';
@@ -1284,6 +1355,18 @@ function hintText() {
     if (!me) return 'Arrows move your yellow dot · Shift boost · Space switch player · TACKLE the ball!';
   }
   return '';
+}
+function tipText() {
+  if (phase !== 'presnap' || g.poss !== 'me') return '';
+  return { man: 'Coverage: MAN – defenders shadow receivers. Deep passes can beat it!', zone: 'Coverage: ZONE – defenders guard areas. Throw to the gaps!', blitz: 'Coverage: BLITZ! – they are rushing. Throw quick or run!' }[P.cov];
+}
+function drawMeter() {
+  const w = Math.min(340, W - 40), x = (W - w) / 2, y = sy(13), h = 30, m = .5 + .5 * Math.sin(tick * .07);
+  ctx.fillStyle = '#b32'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#e6c229'; ctx.fillRect(x + w * .2, y, w * .6, h);
+  ctx.fillStyle = '#2fbf5a'; ctx.fillRect(x + w * .38, y, w * .24, h);
+  ctx.fillStyle = '#fff'; ctx.fillRect(x + w * m - 3, y - 6, 6, h + 12);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
 }
 function draw() {
   if (!isOpen()) return;
@@ -1302,6 +1385,8 @@ function draw() {
   drawPlayers(); drawHUD();
   const h = hintText();
   if (h) { outText(h, W / 2, H - 82, Math.min(18, W / 28), '#fff'); }
+  const tip = tipText(); if (tip) outText(tip, W / 2, H - 108, Math.min(16, W / 32), '#ffe9a8');
+  if (phase === 'onside') drawMeter();
   if (toastT > 0) outText(toast, W / 2, sy(8), Math.min(scale * 2.2, W / 12), '#9ad7ff');
   if (banner && (phase === 'result') ) {
     const fs = Math.min(scale * 2.6, W / 14);
@@ -1319,11 +1404,13 @@ addEventListener('keydown', e => {
   if (paused) return;
   keys[k] = true;
   if (e.repeat) return;
-  if (phase === 'presnap') {
+  if (phase === 'kickoff') { if (k === '1') call('deepkick'); else if (k === '2') call('onside'); }
+  else if (phase === 'onside') { if (k === ' ' || k === 'enter') call('kicknow'); }
+  else if (phase === 'presnap') {
     if (g.poss === 'me') {
-      if (k === ' ' || k === 'enter') call('hike'); else if (k === '1') call('pass'); else if (k === '2') call('run'); else if (k === '3') call('qbrun');
+      if (k === ' ' || k === 'enter') call('hike'); else if (k === '1') call('quick'); else if (k === '2') call('deep'); else if (k === '3') call('run'); else if (k === '4') call('qbrun');
       else if (k === 'f') call('fg'); else if (k === 'k') call('punt');
-    } else { if (k === '1' || k === ' ') call('cover'); else if (k === '2') call('blitz'); }
+    } else { if (k === '1' || k === ' ') call('man'); else if (k === '2') call('zone'); else if (k === '3') call('blitz'); }
     if (k === 't') call('timeout');
   } else if (phase === 'play') { if (k === '1' || k === '2' || k === '3') throwTo(+k - 1); else if (k === ' ') space(); }
 });
@@ -1331,6 +1418,7 @@ addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 cv.addEventListener('pointermove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
 cv.addEventListener('pointerdown', e => {
   mouse.x = e.clientX; mouse.y = e.clientY;
+  if (phase === 'onside' && !paused) { call('kicknow'); return; }
   if (phase !== 'play' || paused || g.poss !== 'me' || P.type !== 'pass' || P.ball.mode !== 'held' || P.carrier) return;
   const wx = e.clientX / scale + camX, wy = (e.clientY - fieldTop) / scale;
   let best = 0, bd = 1e9;
@@ -1342,7 +1430,7 @@ cv.addEventListener('pointerdown', e => {
   b.onpointerup = b.onpointerleave = b.onpointercancel = () => { held[k] = 0; };
 });
 $('tJuke').onpointerdown = e => { e.preventDefault(); space(); };
-[['callPass', 'pass'], ['callRun', 'run'], ['callQB', 'qbrun'], ['callHike', 'hike'], ['callFG', 'fg'], ['callPunt', 'punt'], ['callCover', 'cover'], ['callBlitz', 'blitz'], ['callTO', 'timeout']].forEach(([id, k]) => { $(id).onclick = () => call(k); });
+[['callQuick', 'quick'], ['callDeep', 'deep'], ['callRun', 'run'], ['callQB', 'qbrun'], ['callHike', 'hike'], ['callFG', 'fg'], ['callPunt', 'punt'], ['callMan', 'man'], ['callZone', 'zone'], ['callBlitz', 'blitz'], ['callTO', 'timeout'], ['callDeepKick', 'deepkick'], ['callOnside', 'onside'], ['callKickNow', 'kicknow']].forEach(([id, k]) => { $(id).onclick = () => call(k); });
 
 function open() {
   $('menu').classList.remove('show'); $('fb').classList.add('show');
