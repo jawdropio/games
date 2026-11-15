@@ -16,9 +16,9 @@
   button:hover { background:#3b2a8f; }
   button.on { background:#c0392b; border-color:#ff7b6b; }
   #pauseBtn { position:fixed; top:10px; right:12px; z-index:6; }
-  #piano { position:absolute; left:1%; right:1%; bottom:4%; height:min(70vh,560px); z-index:2; }
-  .white { position:absolute; top:0; bottom:0; background:#fff; border:2px solid #333; border-radius:0 0 10px 10px; color:#555; display:flex; align-items:flex-end; justify-content:center; padding-bottom:10px; font-weight:800; font-size:clamp(14px,2.6vw,28px); }
-  .black { position:absolute; top:0; height:60%; background:#111; border-radius:0 0 8px 8px; color:#bbb; display:flex; align-items:flex-end; justify-content:center; padding-bottom:8px; font-weight:800; font-size:clamp(12px,2vw,22px); z-index:3; }
+  #piano { position:absolute; left:3%; right:3%; bottom:8%; height:min(55vh,360px); z-index:2; }
+  .white { position:absolute; top:0; bottom:0; width:10%; background:#fff; border:2px solid #333; border-radius:0 0 10px 10px; color:#555; display:flex; align-items:flex-end; justify-content:center; padding-bottom:10px; font-weight:800; font-size:clamp(12px,2.2vw,20px); }
+  .black { position:absolute; top:0; height:60%; width:6%; background:#111; border-radius:0 0 8px 8px; color:#bbb; display:flex; align-items:flex-end; justify-content:center; padding-bottom:8px; font-weight:800; font-size:clamp(10px,1.8vw,16px); z-index:3; }
   .white.down { background:var(--c); }
   .black.down { background:var(--c); color:#000; }
   #msg { text-align:center; color:#a99ee0; margin-top:10px; min-height:20px; position:relative; z-index:5; }
@@ -32,7 +32,7 @@
 <button id="pauseBtn">⏸ Pause</button>
 <canvas id="fx"></canvas>
 <h1>🎹 music</h1>
-<p class="sub">Press the letters on your keyboard (Z X and Q for low notes) (or click the keys) to play notes!</p>
+<p class="sub">Press the letters on your keyboard (or click the keys) to play notes!</p>
 <div class="bar">
   <button id="recBtn">⏺ Record</button>
   <button id="playBtn">▶ Play song</button>
@@ -47,29 +47,27 @@
 (() => {
   // ---- notes: [name, frequency, key, isBlack, whiteIndex] ----
   const WHITE = [
-    ['A3',220.00,'z'],['B3',246.94,'x'],
     ['C4',261.63,'a'],['D4',293.66,'s'],['E4',329.63,'d'],['F4',349.23,'f'],['G4',392.00,'g'],
     ['A4',440.00,'h'],['B4',493.88,'j'],['C5',523.25,'k'],['D5',587.33,'l'],['E5',659.25,';']
   ];
   // black keys sit after white index i
   const BLACK = [
-    ['A#3',233.08,'q',0],['C#4',277.18,'w',2],['D#4',311.13,'e',3],['F#4',369.99,'t',5],['G#4',415.30,'y',6],
-    ['A#4',466.16,'u',7],['C#5',554.37,'o',9],['D#5',622.25,'p',10]
+    ['C#4',277.18,'w',0],['D#4',311.13,'e',1],['F#4',369.99,'t',3],['G#4',415.30,'y',4],
+    ['A#4',466.16,'u',5],['C#5',554.37,'o',7],['D#5',622.25,'p',8]
   ];
-  const COLORS = ['#ff6b6b','#ffa94d','#ffe066','#69db7c','#38d9a9','#4dabf7','#748ffc','#da77f2','#f783ac','#ff8787','#ffd43b','#63e6be'];
-  const W = 100/WHITE.length;
+  const COLORS = ['#ff6b6b','#ffa94d','#ffe066','#69db7c','#38d9a9','#4dabf7','#748ffc','#da77f2','#f783ac','#ff8787'];
 
   const piano = document.getElementById('piano');
   const els = {}, freqs = {};
   WHITE.forEach((n,i) => {
     const d = document.createElement('div');
-    d.className = 'white'; d.style.left = (i*W)+'%'; d.style.width = W+'%'; d.style.setProperty('--c', COLORS[i]);
+    d.className = 'white'; d.style.left = (i*10)+'%'; d.style.setProperty('--c', COLORS[i]);
     d.textContent = n[2].toUpperCase();
     piano.appendChild(d); els[n[0]] = d; freqs[n[0]] = n[1]; n.el = d; n.color = COLORS[i];
   });
   BLACK.forEach(n => {
     const d = document.createElement('div');
-    d.className = 'black'; d.style.left = ((n[3]+1)*W - W*0.3)+'%'; d.style.width = (W*0.6)+'%'; d.style.setProperty('--c', COLORS[n[3]]);
+    d.className = 'black'; d.style.left = ((n[3]+1)*10 - 3)+'%'; d.style.setProperty('--c', COLORS[n[3]]);
     d.textContent = n[2].toUpperCase();
     piano.appendChild(d); els[n[0]] = d; freqs[n[0]] = n[1]; n.color = COLORS[n[3]];
   });
@@ -148,27 +146,26 @@
     playTimers.push(setTimeout(() => { stopPlayback(); msg.textContent = '🎉 Nice song!'; }, end));
   };
   // ---- auto-play: Megalovania intro (times are in eighth-notes) ----
-  const MEGA_PHRASE = [['R',0,1],['R',1,1],['D5',2,2],['A4',5,3],['G#4',9,2],['G4',11,2],['F4',13,2],['D4',15,1],['F4',16,1],['G4',17,1]];
-  const MEGA_ROOTS = ['D4','C4','B3','A#3'];
+  const MEGA_PHRASE = [['D4',0,1],['D4',1,1],['D5',2,2],['A4',5,3],['G#4',9,2],['G4',11,2],['F4',13,2],['D4',15,1],['F4',16,1],['G4',17,1]];
   const megaBtn = document.getElementById('megaBtn');
   megaBtn.onclick = () => {
     audio();
     if (megaBtn.dataset.playing) { stopPlayback(); return; }
     if (recording) recBtn.onclick();
     stopPlayback();
-    const E = 120, notes = [];
-    // the riff plays twice through all four chords
-    for (let round = 0; round < 2; round++) MEGA_ROOTS.forEach((root, i) => {
-      const off = (round*4 + i) * 20;
-      MEGA_PHRASE.forEach(([n,s,l]) => notes.push([n==='R' ? root : n, (off+s)*E, l*E*0.85]));
-    });
+    const E = 125, notes = [];
+    [0, 20].forEach((off, i) => MEGA_PHRASE.forEach(([n,s,l]) => {
+      const name = (i === 1 && n === 'D4') ? 'C4' : n;
+      notes.push([name, (off+s)*E, l*E*0.85]);
+    }));
+    // second phrase starts on C4 C4 instead of D4 D4
     megaBtn.dataset.playing = '1'; megaBtn.textContent = '⏹ Stop';
-    msg.textContent = '🎶 Playing Megalovania...';
+    msg.textContent = '🎶 Playing the Megalovania intro...';
     notes.forEach(([n,t,len]) => {
       playTimers.push(setTimeout(() => press(n,true), t));
       playTimers.push(setTimeout(() => release(n,true), t+len));
     });
-    playTimers.push(setTimeout(() => { stopPlayback(); msg.textContent = '🎉 Ba da da daaa!'; }, 160*E + 600));
+    playTimers.push(setTimeout(() => { stopPlayback(); msg.textContent = '🎉 Ba da da daaa!'; }, 5200));
   };
   document.getElementById('waveBtn').onclick = e => {
     waveIdx = (waveIdx+1) % WAVES.length;
