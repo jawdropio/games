@@ -584,10 +584,8 @@ function newRound() {
   const deck = [];
   for (const s of SU) RK.forEach((r, i) => deck.push({ r, s, v: i + 2 }));
   for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-  // give YOU a horrible hand (perfect for a Nil bid): lots of low cards, only two tiny spades
-  const lowIds = c => (c.s === '♠' && c.v <= 3) ? 'sp' : (c.s !== '♠' && c.v <= 8) ? 'low' : '';
-  const sp = deck.filter(c => lowIds(c) === 'sp'), low = deck.filter(c => lowIds(c) === 'low').slice(0, 11);
-  const mine = sp.concat(low), rest = deck.filter(c => !mine.includes(c));
+  // give YOU every 2, 3 and 4 (12 cards) plus a 5 of hearts
+  const mine = deck.filter(c => c.v <= 4 || (c.v === 5 && c.s === '♥')), rest = deck.filter(c => !mine.includes(c));
   deck.length = 0; deck.push(...mine, ...rest);
   hands = [0,1,2,3].map(k => deck.slice(k * 13, k * 13 + 13).sort((a, b) => SU.indexOf(a.s) - SU.indexOf(b.s) || b.v - a.v));
   bids = [null,null,null,null]; won = [0,0,0,0]; trick = []; broken = false; warn = ''; summary = '';
