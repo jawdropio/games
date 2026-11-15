@@ -30,8 +30,10 @@
   .pic { padding:3px; border-radius:10px; position:relative; line-height:0; }
   .pic canvas { border-radius:6px; background:#fff; }
   .pic .star { position:absolute; right:-4px; top:-6px; font-size:14px; line-height:1; }
-  #stage { min-height:0; overflow:auto; display:flex; border-radius:10px; background:rgba(255,255,255,.04); }
-  #board { margin:auto; display:block; flex:none; cursor:pointer; border-radius:8px; box-shadow:0 10px 36px rgba(0,0,0,.5), 0 0 0 4px rgba(255,255,255,.08); }
+  #stage { min-height:0; overflow:auto; position:relative; border-radius:10px; background:rgba(255,255,255,.04); }
+  #stick { position:sticky; top:0; left:0; width:0; height:0; z-index:1; }
+  #spacer { margin:0; }
+  #board { position:absolute; left:0; top:0; display:block; cursor:pointer; }
   #msg { text-align:center; min-height:22px; font-weight:700; color:#ffd23f; }
   #bottom { display:flex; flex-direction:column; gap:8px; align-items:center; }
   #palette { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
@@ -72,7 +74,7 @@
   <button id="muteBtn" title="Sound on/off">🔊</button>
   <button id="pauseBtn">⏸ Pause</button>
 </div>
-<div id="stage"><canvas id="board"></canvas></div>
+<div id="stage"><div id="stick"><canvas id="board"></canvas></div><div id="spacer"></div></div>
 <div id="msg"></div>
 <div id="bottom">
   <div id="palette"></div>
@@ -96,9 +98,16 @@
   // ================= pictures =================
   // A picture is rows of squares. A number/letter = paint that color. A dot = background (already painted).
   // We make 100 pictures; each one is only drawn the first time you need it.
-const CH = '123456789abcdefghijklmnopqrstuvwxyz';
-const make = (w, h, fn) => { const rows = []; for (let y = 0; y < h; y++) { let r = ''; for (let x = 0; x < w; x++) r += (fn(x, y) || '.'); rows.push(r); } return rows; };
-const hsh = (x, y) => ((x * 374761393 + y * 668265263) >>> 0) % 97;
+const CH = '123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+let SC = 1, CX = 0, CY = 0;   // SC = how many tiny squares per old big square
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+const make = (w, h, fn) => { const W = w * SC, H = h * SC, rows = []; for (let Y = 0; Y < H; Y++) { let r = ''; CY = Y; for (let X = 0; X < W; X++) { CX = X; r += (fn((X + .5) / SC - .5, (Y + .5) / SC - .5) || '.'); } rows.push(r); } return rows; };
+const hsh = () => ((CX * 374761393 + CY * 668265263) >>> 0) % 97;
+const BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+const dz = () => (BAYER[CY & 3][CX & 3] + .5) / 16 - .5;   // ordered dithering: smooth blends
+const nh = (i, j) => { let n = Math.imul(i, 374761393) + Math.imul(j, 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967295; };
+const vnoise = (x, y) => { const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, sx = fx*fx*(3 - 2*fx), sy = fy*fy*(3 - 2*fy); const a = nh(i, j), b = nh(i+1, j), c = nh(i, j+1), d = nh(i+1, j+1); return a + (b - a)*sx + (c - a)*sy + (a - b - c + d)*sx*sy; };
+const fbm = (x, y, o) => { let v = 0, a = .5, f = 1, t = 0; for (let k = 0; k < (o || 4); k++) { v += a * vnoise(x*f + k*17.3, y*f + k*5.1); t += a; f *= 2; a *= .5; } return v / t; };  // 0..1
 const rot = (u, v, cu, cv, ang) => { const du = u - cu, dv = v - cv, ca = Math.cos(ang), sa = Math.sin(ang); return [du*ca + dv*sa, -du*sa + dv*ca]; };
 const ed = (u, v, cu, cv, rx, ry, ang) => { const [a, b] = rot(u, v, cu, cv, ang || 0); return Math.hypot(a / rx, b / ry); };
 const inTri = (px, py, a, b, c) => { const s = (p, q, r) => (p[0]-r[0])*(q[1]-r[1]) - (q[0]-r[0])*(p[1]-r[1]); const P = [px,py], d1 = s(P,a,b), d2 = s(P,b,c), d3 = s(P,c,a); return !((d1<0||d2<0||d3<0) && (d1>0||d2>0||d3>0)); };
@@ -106,8 +115,8 @@ const hex2 = h => [1,3,5].map(i => parseInt(h.slice(i, i + 2), 16));
 const toHex = a => '#' + a.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
 const mixc = (a, b, t) => { const A = hex2(a), B = hex2(b); return toHex(A.map((v, i) => v + (B[i] - v) * t)); };
 const ramp = (cols, n) => Array.from({length: n}, (_, k) => { const t = n === 1 ? 0 : k / (n - 1) * (cols.length - 1), i = Math.min(cols.length - 2, Math.floor(t)); return mixc(cols[i], cols[i + 1], t - i); });
-const palBuilder = () => { const P = []; return { add: h => { P.push(h); return CH[P.length - 1]; }, pal: () => Object.fromEntries(P.map((h, i) => [i + 1, h])) }; };
-function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+const palBuilder = () => { const P = [], keep = []; const B = { keep, add: h => { P.push(h); return CH[P.length - 1]; }, addK: h => { P.push(h); keep.push(P.length); return CH[P.length - 1]; }, pal: () => Object.fromEntries(P.map((h, i) => [i + 1, h])) }; return B; };
+const pickR = (r, t) => r[clamp(Math.floor(t * r.length + dz()), 0, r.length - 1)];
 const hueShift = (hex, deg) => {
   const [r, g, b] = hex2(hex).map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
   let h = 0, s = 0;
@@ -119,232 +128,298 @@ const hueShift = (hex, deg) => {
 };
 const shiftPal = (pal, deg) => Object.fromEntries(Object.entries(pal).map(([k, v]) => [k, hueShift(v, deg)]));
 
-// ordered dithering: blends neighbouring shades so gradients look smooth
-const BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
-const dz = (x, y) => (BAYER[y & 3][x & 3] + .5) / 16 - .5;
-// ---------- the pictures (each takes options so we can make many versions) ----------
-const butterfly = () => make(40, 32, (x, y) => {
-  const u = Math.abs(x + .5 - 20), v = y + .5;
-  if (v > 1 && v < 7.5 && Math.abs(u - (1.8 + (7.5 - v) * .8)) < .6) return '5';
-  if (Math.hypot(u - (1.8 + 6.5 * .8), v - 1.4) < 1.1) return '5';
-  if (Math.hypot(u, v - 8.6) < 2.3) return '5';
-  if (ed(u, v, 0, 18, 1.9, 9.5) <= 1) return Math.floor(v / 2.2) % 2 === 0 ? '5' : 'a';
-  let d = ed(u, v, 10.5, 11, 11.5, 7.2, -0.5);
-  if (d <= 1) {
-    if (d > .88) return '1';
-    for (const [su, sv] of [[8.5,9.5],[12.5,12],[16,8.5],[11,6.5]]) { const q = Math.hypot(u - su, v - sv); if (q <= 1.4) return '4'; if (q <= 2.2) return '1'; }
-    if (d > .72) return '2'; if (d > .55) return '3'; return '2';
-  }
-  d = ed(u, v, 8.5, 22.5, 8, 5.6, 0.55);
-  if (d <= 1) {
-    if (d > .86) return '1';
-    for (const [su, sv] of [[7.5,22.5],[11,24.5]]) { const q = Math.hypot(u - su, v - sv); if (q <= 1.1) return '4'; if (q <= 1.8) return '1'; }
-    if (d > .66) return '6'; if (d > .45) return '7'; return '6';
-  }
-  if (v > 25) {
-    const [a, b] = rot(u, v, 14, 29.2, -0.35);
-    if (Math.hypot(a / 7, b / 2.4) <= 1) return Math.abs(b) < .45 ? '9' : '8';
-    const [a2, b2] = rot(u, v, 8, 30.4, 0.3);
-    if (Math.hypot(a2 / 6, b2 / 2.2) <= 1) return Math.abs(b2) < .4 ? '9' : '8';
-    if (Math.hypot(u - 18.3, v - 26.6) < 2) return Math.hypot(u - 18.3, v - 26.6) < .8 ? '3' : '6';
-  }
-  return '.';
-});
-const BUTTERFLY_PAL = {1:'#3d1a5b',2:'#ff8c1a',3:'#ffd23f',4:'#ffffff',5:'#5a3418',6:'#ff5fa2',7:'#ffc2dd',8:'#52b788',9:'#2d6a4f',10:'#a8671f'};
-
-const sunset = (o = {}) => {
-  const w = 48, h = 32, sx = o.sunx ?? 24, sr = o.sunr ?? 6, ph = o.phase ?? 0, B = palBuilder();
-  const sky = ramp(['#2b1055','#6a3093','#c06c84','#f67280','#ffb36b','#ffe08a'], 8).map(B.add);
-  const sun = ['#fffbe0','#fff1a8','#ffd166'].map(B.add);
-  const far = ['#8a58b0','#6a3d95'].map(B.add), nearM = ['#4a3580','#2f2260'].map(B.add), tree = B.add('#14213d');
-  const water = ramp(['#f08a5d','#c0556f','#6a3d7a','#3d2a63'], 4).map(B.add), refl = ['#fff1a8','#ffd166'].map(B.add), cloud = ['#f9a8a0','#c76a8f'].map(B.add);
-  const farF = x => 17 + 3.2*Math.sin(x*.28 + ph) + 2.2*Math.sin(x*.11 + 1.3 + ph) + 1.4*Math.sin(x*.55);
-  const nearF = x => 21.5 + 2.4*Math.sin(x*.21 + 2 + ph) + 1.5*Math.sin(x*.47) - Math.max(0, 6 - Math.abs(x - sx)) * .3;
-  const tr = (cx, top, ht, hw, px, py) => py >= top && py <= top + ht && Math.abs(px - cx) <= ((py - top) / ht) * hw + .3;
-  const trees = [[4.5,20,11,3.6],[9,23,8,2.7],[1.5,23,8,2.4],[43.5,19,12,3.8],[39,23,8,2.8],[46.5,22,9,2.6]];
-  const rows = make(w, h, (x, y) => {
-    const px = x + .5, py = y + .5;
-    for (const [cx, top, ht, hw] of trees) if (tr(cx, top, ht, hw, px, py)) return tree;
-    if (py > 28 && ((px < 7 && py < 31.6) || (px > 41 && py < 31.6))) return tree;
-    if (py >= 24) {
-      const dd = py - 24;
-      if (Math.abs(px - sx) < sr - .8 - dd * .3 && Math.floor(py) % 2 === 0) return refl[Math.abs(px - sx) < (sr - .8) / 2 ? 0 : 1];
-      return water[clamp(Math.floor(dd / 8 * 4 + dz(x, y) * 1.1), 0, 3)];
-    }
-    const nf = nearF(px);
-    if (py >= nf) return nearM[py < nf + 2.2 + dz(x, y) ? 0 : 1];
-    const ff = farF(px);
-    if (py >= ff) return far[py < ff + 2.6 + dz(x, y) ? 0 : 1];
-    const sd = Math.hypot(px - sx, py - 17);
-    if (sd <= sr) return sun[clamp(Math.floor(sd / sr * 3 + dz(x, y) * .8), 0, 2)];
-    if (ed(px, py, 10, 10.5, 6, 1.1) <= 1) return cloud[0];
-    if (ed(px, py, 38, 7.5, 5, 1) <= 1) return cloud[1];
-    const yy = y + Math.sin(x * .35) * .9;
-    return sky[clamp(Math.floor(yy / 24 * 8 + dz(x, y)), 0, 7)];
-  });
-  return { rows, pal: B.pal(), bg: '#2b1055', keep: [16] };
-};
-
-const owl = () => make(36, 36, (x, y) => {
-  const px = x + .5, v = y + .5, u = Math.abs(px - 18);
-  if (v > 31.5 && v < 34.2) {
-    if (u < 8.5 && v > 32.3 && v < 34.2 && Math.floor(u) % 3 === 1 && v > 32.8) return '6';
-    return 'c';
-  }
-  if (v > 29 && v <= 31.5 && u < 9 && u > 3 && Math.floor(u * 1.5) % 2 === 0 && v > 30.6) return '6';
-  if (v >= 13 && v <= 17.6 && u <= (17.8 - v) * .55) return '6';
-  const eye = Math.hypot(u - 4.9, v - 12.2);
-  if (eye <= 1.0 && u > 4.5 && v < 12) return '4';
-  if (eye <= 1.7) return '7'; if (eye <= 3.0) return '6'; if (eye <= 3.9) return '5'; if (eye <= 5.0) return '3';
-  const ear = inTri(u, v, [2.5, 7.2], [8.2, 2.0], [8.4, 9.6]);
-  if (ear) return inTri(u, v, [4, 7.2], [7.4, 3.8], [7.6, 8.6]) ? '4' : '1';
-  const wing = ed(u, v, 11, 22.5, 4.2, 9.5, -0.12);
-  if (wing <= 1) return wing > .8 ? '1' : (Math.floor(v / 2.5) % 2 === 0 ? '9' : '2');
-  const belly = ed(u, v, 0, 24.5, 6.8, 8.3);
-  if (belly <= 1 && v > 14) {
-    const vv = (v - 14) % 3, uu = (u + (Math.floor((v - 14) / 3) % 2) * 1.5) % 3;
-    return Math.hypot(uu - 1.5, vv - .5) > 1.9 ? '4' : '3';
-  }
-  const head = Math.hypot(u / 9.2, (v - 12) / 8.6), body = ed(u, v, 0, 22.5, 10.2, 10.8);
-  if (head <= 1 || body <= 1) { const dd = Math.min(head, body); return dd > .88 ? '1' : '2'; }
-  if (hsh(x, y) < 3 && v < 28) return 'b';
-  if (Math.hypot(px - 29, v - 7) <= 3.4) return '8';
-  return '.';
-});
-const OWL_PAL = {1:'#4a2c14',2:'#8b5a2b',3:'#f7e7c1',4:'#d9b382',5:'#ffffff',6:'#ff9f1c',7:'#111111',8:'#fff3b0',9:'#5c3a1c',11:'#cfd8ff',12:'#6b4226'};
-
-const mandala = (o = {}) => {
-  const N = o.N || 16, rw = o.rw || 2.3;
-  return make(40, 40, (x, y) => {
-    const dx = x + .5 - 20, dy = y + .5 - 20, r = Math.hypot(dx, dy);
-    if (r > 19.6) return '.';
-    if (r < 2.4) return r < 1.2 ? '9' : '8';
-    if (r > 18.3) return '1';
-    const sector = ((Math.atan2(dy, dx) / (2 * Math.PI)) + .5) * N, s = Math.floor(sector) % N, f = Math.min(s, N - 1 - s);
-    const t = Math.abs((sector % 1) - .5) * 2, k = Math.floor((r - 2.4) / rw);
-    if (k % 2 === 1 && t > .72) return '1';
-    if (k === 2 && r - 2.4 - 2 * rw < 1.0 && t < .35) return '8';
-    return CH[((k + f) % 6) + 1];
-  });
-};
-const MANDALA_PAL = {1:'#2b1d6b',2:'#e63946',3:'#ff9f1c',4:'#ffd23f',5:'#52b788',6:'#4895ef',7:'#9b5de5',8:'#ffffff',9:'#ff5fa2'};
-
+// ======================= PLANET (gas giant with swirling clouds, glow and dusty rings) =======================
 const planet = (o = {}) => {
   const w = 44, h = 34, cx = 21, cy = 17.5, R = o.R ?? 10.5, tilt = o.tilt ?? -.38, ringOn = o.ring !== false, wave = o.wave ?? 1.1, B = palBuilder();
-  const bands = [ramp(['#4a2f18','#a8794a','#f6dfb0'], 5), ramp(['#3a0f0c','#b44a2a','#ffb27a'], 5), ramp(['#24163a','#7a4f9a','#e2b8f5'], 5)].map(r => r.map(B.add));
-  const rings = ['#c9b79c','#9c8a72','#e6d5b8','#a89478'].map(B.add), star = B.add('#cfd8ff');
+  const surf = ramp(['#1b0f0a','#4a2a14','#8a5326','#c98a45','#ecc07c','#fbe6b8','#fff6e0'], 12).map(B.add);
+  const storm = ramp(['#4a120a','#b3452a','#f08a5a'], 4).map(B.add);
+  const haze = ramp(['#5f9bff','#b9dcff','#ffffff'], 3).map(B.add);
+  const rc = ramp(['#4a3b2e','#9c8a72','#e6d5b8','#fff3dc'], 6).map(B.add);
+  const st = [B.addK('#6e7aa8'), B.addK('#cfd8ff'), B.addK('#ffffff')];
   const L = [-.5, -.6, .62], ln = Math.hypot(...L); L.forEach((v, i) => L[i] = v / ln);
   const ca = Math.cos(tilt), sa = Math.sin(tilt);
   const rows = make(w, h, (x, y) => {
-    const px = x + .5 - cx, py = y + .5 - cy;
-    const rx = px * ca - py * sa, ry = px * sa + py * ca, rad = Math.hypot(rx, ry / .3) / R;
+    const px = x + .5 - cx, py = y + .5 - cy, rx = px * ca - py * sa, ry = px * sa + py * ca, rad = Math.hypot(rx, ry / .3) / R;
     let ring = null;
-    if (ringOn && rad >= 1.4 && rad <= 2.15) { const t = (rad - 1.4) / .75; ring = t < .3 ? rings[0] : t < .55 ? rings[1] : t < .68 ? null : t < .85 ? rings[2] : rings[3]; }
+    if (ringOn && rad >= 1.4 && rad <= 2.15) {
+      const t = (rad - 1.4) / .75;
+      if (!(t > .56 && t < .66)) { const v = .5 + .5 * Math.sin(t * 46 + fbm(t * 8, 1.7, 3) * 7); ring = rc[clamp(Math.floor((v * .7 + t * .35) * 6 + dz() - .3), 0, 5)]; }
+    }
     const front = ry > 0, d = Math.hypot(px, py) / R;
     if (ring && front) return ring;
     if (d <= 1) {
-      const nx = px / R, ny = py / R, nz = Math.sqrt(Math.max(0, 1 - nx*nx - ny*ny)), lam = nx*L[0] + ny*L[1] + nz*L[2];
-      const l = clamp(Math.floor(lam * 5.4 + dz(x, y) * 1.1), 0, 4), b = (((Math.floor(ny * 3.4 + wave * Math.sin(nx * 3.2 + ny * 2.0) + 9)) % 3) + 3) % 3;
-      return bands[b][l];
+      const nx = px / R, ny = py / R, nz = Math.sqrt(Math.max(0, 1 - nx*nx - ny*ny)), lam = Math.max(0, nx*L[0] + ny*L[1] + nz*L[2]);
+      if (d > .93 && lam > .25) return haze[clamp(Math.floor((d - .93) / .07 * 3 + dz() * .8), 0, 2)];
+      const sd = Math.hypot((nx - .32) / .24, (ny - .36) / .13);
+      if (sd < 1) return storm[clamp(Math.floor((1 - sd) * 3.2 * (.3 + .7 * Math.pow(lam, .7)) + dz()), 0, 3)];
+      const turb = fbm(nx * 2.4 + wave * 3, ny * 5.5, 4), v = .5 + .5 * Math.sin(ny * 11 + turb * 6.5 + wave), a = clamp(.15 + .8 * v, 0, 1);
+      return surf[clamp(Math.floor(a * 12 * (.2 + .8 * Math.pow(lam, .55)) + dz() * 1.1), 0, 11)];
     }
     if (ring) return ring;
-    if (hsh(x, y) % 53 === 0) return star;
+    const sv = nh(CX, CY); if (sv < .0035 * 9 / Math.max(1, SC)) return sv < .0006 ? st[2] : sv < .0014 ? st[1] : st[0];
     return '.';
   });
-  return { rows, pal: B.pal(), bg: '#0b0d2a', keep: [20] };
+  return { rows, pal: B.pal(), bg: '#070817', keep: B.keep };
 };
 
+// ======================= HIBISCUS (silky petals, veins, dew drops, blurry garden) =======================
 const hibiscus = (o = {}) => {
   const w = 40, h = 40, cx = 20, cy = 18, n = o.n || 5, len = o.len || 17, B = palBuilder();
-  const bg = ramp(['#fff6ee','#ffe0cf','#ffc9b3'], 4).map(B.add);
-  const pet = ramp(['#3d0820','#a3123f','#e0245a','#ff5d85','#ff9fb5','#ffd6e0'], 11).map(B.add);
-  const leaf = ramp(['#143626','#2d6a4f','#5fc28f'], 4).map(B.add);
-  const stem = B.add('#ffd166'), pollen = B.add('#ff9f1c'), pist = B.add('#c1121f');
+  const bg = ramp(['#f6efe0','#dfe6c8','#a9c79a','#6b9a6a'], 7).map(B.addK);
+  const pet = ramp(['#2b0516','#6b0f2c','#b3153f','#e0245a','#ff5d85','#ff9fb5','#ffd6e0','#fff3f6'], 15).map(B.add);
+  const leaf = ramp(['#0e2a1c','#1f5a3f','#3f9a66','#8fd49a'], 7).map(B.addK);
+  const stem = ramp(['#9a6a10','#ffd166','#fff0b0'], 3).map(B.addK), pollen = ramp(['#c2610a','#ff9f1c','#ffd27a'], 3).map(B.addK), pist = B.add('#c1121f');
+  const drop = ['#ffffff','#ffe0ea','#b3153f'].map(B.add);
   const ang = o.ang ?? -0.9, ex = Math.cos(ang), ey = Math.sin(ang), tip = [cx + ex * 13.5, cy + ey * 13.5];
+  const drops = [[17.5,9.5],[24.5,23],[13,21],[22.5,13.5]];
   const rows = make(w, h, (x, y) => {
     const px = x + .5, py = y + .5, dx = px - cx, dy = py - cy, r = Math.hypot(dx, dy);
     const tt = clamp(dx * ex + dy * ey, 0, 13), sd = Math.hypot(dx - ex * tt, dy - ey * tt);
-    if (sd < .75 && tt < 12.5) return stem;
-    for (const [ox, oy] of [[0,0],[1.7,1.2],[-1.5,1.5],[.3,-1.9]]) if (Math.hypot(px - tip[0] - ox, py - tip[1] - oy) < 1.15) return pollen;
-    if (Math.hypot(px - tip[0] - .4, py - tip[1] - .2) < 1.3) return pist;
+    if (sd < .8 && tt < 12.5) return stem[clamp(Math.floor(1.6 - sd * 1.6 + tt * .02 + dz()), 0, 2)];
+    for (const [ox, oy] of [[0,0],[1.7,1.2],[-1.5,1.5],[.3,-1.9],[1.1,-.9]]) { const q = Math.hypot(px - tip[0] - ox, py - tip[1] - oy); if (q < 1.2) return pollen[clamp(Math.floor((1.2 - q) * 2.2 + dz() * .8), 0, 2)]; }
+    if (Math.hypot(px - tip[0] - .4, py - tip[1] - .2) < 1.35) return pist;
     const th = Math.atan2(dy, dx) + Math.PI / 2, u = th / (2 * Math.PI) * n, phi = u - Math.floor(u), s = Math.abs(phi - .5) * 2;
     let Rp = len * (1 - .38 * Math.pow(s, 2.4)); if (s > .93) Rp *= .72;
     if (r <= Rp) {
-      let t = r / Rp; if (s < .06) t *= .8; if (Math.abs(s - .45) < .05) t *= .9;
-      return pet[clamp(Math.floor(t * 11 + dz(x, y) * 1.2), 0, 10)];
+      for (const [dxx, dyy] of drops) { const q = Math.hypot(px - dxx, py - dyy); if (q < 1.0 && r > 6) return q < .35 ? drop[0] : q < .75 ? drop[1] : drop[2]; }
+      let t = r / Rp; t = Math.pow(t, .9);
+      const vein = Math.pow(Math.abs(Math.cos(phi * Math.PI * 9)), 14) * .09 + (s < .07 ? .07 : 0);
+      const silk = (fbm(px * .9, py * .9, 3) - .5) * .22 + Math.sin(th * n * 5 + r * .9) * .02;
+      return pet[clamp(Math.floor((t * .9 + silk - vein + (r < 4 ? -.15 : 0) + .02) * 15 + dz()), 0, 14)];
     }
     for (const [lx, ly, a] of [[7, 35, .55], [33, 35, -.55]]) {
       const [p, q] = rot(px, py, lx, ly, a);
-      if (Math.hypot(p / 8.5, q / 3.2) <= 1) return Math.abs(q) < .5 ? leaf[0] : leaf[clamp(Math.floor(1.5 - q * .9 + dz(x, y)), 1, 3)];
+      if (Math.hypot(p / 8.5, q / 3.2) <= 1) {
+        const vm = Math.abs(q) < .28, vs = ((Math.abs(p) * 1.0 + Math.abs(q) * 2.4) % 2.0) < .22 && Math.abs(q) > .28;
+        return leaf[clamp(Math.floor(4 - q * 1.1 + (vm || vs ? -2.2 : 0) + (fbm(px * 1.3, py * 1.3) - .5) * 1.6 + dz()), 0, 6)];
+      }
     }
-    const yy = y + Math.sin(x * .3) * .8;
-    return bg[clamp(Math.floor(yy / 40 * 4 + dz(x, y) * .9), 0, 3)];
+    let t = (py / 40) * .75 + fbm(px * .11, py * .11, 3) * .55 - .12;
+    for (const [bx, by, br] of [[6,6,5],[33,10,6],[30,30,4.5],[10,28,5],[22,3,3.5]]) if (Math.hypot(px - bx, py - by) < br) t -= .09;
+    return bg[clamp(Math.floor(t * 7 + dz()), 0, 6)];
   });
-  // keep the background, leaves and stamen colors natural when we change the petals
-  return { rows, pal: B.pal(), bg: '#fff6ee', keep: [1,2,3,4].concat([16,17,18,19,20,21,22]) };
+  return { rows, pal: B.pal(), bg: '#f6efe0', keep: B.keep };
 };
 
+// ======================= BALLOON (stitched fabric, puffy clouds, glowing sky) =======================
 const SKIES = [['#1d3a8a','#6ea8f0','#ffd9b0','#ffb8a0'],['#2b1055','#c06c84','#ffb36b','#ffe08a'],['#0b3d91','#4ea8de','#bde0fe','#fff1e6'],['#3a0ca3','#b5179e','#f72585','#ffd6a5'],
   ['#03045e','#0077b6','#90e0ef','#caf0f8'],['#10002b','#3c096c','#9d4edd','#ffb3c6'],['#134e4a','#2a9d8f','#e9c46a','#f4a261'],['#1b263b','#415a77','#a9bcd0','#ffe5d9']];
 const balloon = (o = {}) => {
   const w = 40, h = 44, G = o.G || 6, hc = o.hc || 3, W = o.W || 11, B = palBuilder();
-  const sky = ramp(SKIES[(o.sky || 0) % SKIES.length], 8).map(B.add);
-  const cloud = ['#ffffff','#ffd9e0'].map(B.add);
-  const hues = [ramp(['#7a0f1c','#e63946','#ff8a8a'], 4), ramp(['#a86a00','#ffc300','#fff0a0'], 4), ramp(['#0b5563','#2ec4b6','#b8fff2'], 4)].map(r => r.map(B.add));
-  const basket = ['#5b3a1e','#8b5a2b','#c08a4d'].map(B.add), rope = B.add('#3a2a1a');
+  const sky = ramp(SKIES[(o.sky || 0) % SKIES.length], 10).map(B.addK);
+  const cloud = ['#ffffff','#e6ecf5','#b9c4d9','#ffd0d8'].map(B.addK);
+  const hues = [ramp(['#4a0711','#b3202f','#ff4d5a','#ffb0b0'], 6), ramp(['#6b4200','#e0a400','#ffd940','#fff6b0'], 6), ramp(['#06343f','#12887e','#2ec4b6','#c8fff5'], 6)].map(r => r.map(B.add));
+  const basket = ramp(['#3b2412','#8b5a2b','#d0a060'], 4).map(B.addK), rope = B.addK('#2a1c10'), flame = ['#ff8c1a','#ffd23f'].map(B.addK);
   const hw = v => v < 2 ? 0 : v <= 17 ? W * Math.sqrt(Math.max(0, 1 - Math.pow((17 - v) / 15, 2))) : v <= 30 ? 3.5 + (W - 3.5) * Math.pow(1 - (v - 17) / 13, .9) : 0;
   const rows = make(w, h, (x, y) => {
     const px = x + .5, v = y + .5, u = px - 20, half = hw(v);
     if (half > 0 && Math.abs(u) <= half) {
-      const q = u / half, gore = Math.min(G - 1, Math.floor((q + 1) / 2 * G)), nz = Math.sqrt(Math.max(0, 1 - q * q));
-      const lam = -.55 * q + .8 * nz + (v - 17) * -.004;
-      return hues[gore % hc][clamp(Math.floor((lam - .1) * 5 + dz(x, y) * 1.1), 0, 3)];
+      const q = u / half, gp = (q + 1) / 2 * G, gore = Math.min(G - 1, Math.floor(gp)), nz = Math.sqrt(Math.max(0, 1 - q * q));
+      const seam = Math.abs(gp - Math.round(gp)) < .045 / (1 - q * q * .6) && Math.round(gp) > 0 && Math.round(gp) < G;
+      const lam = -.55 * q + .8 * nz - (v - 17) * .004, fab = (vnoise(px * 2.3, v * 2.3) - .5) * .12;
+      return hues[gore % hc][seam ? 0 : clamp(Math.floor((lam - .08 + fab) * 6.2 + dz() * 1.1), 0, 5)];
     }
-    if (v > 30 && v <= 34.4 && Math.abs(Math.abs(u) - 3.1) < .55) return rope;
-    if (v > 34.4 && v <= 39 && Math.abs(u) <= 3.8) {
-      const weave = (Math.floor(v) + Math.floor(px)) % 2;
-      return basket[v < 35.4 ? 0 : (u < -1.2 ? 2 - weave : 1 - weave)];
+    if (v > 30 && v <= 34.6 && Math.abs(Math.abs(u) - 3.1) < .5) return rope;
+    if (v > 29.6 && v < 31.8 && Math.abs(u) < 1.5) return flame[Math.abs(u) < .6 ? 1 : 0];
+    if (v > 34.6 && v <= 39.2 && Math.abs(u) <= 3.8) {
+      const weave = (Math.floor(v * 2) + Math.floor(px * 2)) % 2;
+      return basket[clamp(Math.floor(1.8 - u * .32 + (weave ? -.6 : .3) + (v < 35.5 ? -1.2 : 0) + dz()), 0, 3)];
     }
-    if (ed(px, v, 8, 36, 6, 1.7) <= 1 || ed(px, v, 11, 35, 4, 1.3) <= 1) return ed(px, v, 8, 36, 6, 1.7) < .55 ? cloud[0] : cloud[1];
-    if (ed(px, v, 33, 12, 5.5, 1.5) <= 1 || ed(px, v, 31, 11, 3.5, 1.2) <= 1) return ed(px, v, 33, 12, 5.5, 1.5) < .6 ? cloud[0] : cloud[1];
-    const yy = y + Math.sin(x * .3) * .9;
-    return sky[clamp(Math.floor(yy / 44 * 8 + dz(x, y)), 0, 7)];
+    let t = ((v + Math.sin(px * .3) * .9) / 44) * .85 + (fbm(px * .08, v * .08, 3) - .5) * .12;
+    const sg = Math.hypot(px - 30, v - 41) / 40; t += Math.max(0, .3 - sg) * .4;
+    const cd = fbm(px * .16 + 4, v * .30, 5) + (v < 24 ? 0 : -.3) + (Math.abs(v - 11) < 9 ? .04 : -.1);
+    if (cd > .6) return cloud[clamp(Math.floor((cd - .6) / .26 * 3 + (v / 44) * .8 + dz()), 0, 3)];
+    return sky[clamp(Math.floor(t * 10 + dz()), 0, 9)];
   });
-  // only the balloon colors change with the color shift; sky, clouds and basket stay natural
-  return { rows, pal: B.pal(), bg: '#1d3a8a', keep: [1,2,3,4,5,6,7,8,9,10].concat([23,24,25,26]) };
+  return { rows, pal: B.pal(), bg: '#1d3a8a', keep: B.keep };
 };
 
+// ======================= AURORA (glowing curtains, stars, rocky snowy mountains, mirror lake) =======================
 const aurora = (o = {}) => {
   const w = 48, h = 38, hz = 25, pk = o.peak ?? 30, pH = o.peakH ?? 8, fq = o.freq ?? .17, B = palBuilder();
-  const sky = ramp(['#030618','#0a1a3f','#0f3a55'], 6).map(B.add);
-  const green = ramp(['#1f6f4a','#4be3a0','#d6ffe9'], 5).map(B.add), purple = ramp(['#4a2a8f','#9b5de5','#d9b8ff'], 3).map(B.add);
-  const farM = B.add('#17314a'), nearM = B.add('#0b1626'), snow1 = B.add('#dfe9f5'), snow2 = B.add('#8fa8c4'), star = B.add('#ffffff');
-  const far = x => 21 + 2.2 * Math.sin(x * .2 + 1) + 1.4 * Math.sin(x * .43) - pH * Math.exp(-Math.pow((x - pk) / 6, 2));
-  const near = x => 23.4 + 1.8 * Math.sin(x * .31 + 2) + 1.1 * Math.sin(x * .7);
+  const sky = ramp(['#02030c','#070f2b','#0a2347','#0f3a55'], 9).map(B.addK);
+  const green = ramp(['#154d38','#2fb67f','#5df0b0','#bff7da','#f0fff7'], 8).map(B.add), purple = ramp(['#3a1d7a','#8a4fe0','#e8a6ff'], 5).map(B.add);
+  const far = ramp(['#223b55','#14283d'], 3).map(B.addK), near = ['#0a1422','#05090f'].map(B.addK), snow = ['#f4f9ff','#bcd0e6','#7f97b5'].map(B.addK), stars = ['#8394bf','#dfe8ff','#ffffff'].map(B.addK);
+  const farF = x => 20.5 + (fbm(x * .09, 3.1, 5) - .5) * 7 + 1.2 * Math.sin(x * .5) * .5 - pH * Math.exp(-Math.pow((x - pk) / 5.5, 2));
+  const nearF = x => 23.3 + (fbm(x * .16, 9.7, 4) - .5) * 4.2;
   const scene = (x, y) => {
-    const px = x + .5, py = y + .5;
-    if (py >= near(px)) return nearM;
-    const f = far(px);
-    if (py >= f) return (f < 17 && py < f + 3 + (px > pk ? (px - pk) * .25 : 0)) ? (px < pk ? snow1 : snow2) : farM;
-    const yc = 11 + 4 * Math.sin(x * fq) + 2 * Math.sin(x * .4 + 1), dy = py - yc, wd = dy > 0 ? 2.4 : 4.5;
-    const I = Math.exp(-Math.pow(dy / wd, 2)) * (.7 + .3 * Math.sin(x * 1.1 + Math.sin(x * .3) * 2)) + dz(x, y) * .07;
-    if (I > .78) return green[4]; if (I > .62) return green[3]; if (I > .48) return green[2]; if (I > .33) return green[1]; if (I > .2) return green[0];
-    const Ip = Math.exp(-Math.pow((py - (yc - 5)) / 3, 2)) * .9 + dz(x, y) * .07;
-    if (Ip > .6) return purple[2]; if (Ip > .4) return purple[1]; if (Ip > .22) return purple[0];
-    if (hsh(x, y) % 61 === 0 && y < 20) return star;
-    return sky[clamp(Math.floor(y / hz * 6 + dz(x, y)), 0, 5)];
+    const px = x + .5, py = y + .5, nf = nearF(px);
+    if (py >= nf) return near[py < nf + .7 + dz() * .6 ? 0 : 1];
+    const f = farF(px);
+    if (py >= f) {
+      const sl = farF(px + .8) - farF(px - .8), lit = sl < 0 ? 1 : 0, depth = py - f;
+      if (f < 17.2 && depth < 3.6 + (fbm(px * .5, py * .5) - .5) * 3 + (px > pk ? 0 : 1)) return snow[clamp(Math.floor(lit ? 0 + depth * .35 + dz() : 1.2 + depth * .3 + dz()), 0, 2)];
+      return far[clamp(Math.floor((depth / 7) * 3 + (lit ? 0 : .8) + dz()), 0, 2)];
+    }
+    const ray = vnoise(x * 2.3, 3.3), yc = 11 + 4 * Math.sin(x * fq) + 2 * Math.sin(x * .4 + 1) + (fbm(x * .1, 1, 3) - .5) * 4, dy = py - yc, wd = dy > 0 ? 2.2 : 4.8;
+    const I = Math.exp(-Math.pow(dy / wd, 2)) * (.45 + .75 * ray) * (.8 + .4 * fbm(x * .22, py * .35, 3)) + dz() * .06;
+    if (I > .2) return green[clamp(Math.floor((I - .2) / .75 * 8), 0, 7)];
+    const Ip = Math.exp(-Math.pow((py - (yc - 5.5)) / 3.2, 2)) * (.5 + .6 * ray) * .95 + dz() * .06;
+    if (Ip > .2) return purple[clamp(Math.floor((Ip - .2) / .6 * 5), 0, 4)];
+    const sv = nh(CX, CY);
+    if (y < 21 && sv < .006) return sv < .0006 ? stars[2] : sv < .002 ? stars[1] : stars[0];
+    const band = Math.max(0, .55 - Math.abs((py - 4 - x * .22) % 40 - 8) / 8) * fbm(x * .3, py * .3, 4) * .5;
+    return sky[clamp(Math.floor((py / hz + band * .6) * 9 + dz()), 0, 8)];
   };
   const rows = make(w, h, (x, y) => {
-    if (y < hz) return scene(x, y);
-    const yy = 2 * hz - 1 - y, xs = clamp(x + Math.round(Math.sin(y * 1.9) * 1.2), 0, w - 1);
-    if (y % 4 === 0 && hsh(x, y) % 5 < 2) return sky[5];
+    if (y < hz - .0001 && y + .5 < hz) return scene(x, y);
+    const yy = 2 * hz - 1 - y, xs = clamp(x + Math.sin(y * 2.3) * .5 + (fbm(y * .6, x * .12) - .5) * 1.4, 0, w - 1);
     return scene(xs, yy);
   });
-  // only the northern-light colors change; sky, mountains and snow stay natural
-  return { rows, pal: B.pal(), bg: '#030618', keep: [1,2,3,4,5,6].concat([15,16,17,18,19,20]) };
+  return { rows, pal: B.pal(), bg: '#02030c', keep: B.keep };
 };
 
-// easy pictures
+// ======================= SUNSET (glowing sun, lit clouds, misty ridges, shimmering water) =======================
+const sunset = (o = {}) => {
+  const w = 48, h = 32, sx = o.sunx ?? 24, sr = o.sunr ?? 6, ph = o.phase ?? 0, B = palBuilder();
+  const sky = ramp(['#170a33','#3b1a6b','#7a2f8c','#c2467a','#ef6a6a','#ff9a5a','#ffc16b','#ffe49a'], 12).map(B.add);
+  const sun = ramp(['#ffb347','#ffd77a','#fff2b8','#ffffff'], 5).map(B.add);
+  const cloud = ramp(['#5a2a78','#d4577a','#ff9a6a','#ffd9a8'], 5).map(B.add);
+  const mtn = ['#7a4a8c','#4a2c6a','#241540'].map(B.add), tree = B.addK('#0d1424');
+  const water = ramp(['#f2905a','#c55575','#6a3d8a','#2d1d55'], 8).map(B.add), refl = ['#fff2b8','#ffc66e','#ff9a5a'].map(B.add);
+  const m1 = x => 19 + (fbm(x * .07 + ph, 2.2, 5) - .5) * 9, m2 = x => 22 + (fbm(x * .1 + ph * 2, 7.4, 5) - .5) * 6 - Math.max(0, 6 - Math.abs(x - sx)) * .25;
+  const m3 = x => 23.2 + (fbm(x * .15 + ph, 4.4, 4) - .5) * 2.4;
+  const tr = (cx, top, ht, hw, px, py) => { if (py < top || py > top + ht) return false; const t = (py - top) / ht; return Math.abs(px - cx) <= t * hw * (.85 + .3 * Math.abs(Math.sin(py * 3.1 + cx))) + .15; };
+  const trees = [[4.5,18.5,11,3.6],[9,22,8,2.7],[1.5,21,8,2.6],[43.5,17.5,12,3.8],[39,21.5,8,2.8],[46.5,20.5,9,2.6]];
+  const skyT = (px, py) => { const g = Math.max(0, 1 - Math.hypot((px - sx) * .7, py - 17) / 15); return clamp((py / 24) * .85 + g * .55 + (fbm(px * .07, py * .07, 3) - .5) * .1, 0, 1); };
+  const rows = make(w, h, (x, y) => {
+    const px = x + .5, py = y + .5;
+    for (const [cx, top, ht, hw] of trees) if (tr(cx, top, ht, hw, px, py)) return tree;
+    if (py > 27.5 && (px < 7.2 || px > 40.8) && py < 31.7) return tree;
+    if (py >= 24) {
+      const d = py - 24, my = 48 - py, jit = Math.sin(py * 2.9 + px * .35) * .9 + (fbm(px * .5, py * 1.4) - .5) * 1.8;
+      const mm = m3(px), reflM = my < m1(px) ? true : false;
+      const wob = px + jit * .9, sd = Math.abs(wob - sx), streak = fbm(py * 1.2, px * .08);
+      if (sd < (sr - .6) * (.9 - d * .03) && streak > .38 + d * .02) return refl[sd < (sr - .6) / 2.4 ? 0 : sd < (sr - .6) / 1.4 ? 1 : 2];
+      if (my < m3(wob)) return mtn[2];
+      if (my < m2(wob)) return mtn[1];
+      if (my < m1(wob)) return mtn[0];
+      return water[clamp(Math.floor((1 - skyT(wob, my)) * 4 * .8 + d / 8 * 4 * .5 + dz() * 1.1), 0, 7)];
+    }
+    if (py >= m3(px)) return mtn[2];
+    if (py >= m2(px)) return mtn[1];
+    if (py >= m1(px)) return mtn[0];
+    const sd = Math.hypot(px - sx, py - 17);
+    if (sd <= sr) return sun[clamp(Math.floor((1 - sd / sr) * 5 * 1.1 + dz()), 0, 4)];
+    const cd = fbm(px * .1 + 5, py * .24 + ph, 5) + (py < 3 ? -.3 : py > 17 ? -.35 : 0);
+    if (cd > .58) return cloud[clamp(Math.floor((cd - .58) / .25 * 3 + clamp((py - 3) / 14, 0, 1) * 2.2 + dz() * .9), 0, 4)];
+    return sky[clamp(Math.floor(skyT(px, py) * 12 + dz()), 0, 11)];
+  });
+  return { rows, pal: B.pal(), bg: '#170a33', keep: B.keep };
+};
+
+// ======================= BUTTERFLY (veined wings, black border with white dots, fuzzy body) =======================
+const butterfly = () => {
+  const B = palBuilder();
+  const wing = ramp(['#6b1700','#b83a00','#e86a10','#ff9a2e','#ffc24d','#ffe08a'], 9).map(B.add);
+  const blk = ['#0f0708','#2a1810'].map(B.addK), wht = ['#ffffff','#e6dccd'].map(B.addK);
+  const body = ramp(['#1e1008','#4a2a14','#8a5a2e'], 4).map(B.addK);
+  const bg = ramp(['#17362a','#2a6040','#4c9356','#93cf80','#dff3b8'], 9).map(B.addK), fl = ['#ff9fb5','#ffd6e0'].map(B.addK);
+  const rows = make(40, 32, (x, y) => {
+    const px = x + .5, u = Math.abs(px - 20), v = y + .5;
+    if (v > 1 && v < 7.6 && Math.abs(u - (1.8 + (7.5 - v) * .8)) < .32) return blk[0];
+    if (Math.hypot(u - (1.8 + 6.5 * .8), v - 1.4) < 1.0) return blk[0];
+    if (Math.hypot(u - .9, v - 8.1) < .45) return wht[0];
+    if (Math.hypot(u, v - 8.6) < 2.3) return body[clamp(Math.floor(2.4 - u * .5 - (v - 8.6) * .15 + (fbm(px * 2, v * 2) - .5) + dz()), 0, 3)];
+    const bd = ed(u, v, 0, 18, 1.9, 9.5);
+    if (bd <= 1) return body[clamp(Math.floor(2.8 - u * 1.1 + (Math.floor(v / 1.1) % 2 ? -.5 : .3) + (fbm(px * 3, v * 3) - .5) * .8 + dz()), 0, 3)];
+    const wingAt = (cu, cv, rx, ry, ang, ax, ay, scale) => {
+      const d = ed(u, v, cu, cv, rx, ry, ang); if (d > 1) return null;
+      const a = Math.atan2(v - ay, u - ax), rr = Math.hypot(u - ax, v - ay);
+      if (d > .84 + (fbm(a * 3, 1.2) - .5) * .05) {
+        const sp = d > .875 && d < .965 && Math.abs(((a * scale) % 1 + 1) % 1 - .5) < .17 + (d - .9) * .6;
+        return sp ? wht[d < .93 ? 0 : 1] : blk[d > .96 ? 0 : 1];
+      }
+      const vein = Math.abs((((a * scale * .7) % 1) + 1) % 1 - .5) > .455 || (Math.abs(rr - (rr > 3 ? 7.5 : 99)) < .3);
+      if (vein) return blk[1];
+      const tex = (fbm(u * 1.9, v * 1.9, 3) - .5) * .35;
+      return wing[clamp(Math.floor((.55 + (1 - d) * .55 - rr * .012 + tex) * 9 + dz()), 0, 8)];
+    };
+    const w1 = wingAt(10.5, 11, 11.5, 7.2, -.5, 2, 12.5, 9); if (w1) return w1;
+    const w2 = wingAt(8.5, 22.5, 8, 5.6, .55, 2, 17, 8); if (w2) return w2;
+    let t = (v / 32) * .7 + fbm(px * .1, v * .1, 4) * .6 - .1;
+    for (const [bx, by, br] of [[6,26,4],[33,22,5],[9,5,3.5],[31,6,4],[22,29,3]]) if (Math.hypot(px - bx, v - by) < br) t += .12;
+    const f = nh(Math.floor(px * 1.8) , Math.floor(v * 1.8));
+    if (v > 27 && f < .07) return fl[f < .03 ? 1 : 0];
+    return bg[clamp(Math.floor(t * 9 + dz()), 0, 8)];
+  });
+  return { rows, pal: B.pal(), bg: '#17362a', keep: B.keep };
+};
+
+// ======================= OWL (soft feathers, glowing eyes, bark branch, cratered moon) =======================
+const owl = () => {
+  const B = palBuilder();
+  const fe = ramp(['#1a0f08','#3a2312','#5b3a1e','#7c5430','#a07645','#c49a63','#e0c08a','#f6e8c4'], 13).map(B.add);
+  const iris = ramp(['#8a2d00','#ff7a00','#ffc233','#fff0a0'], 5).map(B.add), eyek = [B.addK('#050505'), B.addK('#ffffff')];
+  const beak = ['#a85a10','#e8963a'].map(B.add);
+  const bark = ramp(['#1e120a','#4a2e18','#7a5230','#a37845'], 6).map(B.addK);
+  const moon = ramp(['#b9c0d6','#e6ebf7','#ffffff'], 4).map(B.addK), glow = ramp(['#16264a','#243a6a'], 3).map(B.addK);
+  const sky = ramp(['#070d1f','#0f1d3c','#1a3563'], 8).map(B.addK), stars = ['#9fb0e0','#ffffff'].map(B.addK);
+  const rows = make(36, 36, (x, y) => {
+    const px = x + .5, v = y + .5, u = Math.abs(px - 18), su = px - 18;
+    if (v > 31.5 && v < 34.3) { const t = fbm(px * .9, v * 1.4, 4) * .8 + (v - 31.5) * .08; return bark[clamp(Math.floor(t * 6 + dz()), 0, 5)]; }
+    if (v > 29.4 && v <= 31.6 && u > 2.6 && u < 9.4) { const toe = ((u * 1.6) % 2.2) < .85; if (toe) return fe[1]; }
+    if (v >= 13 && v <= 17.8 && u <= (18 - v) * .55) return beak[v < 14.8 || u < .4 ? 1 : 0];
+    const eye = Math.hypot(u - 4.9, v - 12.2);
+    if (eye <= 5.0) {
+      if (eye < .75 && u > 5.1 && v < 11.9) return eyek[1];
+      if (eye <= 1.75) return eyek[0];
+      if (eye <= 3.3) return iris[clamp(Math.floor(((3.3 - eye) / 1.6) * 4 * 1.0 + (Math.sin(Math.atan2(v - 12.2, u - 4.9) * 16) * .25) + dz() * .7), 0, 4)];
+      if (eye <= 3.9) return fe[1];
+    }
+    const ear = inTri(u, v, [2.5, 7.2], [8.4, 1.6], [8.6, 9.8]);
+    if (ear) return fe[inTri(u, v, [4, 7.4], [7.6, 3.6], [7.8, 8.8]) ? 6 : clamp(Math.floor(2 + (u - 2.5) * .5 + dz()), 1, 4)];
+    const wing = ed(u, v, 11, 22.5, 4.2, 9.5, -0.12);
+    if (wing <= 1) return fe[clamp(Math.floor(2.4 + (wing > .8 ? -2 : (Math.floor(v / 1.7) % 2 ? .9 : -.1)) + (u - 11) * .12 + (fbm(u * 1.6, v * .5) - .5) * 2.4 + dz()), 0, 12)];
+    const head = Math.hypot(u / 9.2, (v - 12) / 8.6), body = ed(u, v, 0, 22.5, 10.2, 10.8);
+    if (head <= 1 || body <= 1) {
+      const dd = Math.min(head, body), nx = su / 10, ny = (v - 18) / 12, lam = clamp(-.45 * nx - .5 * ny + .75, 0, 1.2);
+      let a = .45 + .35 * lam - Math.pow(dd, 6) * .5;
+      const disc = Math.min(Math.hypot((u - 4.7) / 6.2, (v - 12.4) / 5.6), 9) < 1 || (v > 11 && v < 15 && u < 3 && Math.abs(v - 13.5) < 2.4);
+      if (disc) a += .3 + Math.sin(Math.atan2(v - 12.4, u - 4.7) * 22) * .04;
+      else if (v > 14.5) {
+        const chev = ((v * .95 + u * .8) % 2.8) < .6, belly = ed(u, v, 0, 24.5, 6.8, 8.3) <= 1;
+        if (belly) a = chev ? .38 : .72 + (fbm(px * 1.5, v * .5) - .5) * .25; else a += (fbm(px * 2.2, v * .8, 3) - .5) * .35;
+      } else a += (fbm(px * 2.2, v * .8, 3) - .5) * .4;
+      return fe[clamp(Math.floor(a * 13 + dz()), 0, 12)];
+    }
+    const md = Math.hypot(px - 29.2, v - 7);
+    if (md <= 3.5) { const cr = Math.hypot(px - 28, v - 6.2) < .9 || Math.hypot(px - 30.3, v - 8) < .7 || Math.hypot(px - 29.4, v - 5.1) < .55; return moon[clamp(Math.floor((cr ? 1 : 2.2) + (1 - md / 3.5) * .8 + dz() * .6 - (px > 30 ? .5 : 0)), 0, 3)]; }
+    if (md <= 6.5) return glow[clamp(Math.floor((6.5 - md) / 3 * 3 + dz()), 0, 2)];
+    const sv = nh(CX, CY); if (sv < .0045 && v < 29) return sv < .001 ? stars[1] : stars[0];
+    return sky[clamp(Math.floor((v / 36) * 8 + (fbm(px * .1, v * .1) - .5) * .2 + dz()), 0, 7)];
+  });
+  return { rows, pal: B.pal(), bg: '#070d1f', keep: B.keep };
+};
+
+// ======================= MANDALA (layered shaded petals, glowing center) =======================
+const mandala = (o = {}) => {
+  const N = o.N || 16, rw = o.rw || 2.3, B = palBuilder();
+  const R = [ramp(['#2b0a5c','#7a3bd6','#d6a6ff'], 7), ramp(['#0a3b5c','#1fa3c9','#a8f0ff'], 7), ramp(['#5c0a1f','#e0344f','#ffb3a0'], 7), ramp(['#4a3a00','#e6b422','#fff2a8'], 7)].map(r => r.map(B.add));
+  const bgc = ramp(['#10062b','#1f0f4a'], 3).map(B.addK), ln = ['#ffe9a8','#ffc64d'].map(B.addK), core = ramp(['#fff6c9','#ffffff'], 3).map(B.addK);
+  const layers = [[2.6, 6.2, 1], [5.6, 10, 2], [9.4, 13.4, 3], [12.6, 16.6, 0], [16.2, 18.4, 1]];
+  return { rows: make(40, 40, (x, y) => {
+    const dx = x + .5 - 20, dy = y + .5 - 20, r = Math.hypot(dx, dy);
+    if (r > 19.6) return '.';
+    if (r < 2.6) return core[clamp(Math.floor((1 - r / 2.6) * 3 + dz()), 0, 2)];
+    if (r > 18.7) return ln[r > 19.2 ? 1 : 0];
+    const th = Math.atan2(dy, dx) / (2 * Math.PI) + .5;
+    for (let j = layers.length - 1; j >= 0; j--) {
+      const [r0, r1, ci] = layers[j], nj = N * (j % 2 ? 1 : 2) * (j === 4 ? 2 : 1) / (j === 0 ? 2 : 1);
+      if (r < r0 || r > r1) continue;
+      const ph = (th * nj + (j % 2) * .5) % 1, s = Math.abs(ph - .5) * 2, rr = (r - r0) / (r1 - r0), tipw = j % 2 ? Math.pow(1 - rr, .75) : Math.sin((1 - rr) * Math.PI * .5 + .0) ;
+      if (s < tipw * .96) {
+        if (s > tipw * .85 || Math.abs(rr - .08) < .02) return ln[1];
+        return R[(ci + (rr > .5 ? 0 : 0)) % 4][clamp(Math.floor((1 - rr) * .5 * 7 + (1 - s) * .5 * 7 + (fbm(x * .5, y * .5) - .5) * .8 + dz()), 0, 6)];
+      }
+      if (Math.abs(rr) < .02 || Math.abs(rr - 1) < .02) return ln[0];
+    }
+    const dot = nh(Math.floor(CX / 2), Math.floor(CY / 2)) < .03;
+    return dot ? ln[0] : bgc[clamp(Math.floor((r / 19) * 3 + dz()), 0, 2)];
+  }), pal: B.pal(), bg: '#10062b', keep: B.keep };
+};
+
+// ---------- easy pictures (big squares, for warm-ups) ----------
 const EASY = {
   Heart: { bg:'#fff1ea', pal:{1:'#9d0208',2:'#e63946',3:'#ffc2cf'}, rows:[
     '................','...1111..1111...','..122221122221..','.12322222222221.','.12332222222221.','.12222222222221.',
@@ -357,77 +432,77 @@ const EASY = {
     '.12222222222221.','.12222244222221.','.12223333332221.','..122333333221..','...1222222221...','....11111111....' ]},
   Rainbow: { bg:'#cfefff', pal:{1:'#e63946',2:'#ff9f1c',3:'#ffd60a',4:'#52b788',5:'#4895ef',6:'#9b5de5',7:'#ffffff'}, rows: (() => {
     const w = 20, h = 11, cx = 10, cy = 11, clouds = [[2.6,9.4,2.3],[4.8,9.9,2.0],[1.0,10.2,1.6],[17.4,9.4,2.3],[15.2,9.9,2.0],[19.0,10.2,1.6]];
-    return make(w, h, (x, y) => {
+    const keepSC = SC; SC = 1;
+    const r = make(w, h, (x, y) => {
       const px = x + .5, py = y + .5, d = Math.hypot(px - cx, py - cy);
       if (clouds.some(([a, b, rad]) => Math.hypot(px - a, py - b) <= rad)) return '7';
       if (d <= 10 && d > 4) return String(Math.min(6, Math.floor(10 - d) + 1));
       return '.';
-    }); })() }
+    }); SC = keepSC; return r; })() }
 };
 
 // ---------- the list of 100 ----------
 const HN = [[0,''],[15,'Tangerine'],[30,'Sunny'],[45,'Lemon'],[60,'Lime'],[75,'Apple'],[90,'Mint'],[105,'Leaf'],[120,'Forest'],[135,'Jade'],[150,'Aqua'],[165,'Teal'],[180,'Ocean'],[195,'Lagoon'],[210,'Sky'],[225,'Cobalt'],[240,'Grape'],[255,'Indigo'],[270,'Violet'],[285,'Orchid'],[300,'Candy'],[315,'Berry'],[330,'Rose'],[345,'Cherry'],[360,'']];
 const hname = d => { d = ((d % 360) + 360) % 360; let best = HN[0]; HN.forEach(e => { if (Math.abs(e[0] - d) < Math.abs(best[0] - d)) best = e; }); return best[1]; };
-const withHue = (g, deg, keepAlways) => () => {
+const withHue = (g, deg) => () => {
   const r = g(); if (!deg) return r;
-  const keep = r.keep || keepAlways || [], pal = {};
+  const keep = r.keep || [], pal = {};
   Object.entries(r.pal).forEach(([k, v]) => { pal[k] = keep.includes(+k) ? v : hueShift(v, deg); });
-  return { rows: r.rows, pal, bg: r.noBgShift ? r.bg : hueShift(r.bg || '#000000', deg) };
+  return { rows: r.rows, pal, bg: r.bg };
 };
-const fixed = (rowsFn, pal, bg) => () => ({ rows: rowsFn(), pal, bg });
+const genAt = (p, sc) => { SC = sc; try { return p.gen(); } finally { SC = 1; } };
 const PIC_LIST = [];
-const addFamily = (family, base, level, specs, build, keep) => {
+const addFamily = (family, base, level, specs, build) => {
   const used = {};
   specs.forEach((sp, i) => {
     let nm = i === 0 ? base : base + ' ' + (hname(sp.h || 0) || ('#' + (i + 1)));
     if (used[nm]) nm += ' ' + (i + 1); used[nm] = 1;
-    PIC_LIST.push({ name: nm, family, level, gen: withHue(() => build(sp), sp.h || 0, keep) });
+    PIC_LIST.push({ name: nm, family, level, gen: withHue(() => build(sp), sp.h || 0) });
   });
 };
-addFamily('Planets', 'Planet', '⭐⭐⭐⭐', [
+addFamily('Planets', 'Planet', '⭐⭐⭐⭐⭐', [
   {h:0},{tilt:.3,h:200},{ring:false,R:12,h:90},{tilt:-.6,h:300},{ring:false,R:11,wave:2,h:160},{tilt:.15,h:40},
   {tilt:-.2,R:9,h:250},{ring:false,R:12.5,h:330},{tilt:.5,h:120},{tilt:-.45,R:9.5,h:180},{ring:false,R:11,wave:3,h:20}], planet);
-addFamily('Flowers', 'Hibiscus', '⭐⭐⭐⭐', [
+addFamily('Flowers', 'Hibiscus', '⭐⭐⭐⭐⭐', [
   {n:5,h:0},{n:5,h:35},{n:6,h:75},{n:6,h:140},{n:7,h:190},{n:7,h:230},{n:8,h:260},{n:8,h:290},{n:5,h:320,len:16},{n:6,h:20,len:16.5},{n:7,h:105,len:16}], hibiscus);
-addFamily('Balloons', 'Balloon', '⭐⭐⭐⭐', [
+addFamily('Balloons', 'Balloon', '⭐⭐⭐⭐⭐', [
   {G:6,hc:3,h:0,sky:0},{G:6,hc:3,h:60,sky:1},{G:4,hc:2,h:120,sky:2},{G:8,hc:3,h:180,sky:3},{G:5,hc:3,h:240,sky:4},{G:6,hc:2,h:300,sky:5},
   {G:7,hc:3,h:30,sky:6},{G:4,hc:3,h:90,sky:7},{G:8,hc:2,h:150,sky:1},{G:5,hc:2,h:210,sky:2},{G:6,hc:3,h:270,sky:3}], balloon);
-addFamily('Northern Lights', 'Aurora', '⭐⭐⭐⭐', [
+addFamily('Northern Lights', 'Aurora', '⭐⭐⭐⭐⭐', [
   {peak:30,h:0},{peak:18,h:60},{peak:36,h:100},{peak:24,h:180},{peak:14,h:220},{peak:32,h:260,freq:.12},
   {peak:20,h:300,freq:.22},{peak:28,h:340,peakH:10},{peak:12,h:40},{peak:38,h:80,freq:.2},{peak:22,h:140,freq:.14,peakH:6}], aurora);
-addFamily('Butterflies', 'Butterfly', '⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}],
-  () => ({ rows: butterfly(), pal: BUTTERFLY_PAL, bg: '#dff6ff' }), [4,5,8,9,10]);
-addFamily('Sunsets', 'Sunset', '⭐⭐⭐', [
+addFamily('Butterflies', 'Butterfly', '⭐⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}], butterfly);
+addFamily('Sunsets', 'Sunset', '⭐⭐⭐⭐⭐', [
   {h:0},{sunx:14,sunr:5,phase:1,h:40},{sunx:34,sunr:7,phase:2,h:100},{sunx:20,sunr:4,phase:3,h:160},{sunx:28,sunr:8,phase:4,h:200},{sunx:16,sunr:6,phase:5,h:240},
-  {sunx:32,sunr:5,phase:6,h:280},{sunx:24,sunr:7,phase:.5,h:320},{sunx:12,sunr:6,phase:1.5,h:20},{sunx:36,sunr:5,phase:2.5,h:70},{sunx:22,sunr:8,phase:3.5,h:130}],
-  sp => sunset(sp));
-addFamily('Owls', 'Owl', '⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}],
-  () => ({ rows: owl(), pal: OWL_PAL, bg: '#1b2a49' }), [5,6,7,8,11]);
-addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
-  {N:16,rw:2.3,h:0},{N:12,h:40},{N:20,h:80},{N:24,h:120},{N:16,rw:2.0,h:160},{N:12,rw:2.6,h:200},{N:20,rw:2.1,h:240},{N:24,rw:2.4,h:280},{N:18,h:320},{N:14,h:20},{N:22,h:60}],
-  sp => ({ rows: mandala(sp), pal: MANDALA_PAL, bg: '#fff8e7' }));
+  {sunx:32,sunr:5,phase:6,h:280},{sunx:24,sunr:7,phase:.5,h:320},{sunx:12,sunr:6,phase:1.5,h:20},{sunx:36,sunr:5,phase:2.5,h:70},{sunx:22,sunr:8,phase:3.5,h:130}], sunset);
+addFamily('Owls', 'Owl', '⭐⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}], owl);
+addFamily('Mandalas', 'Mandala', '⭐⭐⭐⭐', [
+  {N:16,rw:2.3,h:0},{N:12,h:40},{N:20,h:80},{N:24,h:120},{N:16,rw:2.0,h:160},{N:12,rw:2.6,h:200},{N:20,rw:2.1,h:240},{N:24,rw:2.4,h:280},{N:18,h:320},{N:14,h:20},{N:22,h:60}], mandala);
 [['Heart','⭐',[0,200,100]],['Rocket','⭐⭐',[0,120,280]],['Cat','⭐⭐',[0,150,260]],['Rainbow','⭐⭐',[0,90,200]]].forEach(([nm, lv, hs]) => {
   const e = EASY[nm];
-  hs.forEach((hd, i) => PIC_LIST.push({ name: i === 0 ? nm : (hname(hd) + ' ' + nm), family: 'Easy', level: lv, gen: () => ({ rows: e.rows, pal: hd ? shiftPal(e.pal, hd) : e.pal, bg: hd ? hueShift(e.bg, hd) : e.bg }) }));
+  hs.forEach((hd, i) => PIC_LIST.push({ name: i === 0 ? nm : (hname(hd) + ' ' + nm), family: 'Easy (big squares)', level: lv, gen: () => ({ rows: e.rows, pal: hd ? shiftPal(e.pal, hd) : e.pal, bg: hd ? hueShift(e.bg, hd) : e.bg }) }));
 });
 
   const PICS = PIC_LIST;
-  const CHARS = CH;
+  const CHARS = CH, FULL = 3;   // every picture is drawn with 3x3 tiny squares where the old ones had 1 big square
   function ensure(p) {
     if (p.cells) return p;
-    const r = p.gen(); p.rows = r.rows; p.bg = r.bg || '#fff';
-    p.w = p.rows[0].length; p.h = p.rows.length;
-    const raw = p.rows.join('').split('').map(ch => ch === '.' ? 0 : CHARS.indexOf(ch) + 1);
+    const r = genAt(p, FULL); p.bg = r.bg || '#fff';
+    p.w = r.rows[0].length; p.h = r.rows.length;
+    const flat = r.rows.join(''), raw = new Array(flat.length);
+    for (let i = 0; i < flat.length; i++) { const ch = flat[i]; raw[i] = ch === '.' ? 0 : CHARS.indexOf(ch) + 1; }
     // drop colors nobody uses, then renumber so the numbers go 1, 2, 3... with no gaps
     const used = [...new Set(raw.filter(n => n > 0))].sort((x, y) => x - y), map = {}, pal = {};
     used.forEach((o, i) => { map[o] = i + 1; pal[i + 1] = r.pal[o]; });
     p.pal = pal; p.cells = raw.map(n => n ? map[n] : 0);
+    p.counts = {}; p.cells.forEach(n => { if (n) p.counts[n] = (p.counts[n] || 0) + 1; });
     p.total = p.cells.filter(n => n > 0).length;
+    p.tints = {}; Object.keys(pal).forEach(k => { p.tints[k] = mixc(pal[k], '#ffffff', .8); });
     return p;
   }
 
   // ================= state =================
-  let pi = 0, pic = ensure(PICS[0]), filled = [], sel = 0, showNums = true, paused = false, muted = false, hover = true, zoom = 1;
+  let pi = 0, pic = ensure(PICS[0]), filled = [], left = {}, doneCount = 0, sel = 0, showNums = true, paused = false, muted = false, hover = true, zoom = 1;
   let wrong = null, hint = null, won = false, dirty = true, autoQ = null;
   const doneSet = {};
   try { JSON.parse(localStorage.getItem('pbn-done') || '[]').forEach(n => doneSet[n] = 1); } catch(e) {}
@@ -437,28 +512,37 @@ addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
   let msgT = 0;
   function say(t, ms) { msg.textContent = t; clearTimeout(msgT); if (ms) msgT = setTimeout(() => { msg.textContent = defaultMsg(); }, ms); }
   const defaultMsg = () => !sel ? 'Pick a color below, then paint the squares with the same number!'
-    : 'Paint the squares that say ' + sel + '! ' + (hover ? 'Just move your mouse over them — no clicking needed. 🖌️' : 'Click or drag. 🖌️');
+    : 'Paint the squares that say ' + sel + '! ' + (hover ? 'Just move your mouse over the glowing squares — no clicking needed. 🖌️' : 'Click or drag. 🖌️');
+
+  let saveT = 0, pending = false;
+  function flush() { if (!pending) return; pending = false; clearTimeout(saveT); try { localStorage.setItem('pbn-' + pic.name, filled.join('')); } catch(e) {} }
+  function save() { pending = true; clearTimeout(saveT); saveT = setTimeout(flush, 500); }
+  addEventListener('beforeunload', flush);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
 
   function loadPic(i) {
-    autoQ = null; pi = i; pic = ensure(PICS[i]); filled = new Array(pic.cells.length).fill(0); won = false; hint = null; wrong = null; zoom = 1;
+    flush();
+    autoQ = null; pi = i; pic = ensure(PICS[i]); filled = new Uint8Array(pic.cells.length); won = false; hint = null; wrong = null; zoom = 1;
     try {
-      const s = localStorage.getItem('pbn-' + pic.name);
-      if (s && s.length === filled.length) filled = s.split('').map(Number);
+      const sv = localStorage.getItem('pbn-' + pic.name);
+      if (sv && sv.length === filled.length) for (let k = 0; k < sv.length; k++) filled[k] = sv.charCodeAt(k) - 48;
     } catch(e) {}
+    left = Object.assign({}, pic.counts); doneCount = 0;
+    for (let k = 0; k < filled.length; k++) if (filled[k] && pic.cells[k]) { left[pic.cells[k]]--; doneCount++; }
     sel = 0; renderPics(); renderPalette(); updateBar(); say(defaultMsg());
     $('win').classList.remove('show');
     layout(); stage.scrollTo(0, 0);
   }
-  function save() { try { localStorage.setItem('pbn-' + pic.name, filled.join('')); } catch(e) {} }
   function saveDone() { try { localStorage.setItem('pbn-done', JSON.stringify(Object.keys(doneSet))); } catch(e) {} }
-  const remaining = n => { let c = 0; for (let i = 0; i < pic.cells.length; i++) if (pic.cells[i] === n && !filled[i]) c++; return c; };
+  const remaining = n => left[n] || 0;
 
   // ================= picture picker + palette =================
   function thumb(p) {
     const c = document.createElement('canvas'); c.width = c.height = 72;
-    const g = c.getContext('2d'), s = Math.min(72 / p.w, 72 / p.h), ox = (72 - p.w*s)/2, oy = (72 - p.h*s)/2;
-    g.fillStyle = p.bg; g.fillRect(0,0,72,72);
-    p.cells.forEach((n,i) => { if (n) { g.fillStyle = p.pal[n]; g.fillRect(ox + (i%p.w)*s, oy + Math.floor(i/p.w)*s, s+.5, s+.5); } });
+    const g = c.getContext('2d'), r = p._t || (p._t = genAt(p, 1)), rows = r.rows, w = rows[0].length, h = rows.length;
+    const sc = Math.min(72 / w, 72 / h), ox = (72 - w*sc)/2, oy = (72 - h*sc)/2;
+    g.fillStyle = r.bg || '#fff'; g.fillRect(0, 0, 72, 72);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const ch = rows[y][x]; if (ch !== '.') { g.fillStyle = r.pal[CHARS.indexOf(ch) + 1]; g.fillRect(ox + x*sc, oy + y*sc, sc + .5, sc + .5); } }
     return c;
   }
   function renderPics() {
@@ -477,7 +561,6 @@ addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
         h.textContent = fam + '  (' + n.filter(q => doneSet[q.name]).length + '/' + n.length + ' ⭐)'; box.appendChild(h);
         grid = document.createElement('div'); grid.className = 'galgrid'; box.appendChild(grid);
       }
-      ensure(p);
       const b = document.createElement('button'); b.className = 'pic' + (i === pi ? ' on' : ''); b.title = p.name + ' ' + p.level;
       b.appendChild(thumb(p));
       const lab = document.createElement('span'); lab.className = 'nm'; lab.textContent = p.name; b.appendChild(lab);
@@ -491,27 +574,33 @@ addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
   $('galClose').onclick = () => $('gal').classList.remove('show');
   $('prevBtn').onclick = () => loadPic((pi + PICS.length - 1) % PICS.length);
   $('nextPicBtn').onclick = () => loadPic((pi + 1) % PICS.length);
+  const swEls = {};
   function renderPalette() {
     const el = $('palette'); el.innerHTML = ''; el.className = Object.keys(pic.pal).length > 12 ? 'many' : '';
+    Object.keys(swEls).forEach(k => delete swEls[k]);
     Object.keys(pic.pal).forEach(k => {
-      const n = +k, left = remaining(n), b = document.createElement('button');
-      b.className = 'sw' + (n === sel ? ' sel' : '') + (left === 0 ? ' done' : '');
-      b.innerHTML = '<span class="chip' + (n > 9 && left ? ' two' : '') + '" style="background:' + pic.pal[n] + ';color:' + textOn(pic.pal[n]) + '">' + (left === 0 ? '✓' : n) + '</span><span class="cnt">' + (left === 0 ? 'done!' : left + ' left') + '</span>';
-      b.onclick = () => choose(n);
-      el.appendChild(b);
+      const n = +k, b = document.createElement('button'), chip = document.createElement('span'), cnt = document.createElement('span');
+      chip.style.background = pic.pal[n]; chip.style.color = textOn(pic.pal[n]); cnt.className = 'cnt';
+      b.appendChild(chip); b.appendChild(cnt); b.onclick = () => choose(n); el.appendChild(b);
+      swEls[n] = {b, chip, cnt}; refreshSw(n);
     });
     dirty = true;
   }
+  function refreshSw(n) {
+    const e = swEls[n]; if (!e) return; const l = left[n] || 0;
+    e.b.className = 'sw' + (n === sel ? ' sel' : '') + (l === 0 ? ' done' : '');
+    e.chip.className = 'chip' + (n > 9 && l ? ' two' : ''); e.chip.textContent = l === 0 ? '✓' : n; e.cnt.textContent = l === 0 ? 'done!' : l + ' left';
+  }
   function textOn(hex) { const v = parseInt(hex.slice(1), 16), r = v >> 16, g = (v >> 8) & 255, b = v & 255; return (r*.299 + g*.587 + b*.114) > 150 ? '#222' : '#fff'; }
   function choose(n) {
-    if (remaining(n) === 0) { say('All the ' + n + 's are done! Pick another color. 😄', 2000); return; }
-    sel = n; hint = null; renderPalette(); say(defaultMsg()); tone(300 + n*40, .08, 'triangle', .1);
+    if (!(left[n] > 0)) { say('All the ' + n + 's are done! Pick another color. 😄', 2000); return; }
+    const old = sel; sel = n; hint = null; if (old) refreshSw(old); refreshSw(n); dirty = true;
+    say(defaultMsg()); tone(300 + n*20, .08, 'triangle', .1);
   }
   function updateBar() {
-    let d = 0; for (let i = 0; i < pic.cells.length; i++) if (pic.cells[i] > 0 && filled[i]) d++;
-    const pct = Math.floor(d / pic.total * 100);
+    const pct = Math.floor(doneCount / pic.total * 100);
     $('fill').style.width = pct + '%'; $('pct').textContent = pct + '%';
-    return d === pic.total;
+    return doneCount === pic.total;
   }
 
   // ================= sound =================
@@ -529,82 +618,103 @@ addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
   }
 
   // ================= layout + drawing =================
-  let cs = 20, dpr = 1;
+  let cs = 20, dpr = 1, offX = 0, offY = 0, vw = 0, vh = 0;
   function layout() {
-    const r = stage.getBoundingClientRect(); dpr = window.devicePixelRatio || 1;
-    const fit = Math.floor(Math.min((r.width - 4) / pic.w, (r.height - 4) / pic.h));
-    const base = Math.max(fit, 16);
-    cs = Math.max(8, Math.min(64, Math.round(base * zoom)));
+    dpr = window.devicePixelRatio || 1;
+    const fit = Math.floor(Math.min((stage.clientWidth - 4) / pic.w, (stage.clientHeight - 4) / pic.h));
+    cs = Math.max(4, Math.min(64, Math.round(Math.max(fit, 14) * zoom)));
     const W = cs * pic.w, H = cs * pic.h;
-    board.style.width = W + 'px'; board.style.height = H + 'px';
-    board.width = Math.floor(W * dpr); board.height = Math.floor(H * dpr);
-    board.style.touchAction = (W > r.width + 2 || H > r.height + 2) ? 'pan-x pan-y' : 'none';
+    $('spacer').style.width = W + 'px'; $('spacer').style.height = H + 'px';
+    vw = stage.clientWidth; vh = stage.clientHeight;   // read again: scroll bars may have appeared
+    board.style.width = vw + 'px'; board.style.height = vh + 'px';
+    board.width = Math.max(1, Math.floor(vw * dpr)); board.height = Math.max(1, Math.floor(vh * dpr));
+    board.style.touchAction = (W > vw + 2 || H > vh + 2) ? 'pan-x pan-y' : 'none';
     dirty = true;
   }
   addEventListener('resize', () => { layout(); fitFx(); });
-  function setZoom(z) { zoom = Math.max(.5, Math.min(3, z)); layout(); }
+  stage.addEventListener('scroll', () => { dirty = true; }, { passive: true });
+  function setZoom(z) { zoom = Math.max(.4, Math.min(3, z)); layout(); }
   $('zoomIn').onclick = () => setZoom(zoom * 1.25);
   $('zoomOut').onclick = () => setZoom(zoom / 1.25);
 
+  // only the squares you can actually see get drawn, so huge pictures stay fast
   function draw() {
-    const g = bctx; g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,board.width,board.height);
+    const g = bctx; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, vw, vh);
+    const W = cs * pic.w, H = cs * pic.h, sl = stage.scrollLeft, st = stage.scrollTop;
+    offX = Math.max(0, Math.floor((vw - W) / 2)); offY = Math.max(0, Math.floor((vh - H) / 2));
+    const x0 = Math.max(0, Math.floor((sl - offX) / cs)), x1 = Math.min(pic.w - 1, Math.floor((sl + vw - offX) / cs));
+    const y0 = Math.max(0, Math.floor((st - offY) / cs)), y1 = Math.min(pic.h - 1, Math.floor((st + vh - offY) / cs));
+    const numbers = showNums && cs >= 11, fs = Math.max(7, Math.floor(cs * .5));
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    const fs = Math.max(8, Math.floor(cs * .52));
-    for (let i = 0; i < pic.cells.length; i++) {
-      const n = pic.cells[i], x = (i % pic.w) * cs, y = Math.floor(i / pic.w) * cs;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const i = y * pic.w + x, n = pic.cells[i], px = offX + x * cs - sl, py = offY + y * cs - st;
       let dx = 0;
       if (wrong && wrong.i === i) dx = Math.sin(wrong.t * .9) * 3 * (wrong.t / 20);
-      if (n === 0) g.fillStyle = pic.bg;
-      else if (filled[i]) g.fillStyle = pic.pal[n];
-      else g.fillStyle = n === sel ? '#ffe7a0' : '#f3f0ff';
       const done = n === 0 || filled[i];
-      g.fillRect(x + dx, y, done ? cs + .6 : cs, done ? cs + .6 : cs);
-      if (!done) { g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 1; g.strokeRect(x + dx + .5, y + .5, cs - 1, cs - 1); }
-      if (n > 0 && !filled[i] && showNums) {
+      g.fillStyle = n === 0 ? pic.bg : filled[i] ? pic.pal[n] : n === sel ? '#ffe7a0' : numbers ? '#f3f0ff' : pic.tints[n];
+      g.fillRect(px + dx, py, done ? cs + .6 : cs, done ? cs + .6 : cs);
+      if (!done && cs >= 8) { g.strokeStyle = 'rgba(0,0,0,.16)'; g.lineWidth = 1; g.strokeRect(px + dx + .5, py + .5, cs - 1, cs - 1); }
+      if (!done && numbers) {
         g.fillStyle = n === sel ? '#2b1d6b' : '#9a93bd';
         g.font = (n === sel ? '900 ' : '700 ') + (n > 9 ? fs - 1 : fs) + 'px system-ui';
-        g.fillText(n, x + dx + cs/2, y + cs/2 + 1);
+        g.fillText(n, px + dx + cs / 2, py + cs / 2 + 1);
       }
     }
     if (hint) {
-      const x = (hint.i % pic.w) * cs, y = Math.floor(hint.i / pic.w) * cs, k = 2 + Math.abs(Math.sin(hint.t * .12)) * 4;
-      g.strokeStyle = '#ff3d71'; g.lineWidth = 3; g.strokeRect(x - k, y - k, cs + k*2, cs + k*2);
+      const px = offX + (hint.i % pic.w) * cs - sl, py = offY + Math.floor(hint.i / pic.w) * cs - st, k = 3 + Math.abs(Math.sin(hint.t * .12)) * 5;
+      g.strokeStyle = '#ff3d71'; g.lineWidth = 3; g.strokeRect(px - k, py - k, cs + k*2, cs + k*2);
     }
   }
 
   // ================= painting =================
-  function cellAt(e) {
-    const r = board.getBoundingClientRect(), x = Math.floor((e.clientX - r.left) / cs), y = Math.floor((e.clientY - r.top) / cs);
+  function cellAtXY(cx, cy) {
+    const r = board.getBoundingClientRect();
+    const x = Math.floor((cx - r.left + stage.scrollLeft - offX) / cs), y = Math.floor((cy - r.top + stage.scrollTop - offY) / cs);
     return (x < 0 || y < 0 || x >= pic.w || y >= pic.h) ? -1 : y * pic.w + x;
   }
-  function handle(e, drag) {
-    if (paused || won || autoQ) return;
-    const i = cellAt(e); if (i < 0) return;
+  function handleCell(i, drag) {
+    if (paused || won || autoQ || i < 0) return;
     const n = pic.cells[i]; if (n === 0 || filled[i]) return;
     if (!sel) { if (!drag) say('Pick a color first! 👇', 2000); return; }
     if (n === sel) fillCell(i);
     else if (!drag) { wrong = {i, t:20}; dirty = true; tone(140, .15, 'square', .08); say('That square is a ' + n + '! Pick color ' + n + ' to paint it. 😉', 2500); }
   }
+  let lastTone = 0, lastBurst = 0;
   function fillCell(i) {
     filled[i] = 1; hint = null; save(); dirty = true;
-    const n = pic.cells[i], r = board.getBoundingClientRect();
-    burst(r.left + (i % pic.w) * cs + cs/2, r.top + Math.floor(i / pic.w) * cs + cs/2, pic.pal[n], 4);
-    tone(440 + (n % 8)*70, .08, 'sine', .12);
-    if (remaining(n) === 0) {
+    const n = pic.cells[i]; left[n]--; doneCount++;
+    const now = performance.now();
+    if (now - lastBurst > 45) {
+      lastBurst = now; const r = board.getBoundingClientRect(), x = i % pic.w, y = (i / pic.w) | 0;
+      burst(r.left + offX + x * cs - stage.scrollLeft + cs / 2, r.top + offY + y * cs - stage.scrollTop + cs / 2, pic.pal[n], 3);
+    }
+    if (now - lastTone > 70) { lastTone = now; tone(440 + (n % 8) * 70, .07, 'sine', .1); }
+    refreshSw(n);
+    if (left[n] === 0) {
       tone(880, .12, 'triangle', .12, .05); tone(1100, .15, 'triangle', .12, .15);
       say('All the ' + n + 's are done! 🎉', 2500);
-      sel = Object.keys(pic.pal).map(Number).find(k => remaining(k) > 0) || 0;
+      sel = Object.keys(pic.pal).map(Number).find(k => left[k] > 0) || 0;
+      if (sel) refreshSw(sel);
     }
-    renderPalette();
     if (updateBar()) win();
   }
-  let painting = false;
+  let painting = false, lastP = null;
+  function paintMove(e) {
+    const pts = [];
+    if (lastP && lastP.id === e.pointerId) {
+      const dx = e.clientX - lastP.x, dy = e.clientY - lastP.y, steps = Math.min(80, Math.ceil(Math.hypot(dx, dy) / Math.max(2, cs * .4)));
+      for (let k = 1; k <= steps; k++) pts.push([lastP.x + dx * k / steps, lastP.y + dy * k / steps]);
+    } else pts.push([e.clientX, e.clientY]);
+    lastP = {x: e.clientX, y: e.clientY, id: e.pointerId};
+    for (const [x, y] of pts) handleCell(cellAtXY(x, y), true);   // also paints the squares you skipped over when moving fast
+  }
   board.addEventListener('pointerdown', e => {
-    painting = true;
+    painting = true; lastP = {x: e.clientX, y: e.clientY, id: e.pointerId};
     try { if (e.pointerType === 'mouse') board.setPointerCapture(e.pointerId); } catch(err) {}
-    handle(e, false);
+    handleCell(cellAtXY(e.clientX, e.clientY), false);
   });
-  board.addEventListener('pointermove', e => { if (painting || (hover && e.pointerType === 'mouse')) handle(e, true); });
+  board.addEventListener('pointermove', e => { if (painting || (hover && e.pointerType === 'mouse')) paintMove(e); else lastP = null; });
+  board.addEventListener('pointerleave', () => { lastP = null; });
   addEventListener('pointerup', () => { painting = false; });
   addEventListener('pointercancel', () => { painting = false; });
 
@@ -616,9 +726,9 @@ addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
     if (!pool.length) { for (let i = 0; i < pic.cells.length; i++) if (pic.cells[i] > 0 && !filled[i]) pool.push(i); }
     if (!pool.length) return;
     const i = pool[Math.random() * pool.length | 0], n = pic.cells[i];
-    if (sel !== n) { sel = n; renderPalette(); }
+    if (sel !== n) { const old = sel; sel = n; if (old) refreshSw(old); refreshSw(n); }
     hint = {i, t:0}; say('Look for the pulsing red box — it\'s a ' + n + '! 👀', 3000);
-    const x = (i % pic.w) * cs, y = Math.floor(i / pic.w) * cs;
+    const x = offX + (i % pic.w) * cs, y = offY + Math.floor(i / pic.w) * cs;
     stage.scrollTo({left: x - stage.clientWidth/2, top: y - stage.clientHeight/2, behavior:'smooth'});
   }
   $('allBtn').onclick = () => {
@@ -626,14 +736,14 @@ addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
     const q = []; for (let i = 0; i < pic.cells.length; i++) if (pic.cells[i] > 0 && !filled[i]) q.push(i);
     if (!q.length) return;
     if (!confirm('Color the whole ' + pic.name + ' for you? (You can use 🔄 to start over.)')) return;
-    autoQ = q; hint = null; say('✨ Coloring everything...'); tone(523, .15, 'triangle', .12); tone(784, .2, 'triangle', .12, .1);
+    q.reverse(); autoQ = q; hint = null; say('✨ Coloring everything...'); tone(523, .15, 'triangle', .12); tone(784, .2, 'triangle', .12, .1);
   };
   $('hoverBtn').onclick = e => { hover = !hover; e.currentTarget.classList.toggle('on', hover); say(defaultMsg()); };
   $('numBtn').onclick = e => { showNums = !showNums; e.currentTarget.classList.toggle('on', showNums); dirty = true; };
   $('muteBtn').onclick = e => { muted = !muted; e.currentTarget.textContent = muted ? '🔇' : '🔊'; };
   $('resetBtn').onclick = () => {
     if (!confirm('Start ' + pic.name + ' over from the beginning?')) return;
-    try { localStorage.removeItem('pbn-' + pic.name); } catch(e) {}
+    pending = false; try { localStorage.removeItem('pbn-' + pic.name); } catch(e) {}
     delete doneSet[pic.name]; saveDone(); loadPic(pi);
   };
   $('nextBtn').onclick = () => loadPic((pi + 1) % PICS.length);
@@ -675,10 +785,10 @@ addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
   const STEP = 1000/60;
   function update() {
     if (autoQ) {
-      const n = Math.max(6, Math.ceil(pic.cells.length / 90));
-      for (let k = 0; k < n && autoQ.length; k++) filled[autoQ.shift()] = 1;
+      const n = Math.max(12, Math.ceil(pic.cells.length / 90));
+      for (let k = 0; k < n && autoQ.length; k++) { const i = autoQ.pop(); if (!filled[i]) { filled[i] = 1; left[pic.cells[i]]--; doneCount++; } }
       dirty = true;
-      if (!autoQ.length) { autoQ = null; save(); renderPalette(); sel = 0; if (updateBar()) win(); }
+      if (!autoQ.length) { autoQ = null; save(); sel = 0; renderPalette(); if (updateBar()) win(); }
     }
     for (let i = bits.length-1; i >= 0; i--) { const p = bits[i]; p.x += p.vx; p.y += p.vy; p.vy += p.g; if (--p.life <= 0) bits.splice(i,1); }
     if (wrong) { wrong.t--; if (wrong.t <= 0) wrong = null; dirty = true; }
