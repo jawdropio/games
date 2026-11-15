@@ -55,6 +55,9 @@
   #fbTouch { position:absolute; bottom:10px; left:10px; right:10px; display:none; justify-content:space-between; z-index:3; pointer-events:none; }
   #fbTouch div { display:flex; gap:10px; pointer-events:auto; }
   #fbTouch button { width:66px; height:66px; border-radius:50%; border:2px solid #fff; background:rgba(10,31,92,.8); color:#fff; font-size:24px; }
+  .rcrow { display:flex; justify-content:space-between; align-items:center; gap:10px; background:#1b1245; border-radius:12px; padding:8px 12px; margin:6px 0; text-align:left; }
+  .rcrow .btn { margin:0; min-width:0; font-size:15px; padding:8px 12px; white-space:nowrap; }
+  .rcrow small { color:#cfc8f5; }
   #fbPauseBtn { position:fixed; top:8px; right:12px; z-index:6; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
   canvas { position:fixed; inset:0; width:100%; height:100%; }
   .overlay { overflow:auto; position:fixed; inset:0; display:none; place-items:center; text-align:center; background:rgba(18,11,46,.85); z-index:4; }
@@ -118,16 +121,17 @@
     <button class="btn" id="callFG">🥅 Field goal</button><button class="btn" id="callPunt">👢 Punt</button>
     <button class="btn" id="callMan">🛡️ Man</button><button class="btn" id="callZone">🧱 Zone</button><button class="btn" id="callBlitz">💥 Blitz</button>
     <button class="btn" id="callTO">⏱ Timeout</button>
-    <button class="btn" id="callDeepKick">🏈 Kick deep</button><button class="btn" id="callOnside">🎯 Onside kick!</button><button class="btn" id="callKickNow">🦵 KICK!</button>
+    <button class="btn" id="callDeepKick">🏈 Kick deep</button><button class="btn" id="callOnside">🎯 Onside kick!</button><button class="btn" id="callKickNow">🦵 KICK!</button><button class="btn" id="callFlag" style="background:#e6a100">🚩 THROW FLAG (Space)</button>
   </div>
   <div id="fbTouch"><div><button id="tLeft">◀</button><button id="tUp">▲</button><button id="tDown">▼</button><button id="tRight">▶</button></div><div><button id="tBoost">⚡</button><button id="tJuke">💨</button></div></div>
   <div id="fbStart" class="overlay show"><div>
     <img id="fbLogo" src="assets/screenshot-2026-11-14-at-7.21.36-pm.png" alt="Bobcats logo" style="width:200px;border-radius:16px">
     <h1>Bobcat Bowl</h1><p>You are the Bobcats! Beat the Coyotes. 🏈</p><p id="fbRec"></p>
-    <button class="btn" id="fbGo">🏈 Kickoff!</button><button class="btn" id="fbMenu1">Menu</button>
-    <p style="font-size:14px;max-width:460px">OFFENSE: call a play (Quick pass, Deep pass, Run or QB run), read the coverage tip, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Man, Zone or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch player. Tackle the ball carrier!<br>T = timeout (stops the clock). Watch out for 🚩 penalties! After you score you can try an ONSIDE kick. P pauses.</p>
+    <p id="fbCoins"></p><button class="btn" id="fbGo">🏈 Kickoff!</button><button class="btn" id="fbRefGo">🚩 Ref mode</button><button class="btn" id="fbRecBtn">🎓 Recruit players</button><button class="btn" id="fbMenu1">Menu</button>
+    <p style="font-size:14px;max-width:460px">OFFENSE: call a play (Quick pass, Deep pass, Run or QB run), read the coverage tip, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Man, Zone or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch to the player near the ball (you have to press it!). After a catch, press Space to take over the runner. Tackle the ball carrier!<br>T = timeout (stops the clock). Watch out for 🚩 penalties! After you score you can try an ONSIDE kick. P pauses.</p>
   </div></div>
-  <div id="fbOver" class="overlay"><div><h1 id="fbOverTitle"></h1><p id="fbOverText"></p><button class="btn" id="fbAgain">Play again</button><button class="btn" id="fbMenu2">Menu</button></div></div>
+  <div id="fbOver" class="overlay"><div><h1 id="fbOverTitle"></h1><p id="fbOverText"></p><button class="btn" id="fbAgain">Play again</button><button class="btn" id="fbRecBtn2">🎓 Recruit players</button><button class="btn" id="fbMenu2">Menu</button></div></div>
+  <div id="fbRecruit" class="overlay"><div style="width:min(540px,92vw)"><h1>🎓 Recruit players</h1><p id="rcCoins"></p><div id="rcList"></div><button class="btn" id="rcBack">Back</button></div></div>
   <div id="fbPause" class="overlay"><div><h1>⏸ Paused</h1><button class="btn" id="fbResume">Resume</button><button class="btn" id="fbMenu3">Menu</button></div></div>
 </div>
 <div id="pause" class="overlay">
@@ -815,6 +819,27 @@ const sfx = {
 
 let rec = { w: 0, l: 0 };
 try { rec.w = +localStorage.getItem('papaBowlW') || 0; rec.l = +localStorage.getItem('papaBowlL') || 0; } catch (e) {}
+const POS = [
+  { k: 'qb', label: '🎯 Quarterback', txt: 'Passes get caught more often' },
+  { k: 'rb', label: '🏃 Running back', txt: 'Runs faster' },
+  { k: 'wr', label: '🙌 Receivers', txt: 'Faster, with better hands' },
+  { k: 'ol', label: '🧱 Offensive line', txt: 'Blocks longer for your QB' },
+  { k: 'dl', label: '💪 Defensive line', txt: 'Rushes the QB faster' },
+  { k: 'db', label: '🛡️ Defensive backs', txt: 'Cover faster' },
+  { k: 'k', label: '🦵 Kicker', txt: 'Field goals go in more' }
+];
+const COST = [0, 0, 80, 150, 250, 400];
+const NA = ['Turbo','Blaze','Storm','Rocket','Ninja','Thunder','Comet','Sparky','Shadow','Flash'], NB = ['Whiskers','Claw','Paws','Fang','Tail','Pounce','Prowl','Stripe','Growl','Leap'];
+const newName = () => NA[Math.floor(Math.random() * NA.length)] + ' ' + NB[Math.floor(Math.random() * NB.length)];
+let roster = { lv: { qb: 3, rb: 3, wr: 3, ol: 3, dl: 3, db: 3, k: 3 }, nm: { qb: 'Captain Claw', rb: 'Zoom Paws', wr: 'Sky Pounce', ol: 'Big Fur', dl: 'Mighty Fang', db: 'Shadow Tail', k: 'Boot Kitty' } }, coins = 100;
+try {
+  const r = JSON.parse(localStorage.getItem('papaBowlRoster'));
+  if (r && r.lv && r.nm) roster = r;
+  const c = localStorage.getItem('papaBowlCoins'); if (c !== null) coins = +c || 0;
+} catch (e) {}
+POS.forEach(q => { if (!(roster.lv[q.k] >= 1 && roster.lv[q.k] <= 5)) roster.lv[q.k] = 3; if (!roster.nm[q.k]) roster.nm[q.k] = newName(); });
+const L = k => roster.lv[k];
+function saveAll() { try { localStorage.setItem('papaBowlRoster', JSON.stringify(roster)); localStorage.setItem('papaBowlCoins', coins); } catch (e) {} }
 let g = null, P = null, phase = 'idle', paused = false, timer = 0, banner = '', sub = '', camX = 0, tick = 0, kick = null, toast = '', toastT = 0;
 const mouse = { x: -99, y: -99 };
 const keys = {}, held = { up: 0, down: 0, left: 0, right: 0, boost: 0 };
@@ -830,6 +855,12 @@ function setPhase(ph) {
   $('fbStart').classList.toggle('show', ph === 'idle');
   $('fbOver').classList.toggle('show', ph === 'over');
   $('fbPauseBtn').style.display = (isOpen() && ph !== 'idle' && ph !== 'over') ? 'block' : 'none';
+  if (g && g.ref) {
+    const on = ph === 'presnap' || ph === 'play' || ph === 'result';
+    $('fbCalls').style.display = on ? 'flex' : 'none';
+    ['callQuick','callDeep','callRun','callQB','callHike','callFG','callPunt','callMan','callZone','callBlitz','callTO','callDeepKick','callOnside','callKickNow'].forEach(id => { $(id).style.display = 'none'; });
+    $('callFlag').style.display = on ? '' : 'none';
+  } else $('callFlag').style.display = 'none';
 }
 
 // ---------- setting up a play ----------
@@ -852,7 +883,7 @@ function reroute() {
 }
 function setupFormation() {
   const d = g.poss === 'me' ? 1 : -1, los = g.los, X = o => los + d * o, off = g.poss, def = off === 'me' ? 'cpu' : 'me';
-  const recs = [4, 26, 21].map((y, i) => ({ x: los, y, wp: [], i: 0, v: 6.4, n: i + 1, team: off }));
+  const recs = [4, 26, 21].map((y, i) => ({ x: los, y, wp: [], i: 0, v: off === 'me' ? 6 + .3 * L('wr') : 6.4, n: i + 1, team: off }));
   const cr = Math.random();
   P = {
     dir: d, type: 'pass', sel: 'quick', t: 0, qb: { x: X(-5), y: 15, team: off }, rb: { x: X(-5), y: 17, team: off }, recs,
@@ -874,7 +905,7 @@ function setupFormation() {
     P.cov = 'zone';
   }
 }
-function fgChance(team) { const dd = team === 'me' ? 100 - g.los + 17 : g.los + 17; return clamp(1.05 - (dd - 20) * 0.018, .08, .95); }
+function fgChance(team) { const dd = team === 'me' ? 100 - g.los + 17 : g.los + 17; return clamp(1.05 - (dd - 20) * 0.018 + (team === 'me' ? .03 + .04 * (L('k') - 3) : 0), .08, .95); }
 function presnap() {
   setupFormation(); setPhase('presnap'); banner = ''; sub = '';
   g.runLeft = g.running ? 10 : 0;
@@ -915,15 +946,19 @@ function call(kind) {
     g.to--; g.running = false; g.runLeft = 0; toast = 'TIMEOUT! ⏱️ Clock stopped'; toastT = 110; sfx.whistle(); refreshCalls();
   }
 }
-function startPlay(sel) {
+function startPlay(sel, noPen) {
   const type = (sel === 'quick' || sel === 'deep') ? 'pass' : sel, rr = Math.random();
-  if (rr < .03) return applyPenalty({ name: 'False start', off: true, yards: -5 });
-  if (rr > .03 && rr < .07) return applyPenalty({ name: 'Offsides', off: false, yards: 5 });
-  P.type = type; sfx.snap(); g.running = false; setPhase('play');
+  if (!noPen) {
+    if (rr < .03) return applyPenalty({ name: 'False start', off: true, yards: -5 });
+    if (rr > .03 && rr < .07) return applyPenalty({ name: 'Offsides', off: false, yards: 5 });
+  }
+  P.type = type; P.manual = type !== 'pass'; sfx.snap(); g.running = false; setPhase('play');
   if (type === 'run') { P.qb.x = g.los - P.dir * 3; P.qb.y = 14; P.carrier = P.rb; P.ball.mode = 'carried'; P.delay = .7; }
   else if (type === 'qbrun') { P.qb.x = g.los - P.dir * 3; P.carrier = P.qb; P.ball.mode = 'carried'; P.delay = .9; }
+  if (g.poss === 'me') P.delay += .3 * (L('ol') - 3) + .3;
+  else if (!g.ref) P.delay = Math.max(.8, P.delay - .15 * (L('dl') - 3));
   if (P.cov === 'blitz') { P.lb.forEach(l => { l.role = 'dl'; }); P.delay *= .6; }
-  if (g.poss === 'cpu') P.ctl = P.lb[0];
+  if (g.poss === 'cpu' && !g.ref) P.ctl = P.lb[0];
 }
 // ---------- penalties 🚩 ----------
 function rollPenalty(kind, x) {
@@ -966,7 +1001,12 @@ function kickNow() {
 function throwToRec(r) {
   P.target = r; P.ball.mode = 'flying'; P.ball.x = P.qb.x; P.ball.y = P.qb.y; P.flight0 = Math.max(1, dist(P.ball, r));
   sfx.throwB();
-  if (g.poss === 'cpu') switchDef(r);
+  if (g.poss === 'me') g.st.att++;
+  const f = P.foul;
+  if (g.ref && f) {
+    if (f.type === 'dpi') { f.unit = P.db.slice().sort((a, b) => dist(a, r) - dist(b, r))[0]; f.opp = r; f.t0 = P.t; f.shown = true; }
+    if (f.type === 'roughing') { f.unit = P.dl.slice().sort((a, b) => dist(a, P.qb) - dist(b, P.qb))[0]; f.t0 = P.t + .35; }
+  }
 }
 function throwTo(i) {
   if (phase !== 'play' || paused || g.poss !== 'me' || P.type !== 'pass' || P.ball.mode !== 'held' || P.carrier) return;
@@ -980,7 +1020,9 @@ function switchDef(focus, excl) {
 function space() {
   if (phase !== 'play') return;
   if (g.poss === 'me') {
-    if (!P.carrier || P.jukeCd > 0) return;
+    if (!P.carrier) return;
+    if (!P.manual) { P.manual = true; toast = 'YOU HAVE THE BALL! 🏃'; toastT = 60; return; }
+    if (P.jukeCd > 0) return;
     P.juke = .35; P.jukeCd = 1.8; sfx.juke();
   } else {
     const f = P.carrier || (P.ball.mode === 'flying' ? P.target : P.qb);
@@ -1009,11 +1051,16 @@ function aiRun(c, dt) {
   let vy = (15 - c.y) * .3;
   if (nd && nds < 5) vy = clamp((c.y - nd.y) * 2.4 + .5, -5.5, 5.5);
   if (nd && nds < 1.9 && P.jukeCd <= 0 && Math.random() < .05) { P.juke = .3; P.jukeCd = 4; }
-  const sp = (c === P.rb ? 6.1 : 5.9) * (P.juke > 0 ? 1.12 : 1);
+  const sp = (g.poss === 'me' ? (c === P.rb ? 6 + .3 * L('rb') : (c.v || 6.5)) : (c === P.rb ? 6.1 : 5.9)) * (P.juke > 0 ? 1.12 : 1);
   c.x += d * sp * dt; c.y = clamp(c.y + vy * dt, 1, 29);
 }
 function updatePlay(dt) {
   P.t += dt; g.clock = Math.max(0, g.clock - dt);
+  if (g.ref && P.foul) {
+    const f = P.foul;
+    if (f.type === 'holding' && P.t >= 1 && P.t < 3) f.shown = true;
+    if (f.type === 'roughing' && f.unit && P.t >= f.t0 && !f.hit) { f.hit = true; f.shown = true; f.unit.x = P.qb.x + P.dir * .6; f.unit.y = P.qb.y; }
+  }
   P.juke = Math.max(0, P.juke - dt); P.jukeCd = Math.max(0, P.jukeCd - dt);
   const d = P.dir, meOff = g.poss === 'me', B = P.ball;
   const kUp = keys.arrowup || keys.w || held.up, kDn = keys.arrowdown || keys.s || held.down;
@@ -1041,8 +1088,8 @@ function updatePlay(dt) {
   }
   const c = P.carrier;
   if (c) {
-    if (meOff) {
-      let sp = c === P.rb ? 6.8 : 6.5;
+    if (meOff && P.manual) {
+      let sp = c === P.rb ? 6 + .3 * L('rb') : (c.v ? c.v + .1 : 6.5 + .1 * (L('qb') - 3));
       if ((kRt || kBoost) && P.stam > 0) { sp *= 1.28; P.stam = Math.max(0, P.stam - dt * .5); } else P.stam = Math.min(1, P.stam + dt * .25);
       if (kLf) sp *= .6;
       if (P.juke > 0) sp *= 1.15;
@@ -1050,10 +1097,12 @@ function updatePlay(dt) {
     } else aiRun(c, dt);
   }
   // defenders
-  const inAir = B.mode === 'flying', mul = meOff ? 1 : 1.05;
+  const inAir = B.mode === 'flying';
+  const mm = o => meOff ? .97 : 1.05 * (o.role === 'db' ? 1 + .04 * (L('db') - 3) : o.role === 'lb' ? 1 + .02 * ((L('dl') + L('db')) / 2 - 3) : 1 + .04 * (L('dl') - 3));
   P.dl.forEach((o, i) => { if (P.t < P.delay) { P.ol[i].x = o.x - d * .9; P.ol[i].y = o.y; } });
   for (const o of P.defs) {
     if (o.stun > 0) { o.stun -= dt; continue; }
+    const mul = mm(o);
     if (!meOff && o === P.ctl) {
       let sp = 6.2;
       if (kBoost && P.stam > 0) { sp *= 1.25; P.stam = Math.max(0, P.stam - dt * .5); } else P.stam = Math.min(1, P.stam + dt * .25);
@@ -1087,7 +1136,9 @@ function updatePlay(dt) {
     for (const o of P.defs) {
       if (o.stun > 0 || dist(o, who) >= .85) continue;
       if (c && P.juke > 0) { o.stun = .7; continue; }
-      sfx.hit(); return endPlay(c ? 'tackle' : 'sack', who.x);
+      sfx.hit();
+      if (c && Math.random() < (meOff ? .02 : .035)) return endPlay('fumble', who.x);
+      return endPlay(c ? 'tackle' : 'sack', who.x);
     }
   }
   if (c && ((meOff && c.x >= 100) || (!meOff && c.x <= 0))) return endPlay('td', meOff ? 100 : 0);
@@ -1098,32 +1149,46 @@ function resolveCatch() {
   const r = P.target, meOff = g.poss === 'me';
   const dd = Math.min(...P.defs.map(o => dist(o, r)));
   let pc = dd > 3 ? .97 : dd > 1.8 ? .82 : dd > 1 ? .55 : .3;
+  if (meOff) pc += .05 + .03 * (L('qb') - 3) + .02 * (L('wr') - 3); else pc -= .03;
   if (P.flight0 > 30) pc *= .85;
   if (r.y < .8 || r.y > 29.2) pc = 0;
+  pc = clamp(pc, 0, .99);
   if (!meOff && P.ctl && dist(P.ctl, r) < 2.2 && Math.random() < .6) return endPlay('int', r.x);
-  if (Math.random() < pc) { P.carrier = r; P.ball.mode = 'carried'; P.target = null; sfx.catchB(); if (!meOff) switchDef(r); }
+  if (Math.random() < pc) { P.carrier = r; P.ball.mode = 'carried'; P.target = null; sfx.catchB();
+    if (!g.ref) {
+      if (meOff) { g.st.comp++; P.completed = true; toast = 'CAUGHT IT! Press SPACE to take control!'; toastT = 130; }
+      else { toast = 'Press SPACE to switch to a defender near the ball!'; toastT = 130; }
+    }
+  }
   else if (dd < 1.8 && Math.random() < .4) endPlay('int', r.x);
   else endPlay('inc', r.x);
 }
 const ord = n => ['', '1st', '2nd', '3rd', '4th'][n];
+function addYards(gain) {
+  if (g.poss !== 'me') return;
+  if (P.type === 'pass' && P.completed) g.st.py += gain; else if (P.type !== 'pass') g.st.ry += gain;
+}
 function endPlay(kind, x) {
+  if (g.ref) return refResult(kind, x);
   const pen = rollPenalty(kind, x);
   if (pen) return applyPenalty(pen);
   const me = g.poss === 'me', d = P.dir, other = me ? 'cpu' : 'me';
   g.pend = null; let keep = false;
   if (kind === 'td') {
-    if (me) { g.my += 7; banner = 'TOUCHDOWN! 🏈'; sub = '+7 (the extra point is good!)'; sfx.fanfare(); g.pend = { poss: 'cpu', los: 75, kickoff: true }; }
+    if (me) { g.my += 7; g.tds++; addYards(100 - g.los); banner = 'TOUCHDOWN! 🏈'; sub = '+7 (the extra point is good!)'; sfx.fanfare(); g.pend = { poss: 'cpu', los: 75, kickoff: true }; }
     else { g.cpu += 7; banner = '🐺 COYOTES TOUCHDOWN'; sub = '+7'; sfx.bad(); g.pend = { poss: 'me', los: 25 }; }
-  } else if (kind === 'int') {
-    banner = me ? 'INTERCEPTED! 😱' : '🎉 YOU PICKED IT OFF!'; sub = me ? 'The Coyotes take over' : 'Your ball!';
+  } else if (kind === 'int' || kind === 'fumble') {
+    if (!me && kind === 'int') g.st.ints++;
+    banner = kind === 'fumble' ? (me ? 'FUMBLE! 😱' : '🎉 YOU FORCED A FUMBLE!') : (me ? 'INTERCEPTED! 😱' : '🎉 YOU PICKED IT OFF!'); sub = me ? 'The Coyotes take over' : 'Your ball!';
     if (me) sfx.bad(); else sfx.fanfare();
     g.pend = { poss: other, los: clamp(Math.round(x), 1, 99) };
   } else {
     if (kind === 'inc') { banner = me ? 'INCOMPLETE' : '🛡️ INCOMPLETE!'; sub = ''; g.down++; sfx.whistle(); }
     else {
       keep = kind !== 'oob';
+      if (!me && kind === 'sack') g.st.sacks++;
       const spot = clamp(Math.round(x), 1, 99), gain = (spot - g.los) * d;
-      g.los = spot;
+      addYards(gain); g.los = spot;
       if ((spot - g.fd) * d >= 0) { g.down = 1; g.fd = ftarget(spot, g.poss); banner = me ? 'FIRST DOWN! 🎉' : 'Coyotes: first down'; sub = 'Gain of ' + gain + ' yards'; }
       else {
         g.down++;
@@ -1161,6 +1226,7 @@ function doPunt(team) {
   sfx.whistle(); setPhase('result');
 }
 function after() {
+  if (g.ref) { if (g.refPlays >= 12) return endRef(); return refPresnap(); }
   if (g.clock <= 0) return endGame();
   if (g.pend) {
     const n = g.pend; g.pend = null;
@@ -1170,17 +1236,83 @@ function after() {
   presnap();
 }
 function newGame() {
-  g = { my: 0, cpu: 0, clock: TOTAL, los: 25, down: 1, fd: 35, poss: 'me', pend: null, running: false, runLeft: 0, to: 3, half: false };
+  g = { my: 0, cpu: 0, clock: TOTAL, los: 25, down: 1, fd: 35, poss: 'me', pend: null, running: false, runLeft: 0, to: 3, half: false, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0 } };
   camX = 10; presnap();
 }
 function endGame() {
   const win = g.my > g.cpu, tie = g.my === g.cpu;
   if (!tie) { if (win) rec.w++; else rec.l++; try { localStorage.setItem('papaBowlW', rec.w); localStorage.setItem('papaBowlL', rec.l); } catch (e) {} }
+  const earn = (win ? 120 : tie ? 80 : 50) + 10 * g.tds; coins += earn; saveAll(); updCoins();
   $('fbOverTitle').textContent = tie ? "It's a tie! 🤝" : win ? 'BOBCATS WIN! 🏆' : 'Coyotes win... 😢';
-  $('fbOverText').textContent = 'Final: Bobcats ' + g.my + ' – Coyotes ' + g.cpu + '  ·  Record: ' + rec.w + '-' + rec.l;
+  $('fbOverText').textContent = 'Final: Bobcats ' + g.my + ' – Coyotes ' + g.cpu + '  ·  Pass ' + g.st.comp + '/' + g.st.att + ' for ' + g.st.py + ' yds  ·  Rush ' + g.st.ry + ' yds  ·  Sacks ' + g.st.sacks + '  ·  INTs ' + g.st.ints + '  ·  Coins earned: +' + earn + ' 🪙 (you have ' + coins + ')';
   if (win) sfx.fanfare(); else sfx.bad();
   setPhase('over');
 }
+
+// ---------- REF MODE 🚩 ----------
+const FOUL = { offsides: 'Offsides', falsestart: 'False start', holding: 'Holding', dpi: 'Pass interference', roughing: 'Roughing the passer' };
+function newRefGame() {
+  g = { ref: true, my: 0, cpu: 0, clock: 99999, los: 50, down: 1, fd: 40, poss: 'cpu', pend: null, running: false, runLeft: 0, to: 3, half: true, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0 }, refScore: 0, refPlays: 0, refCorrect: 0 };
+  camX = 40; refPresnap();
+}
+function refPresnap() {
+  g.los = 30 + Math.floor(Math.random() * 41); g.down = 1; g.fd = ftarget(g.los, 'cpu');
+  setupFormation(); P.ctl = null; P.flagged = false; P.refT = 0; P.cov = Math.random() < .5 ? 'man' : 'zone';
+  const pass = P.type === 'pass', pick = a => a[Math.floor(Math.random() * a.length)];
+  P.foul = null;
+  if (Math.random() < .5) {
+    const f = { type: pick(pass ? ['offsides', 'falsestart', 'holding', 'dpi', 'roughing'] : ['offsides', 'falsestart', 'holding']), shown: false };
+    P.foul = f;
+    if (f.type === 'offsides') { f.unit = pick(P.dl); f.unit.x = g.los - P.dir * .9; f.shown = true; }
+    else if (f.type === 'falsestart') f.unit = pick([P.ol[1], P.ol[3], P.recs[0]]);
+    else if (f.type === 'holding') { const k = Math.floor(Math.random() * 4); f.unit = P.ol[k]; f.opp = P.dl[k]; }
+  }
+  banner = ''; sub = ''; toast = ''; toastT = 0; setPhase('presnap');
+}
+function flag() {
+  if (!g || !g.ref || !P || P.flagged || paused) return;
+  if (phase !== 'presnap' && phase !== 'play' && !(phase === 'result' && timer < 70)) return;
+  P.flagged = true; toast = '🚩 FLAG THROWN!'; toastT = 80; sfx.whistle();
+}
+function refResult() { banner = ''; sub = ''; setPhase('result'); }
+function refJudge() {
+  const f = P.foul && P.foul.shown, fl = P.flagged, nm = P.foul ? FOUL[P.foul.type] : '';
+  let pts;
+  if (f && fl) { pts = 10; banner = 'GREAT CALL! 🚩'; sub = nm + ' – you spotted it! +10'; g.refCorrect++; sfx.fanfare(); }
+  else if (f) { pts = -5; banner = 'MISSED IT! 😬'; sub = 'That was ' + nm + ' (-5)'; sfx.bad(); }
+  else if (fl) { pts = -5; banner = 'NO FOUL THERE! 🙅'; sub = 'Bad flag (-5)'; sfx.bad(); }
+  else { pts = 2; banner = 'GOOD NO-CALL ✅'; sub = 'Play on! +2'; }
+  g.refScore += pts; g.refPlays++;
+}
+function endRef() {
+  const earn = 20 + Math.max(0, Math.floor(g.refScore / 2)); coins += earn; saveAll(); updCoins();
+  $('fbOverTitle').textContent = 'Ref report card 📋';
+  $('fbOverText').textContent = 'Ref score: ' + g.refScore + '  ·  Great calls: ' + g.refCorrect + '  ·  Coins earned: +' + earn + ' 🪙 (you have ' + coins + ')';
+  sfx.fanfare(); setPhase('over');
+}
+// ---------- recruiting 🎓 ----------
+function updCoins() {
+  $('fbCoins').textContent = 'Coins: ' + coins + ' 🪙';
+  $('rcCoins').textContent = 'You have ' + coins + ' 🪙. You earn coins win or lose!';
+}
+function renderRecruit() {
+  $('rcList').innerHTML = POS.map(q => {
+    const lv = L(q.k), nxt = lv < 5 ? COST[lv + 1] : 0;
+    return '<div class="rcrow"><div><b>' + q.label + '</b><br><span>' + roster.nm[q.k] + ' ' + '★'.repeat(lv) + '☆'.repeat(5 - lv) + '</span><br><small>' + q.txt + '</small></div>' +
+      (lv < 5 ? '<button class="btn" data-k="' + q.k + '"' + (coins < nxt ? ' disabled' : '') + '>Recruit ' + nxt + ' 🪙</button>' : '<b>⭐ MAX</b>') + '</div>';
+  }).join('');
+}
+function openRecruit() { updCoins(); renderRecruit(); $('fbRecruit').classList.add('show'); }
+$('rcList').onclick = e => {
+  const b = e.target.closest('[data-k]'); if (!b) return;
+  const k = b.dataset.k, lv = L(k); if (lv >= 5) return;
+  const c = COST[lv + 1]; if (coins < c) return;
+  coins -= c; roster.lv[k] = lv + 1; roster.nm[k] = newName(); saveAll(); sfx.fanfare(); updCoins(); renderRecruit();
+};
+$('rcBack').onclick = () => $('fbRecruit').classList.remove('show');
+$('fbRecBtn').onclick = $('fbRecBtn2').onclick = openRecruit;
+$('fbRefGo').onclick = newRefGame;
+$('callFlag').onclick = flag;
 
 // ---------- update (60 per second) ----------
 function update() {
@@ -1191,6 +1323,12 @@ function update() {
   if (toastT > 0) toastT--;
   if (phase === 'play') updatePlay(dt);
   else if (phase === 'presnap') {
+    if (g.ref) {
+      P.refT += dt; const f = P.foul;
+      if (f && f.type === 'falsestart' && P.refT > 1 && P.refT < 1.5) { f.unit.x += P.dir * 2.2 * dt; f.shown = true; }
+      if (P.refT >= 3.2) startPlay(P.type, true);
+      return;
+    }
     if (g.running && g.runLeft > 0) {
       g.clock = Math.max(0, g.clock - dt); g.runLeft -= dt;
       if (g.clock <= 0) return endGame();
@@ -1200,7 +1338,7 @@ function update() {
     else if (g.poss === 'cpu') { if (++P.autoT > 480) call('zone'); }
     else { P.pcT += dt; if (P.pcT >= 30) applyPenalty({ name: 'Delay of game', off: true, yards: -5 }); }
   }
-  else if (phase === 'result') { if (++timer > 110) after(); }
+  else if (phase === 'result') { if (g.ref) { ++timer; if (timer === 70) refJudge(); if (timer > 190) after(); } else if (++timer > 110) after(); }
   else if (phase === 'fgkick') { if (++timer > 100) finishKick(); }
 }
 
@@ -1302,6 +1440,7 @@ function drawPlayers() {
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(sx(P.ball.x), sy(P.ball.y), .4 * u, .15 * u, 0, 0, 7); ctx.fill();
     ballAt(sx(P.ball.x), sy(P.ball.y) - (1.2 + P.ball.z) * u, tick * .4);
   }
+  if (g.ref && P.foul && P.foul.shown) drawTell();
   if (phase === 'fgkick' && kick) {
     const t = clamp(timer / 90, 0, 1), x0 = g.los - kick.dir * 7, goal = kick.dir > 0 ? 110 : -10;
     const x = x0 + (goal - x0) * t, y = 15 + (kick.made ? 0 : kick.side * 5 * t);
@@ -1309,8 +1448,22 @@ function drawPlayers() {
     ballAt(sx(x), sy(y) - (Math.sin(Math.PI * t) * 7 + .5) * u, tick * .4);
   }
 }
+function drawTell() {
+  const f = P.foul, u = scale;
+  const link = (a, b) => { ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(sx(a.x), sy(a.y) - .5 * u); ctx.lineTo(sx(b.x), sy(b.y) - .5 * u); ctx.stroke(); };
+  if (f.type === 'holding' && phase === 'play' && P.t >= 1 && P.t < 3) link(f.unit, f.opp);
+  else if (f.type === 'dpi' && phase === 'play' && P.t - f.t0 < 1.6) link(f.unit, f.opp);
+  else if (f.type === 'roughing' && f.hit && phase === 'play' && P.t - f.t0 < 1) { link(f.unit, P.qb); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(sx(P.qb.x), sy(P.qb.y) - .5 * u, 1.2 * u, 0, 7); ctx.stroke(); }
+}
 function pill(x, y, w, h, c) { ctx.fillStyle = c; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, 12); else ctx.rect(x, y, w, h); ctx.fill(); }
 function drawHUD() {
+  if (g.ref) {
+    const w0 = Math.min(380, W - 260), x0 = (W - w0) / 2;
+    pill(x0, 8, w0, 54, 'rgba(10,31,92,.92)'); ctx.textAlign = 'center'; ctx.fillStyle = '#ffe14d'; ctx.font = 'bold 16px system-ui'; ctx.fillText('🚩 REF MODE', W / 2, 30);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 18px system-ui';
+    ctx.fillText('Play ' + Math.min(12, g.refPlays + ((phase === 'result' && timer >= 70) ? 0 : 1)) + '/12  ·  Score ' + g.refScore, W / 2, 54);
+    return;
+  }
   const w = Math.min(400, W - 260), x = (W - w) / 2, me = g.poss === 'me', d = me ? 1 : -1;
   pill(x, 8, w, 54, 'rgba(10,31,92,.92)');
   if (IMG.complete && IMG.naturalWidth) ctx.drawImage(IMG, x + 8, 12, 62, 46);
@@ -1343,6 +1496,7 @@ function drawHUD() {
 }
 function hintText() {
   const me = g.poss === 'me';
+  if (g.ref) { if (phase === 'result') return timer < 70 ? 'Was there a foul? Last chance – press SPACE to flag!' : ''; return 'You are the REF! Press SPACE (or 🚩) the moment you see a foul!'; }
   if (phase === 'kickoff') return 'KICKOFF! Kick deep, or try an ONSIDE kick to keep the ball!';
   if (phase === 'onside') return 'Press SPACE (or tap) to kick when the line is in the GREEN!';
   if (phase === 'presnap') {
@@ -1351,12 +1505,13 @@ function hintText() {
   }
   if (phase === 'play') {
     if (me && P.type === 'pass' && P.ball.mode === 'held' && !P.carrier) return 'Click a receiver (or press 1 2 3) to THROW!';
-    if (me && P.carrier) return '↑ ↓ steer · → boost · Space juke';
-    if (!me) return 'Arrows move your yellow dot · Shift boost · Space switch player · TACKLE the ball!';
+    if (me && P.carrier) return P.manual ? '↑ ↓ steer · → boost · Space juke' : 'Press SPACE to take control of the runner!';
+    if (!me) { const f = P.carrier || (P.ball.mode === 'flying' ? P.target : null); if (f && P.ctl && dist(P.ctl, f) > 4) return 'Press SPACE to switch to the player near the ball!'; return 'Arrows move your yellow dot · Shift boost · Space switch player · TACKLE the ball!'; }
   }
   return '';
 }
 function tipText() {
+  if (g.ref) return (phase === 'presnap' || phase === 'play') ? 'Look for: offsides · false start · holding · pass interference · roughing the passer' : '';
   if (phase !== 'presnap' || g.poss !== 'me') return '';
   return { man: 'Coverage: MAN – defenders shadow receivers. Deep passes can beat it!', zone: 'Coverage: ZONE – defenders guard areas. Throw to the gaps!', blitz: 'Coverage: BLITZ! – they are rushing. Throw quick or run!' }[P.cov];
 }
@@ -1404,6 +1559,7 @@ addEventListener('keydown', e => {
   if (paused) return;
   keys[k] = true;
   if (e.repeat) return;
+  if (g && g.ref) { if (k === ' ' || k === 'enter' || k === 'f') flag(); return; }
   if (phase === 'kickoff') { if (k === '1') call('deepkick'); else if (k === '2') call('onside'); }
   else if (phase === 'onside') { if (k === ' ' || k === 'enter') call('kicknow'); }
   else if (phase === 'presnap') {
@@ -1436,6 +1592,7 @@ function open() {
   $('menu').classList.remove('show'); $('fb').classList.add('show');
   paused = false; $('fbPause').classList.remove('show');
   $('fbRec').textContent = 'Your record: ' + rec.w + ' wins – ' + rec.l + ' losses';
+  updCoins();
   g = null; P = null; setPhase('idle'); camX = 10;
 }
 function close() {
@@ -1444,7 +1601,7 @@ function close() {
 }
 function togglePause() { paused = !paused; $('fbPause').classList.toggle('show', paused); }
 $('playFB').onclick = open;
-$('fbGo').onclick = newGame; $('fbAgain').onclick = newGame;
+$('fbGo').onclick = newGame; $('fbAgain').onclick = () => { if (g && g.ref) newRefGame(); else newGame(); };
 $('fbMenu1').onclick = $('fbMenu2').onclick = $('fbMenu3').onclick = close;
 $('fbPauseBtn').onclick = togglePause; $('fbResume').onclick = togglePause;
 addEventListener('blur', () => { if (isOpen() && !paused && phase !== 'idle' && phase !== 'over') togglePause(); });
