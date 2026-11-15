@@ -55,6 +55,7 @@
   <button id="hoverBtn" class="on" title="Paint just by moving the mouse — no clicking!">🖱️ Hover paint</button>
   <button id="zoomOut" title="Zoom out (−)">🔍−</button>
   <button id="zoomIn" title="Zoom in (+)">🔍+</button>
+  <button id="allBtn" title="Color the whole picture for me!">🌈 Color all</button>
   <button id="hintBtn" title="Show me a spot to paint (H)">💡 Hint</button>
   <button id="numBtn" class="on" title="Show or hide numbers">🔢</button>
   <button id="resetBtn" title="Start this picture over">🔄</button>
@@ -352,7 +353,7 @@ const aurora = () => {
 
   // ================= state =================
   let pi = 0, pic = PICS[0], filled = [], sel = 0, showNums = true, paused = false, muted = false, hover = true, zoom = 1;
-  let wrong = null, hint = null, won = false, dirty = true;
+  let wrong = null, hint = null, won = false, dirty = true, autoQ = null;
   const doneSet = {};
   try { JSON.parse(localStorage.getItem('pbn-done') || '[]').forEach(n => doneSet[n] = 1); } catch(e) {}
 
@@ -364,7 +365,7 @@ const aurora = () => {
     : 'Paint the squares that say ' + sel + '! ' + (hover ? 'Just move your mouse over them — no clicking needed. 🖌️' : 'Click or drag. 🖌️');
 
   function loadPic(i) {
-    pi = i; pic = PICS[i]; filled = new Array(pic.cells.length).fill(0); won = false; hint = null; wrong = null; zoom = 1;
+    autoQ = null; pi = i; pic = PICS[i]; filled = new Array(pic.cells.length).fill(0); won = false; hint = null; wrong = null; zoom = 1;
     try {
       const s = localStorage.getItem('pbn-' + pic.name);
       if (s && s.length === filled.length) filled = s.split('').map(Number);
@@ -481,7 +482,7 @@ const aurora = () => {
     return (x < 0 || y < 0 || x >= pic.w || y >= pic.h) ? -1 : y * pic.w + x;
   }
   function handle(e, drag) {
-    if (paused || won) return;
+    if (paused || won || autoQ) return;
     const i = cellAt(e); if (i < 0) return;
     const n = pic.cells[i]; if (n === 0 || filled[i]) return;
     if (!sel) { if (!drag) say('Pick a color first! 👇', 2000); return; }
@@ -524,6 +525,13 @@ const aurora = () => {
     const x = (i % pic.w) * cs, y = Math.floor(i / pic.w) * cs;
     stage.scrollTo({left: x - stage.clientWidth/2, top: y - stage.clientHeight/2, behavior:'smooth'});
   }
+  $('allBtn').onclick = () => {
+    if (paused || won || autoQ) return;
+    const q = []; for (let i = 0; i < pic.cells.length; i++) if (pic.cells[i] > 0 && !filled[i]) q.push(i);
+    if (!q.length) return;
+    if (!confirm('Color the whole ' + pic.name + ' for you? (You can use 🔄 to start over.)')) return;
+    autoQ = q; hint = null; say('✨ Coloring everything...'); tone(523, .15, 'triangle', .12); tone(784, .2, 'triangle', .12, .1);
+  };
   $('hoverBtn').onclick = e => { hover = !hover; e.currentTarget.classList.toggle('on', hover); say(defaultMsg()); };
   $('numBtn').onclick = e => { showNums = !showNums; e.currentTarget.classList.toggle('on', showNums); dirty = true; };
   $('muteBtn').onclick = e => { muted = !muted; e.currentTarget.textContent = muted ? '🔇' : '🔊'; };
@@ -570,6 +578,12 @@ const aurora = () => {
   }
   const STEP = 1000/60;
   function update() {
+    if (autoQ) {
+      const n = Math.max(6, Math.ceil(pic.cells.length / 90));
+      for (let k = 0; k < n && autoQ.length; k++) filled[autoQ.shift()] = 1;
+      dirty = true;
+      if (!autoQ.length) { autoQ = null; save(); renderPalette(); sel = 0; if (updateBar()) win(); }
+    }
     for (let i = bits.length-1; i >= 0; i--) { const p = bits[i]; p.x += p.vx; p.y += p.vy; p.vy += p.g; if (--p.life <= 0) bits.splice(i,1); }
     if (wrong) { wrong.t--; if (wrong.t <= 0) wrong = null; dirty = true; }
     if (hint) { hint.t++; dirty = true; if (hint.t > 300) hint = null; }
