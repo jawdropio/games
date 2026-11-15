@@ -125,7 +125,7 @@
     let dest = g;
     if (inst === "lead" || inst === "bass") {
       const lp = a.createBiquadFilter(); lp.type = "lowpass";
-      lp.frequency.value = inst === "bass" ? 600 : Math.min(f * 6, 7000);
+      lp.frequency.value = inst === "bass" ? 250 : Math.min(f * 3, 2500);
       lp.connect(g); dest = lp;
     }
     const oscs = [];
@@ -148,8 +148,8 @@
       end = t + Math.max(dur * 1.5, 0.9) + 0.05;
     } else {
       if (inst === "chip") { osc("square", f, 0.5); peak *= 0.6; }
-      else if (inst === "lead") osc("sawtooth", f, 0.7);
-      else if (inst === "bass") { osc("sawtooth", f, 0.7); osc("sine", f / 2, 0.9); }
+      else if (inst === "lead") { osc("sawtooth", f, 0.35); osc("triangle", f, 0.6); }
+      else if (inst === "bass") { osc("triangle", f, 0.8); osc("sine", f / 2, 0.9); }
       else if (inst === "flute") { osc("sine", f, 1); osc("triangle", f * 2, 0.15); }
       g.gain.cancelScheduledValues(t);
       g.gain.setValueAtTime(0.0001, t);
