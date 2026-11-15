@@ -230,7 +230,7 @@ function zap() {
   if (!best) return;
   zaps--; zapCd = 25; hud();
   beams.push({ x1: player.x, y1: player.y, x2: best.x, y2: best.y, t: 18 });
-  best.mode = 'eyes'; best.fright = false; best.dir = null; addScore(100); popup(best.x, best.y, 'ZAP!'); sfxZap();
+  best.mode = 'eyes'; best.fright = false; addScore(100); popup(best.x, best.y, 'ZAP!'); sfxZap();
 }
 function updatePlayer() {
   const p = player;
@@ -272,7 +272,7 @@ function collisions() {
     if (Math.hypot(g.x - player.x, g.y - player.y) < 0.6) {
       if (g.fright) {
         const pts = 200 * Math.pow(2, combo++);
-        g.mode = 'eyes'; g.fright = false; g.dir = null; addScore(pts); popup(g.x, g.y, String(pts)); sfxEat();
+        g.mode = 'eyes'; g.fright = false; addScore(pts); popup(g.x, g.y, String(pts)); sfxEat();
       } else { state = 'dying'; timer = 100; sfxDie(); return; }
     }
   }
@@ -512,9 +512,11 @@ function frame(now) {
   acc += Math.min(250, now - last); last = now;
   if (paused) acc = 0;
   let n = 0;
-  while (acc >= STEP && n++ < 6) { acc -= STEP; update(); }
-  render();
   requestAnimationFrame(frame);
+  try {
+    while (acc >= STEP && n++ < 6) { acc -= STEP; update(); }
+    render();
+  } catch (err) { console.error(err); }
 }
 buildGrid(); buildHomeDist(); resetActors(); hud();
 requestAnimationFrame(frame);
