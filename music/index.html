@@ -86,6 +86,11 @@
   #helpOv ol { padding-left:20px; margin:0 0 8px; }
   #helpOv li { margin-bottom:6px; }
   #helpOv .tiny { color:var(--dim); font-size:12px; }
+  .srow { display:flex; gap:4px; } .srow button:first-child { flex:1; }
+  #mixbox { display:flex; flex-wrap:wrap; gap:4px; border:1px dashed var(--bd); border-radius:6px; padding:6px; min-height:34px; }
+  #mixbox .dim { color:var(--dim); font-size:12px; }
+  .chip { padding:2px 8px; font-size:12px; border-color:var(--acc); }
+  .mixgo { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
   #songs { display:grid; grid-template-columns:1fr; gap:5px; }
   #songs button { text-align:left; padding:6px 8px; }
   #songs button.on { background:var(--acc); color:var(--bg); }
@@ -279,8 +284,12 @@
   function tc(i) { return 'var(--c'+TRACK_COLORS[i % TRACK_COLORS.length]+')'; }
   function renderTracks() {
     let h = '<div class="sub" style="margin-top:0">1. Pick a song</div><div id="songs">';
-    SONGS.forEach((s,i) => { h += '<button data-song="'+i+'" class="'+(i===curSong?'on':'')+'">'+s.name+'</button>'; });
-    h += '</div><div class="sub">2. Your parts '+(tracks.length < 8 ? '<button data-act="add" style="padding:1px 8px">＋ Add part</button>' : '')+'</div>';
+    SONGS.forEach((s,i) => { h += '<div class="srow"><button data-song="'+i+'" class="'+(i===curSong?'on':'')+'">'+s.name+'</button><button data-mixadd="'+i+'" title="Add to the mix">＋</button></div>'; });
+    h += '</div><div class="sub">🎚️ Mix spot</div><div id="mixbox">';
+    if (!mixList.length) h += '<span class="dim">Press ＋ next to songs to add them here</span>';
+    mixList.forEach((si,k) => { h += '<button class="chip" data-mixrm="'+k+'" title="Take out">'+(k+1)+'. '+SONGS[si].name.replace(/\(.*\)/,'').trim()+' ✕</button>'; });
+    h += '</div><div class="mixgo"><button data-act="mixrow">▶ One after another</button><button data-act="mixtog">🌀 All together</button><button data-act="mixclr">🗑</button></div>';
+    h += '<div class="sub"><div class="sub">2. Your parts '+(tracks.length < 8 ? '<button data-act="add" style="padding:1px 8px">＋ Add part</button>' : '')+'</div>';
     tracks.forEach((t,i) => {
       h += '<div class="trk'+(i===sel?' sel':'')+(t.mute?' muted':'')+'" data-i="'+i+'" style="--tc:'+tc(i)+'">'
         + '<span class="nm">Part '+(i+1)+' '+INST[t.inst].icon+'</span>'
@@ -295,6 +304,11 @@
   tracksPane.addEventListener('click', e => {
     const b = e.target.closest('button'), row = e.target.closest('.trk');
     if (b && b.dataset.song) { loadSong(+b.dataset.song); return; }
+    if (b && b.dataset.mixadd) { if (mixList.length < 6) mixList.push(+b.dataset.mixadd); renderTracks(); return; }
+    if (b && b.dataset.mixrm) { mixList.splice(+b.dataset.mixrm, 1); renderTracks(); return; }
+    if (b && b.dataset.act === 'mixrow') { mixInRow(); return; }
+    if (b && b.dataset.act === 'mixtog') { mixTogether(); return; }
+    if (b && b.dataset.act === 'mixclr') { mixList = []; renderTracks(); return; }
     if (b && b.dataset.inst) { tracks[sel].inst = b.dataset.inst; renderTracks(); preview('C4'); return; }
     if (b && b.dataset.act === 'add') { tracks.push(mkTrack('synth')); sel = tracks.length-1; renderTracks(); renderRoll(); return; }
     if (!row) return;
@@ -400,7 +414,7 @@
   const stepDur = () => 60 / bpm / 4;
   const playBtn = document.getElementById('playBtn'), recBtn = document.getElementById('recBtn');
   function startT() { if (!audio()) return; playing = true; step = 0; nextT = ctx.currentTime + 0.08; queue = []; playBtn.textContent = '⏹ Stop'; playBtn.classList.add('on'); }
-  function stopT() { playing = false; curStep = -1; queue = []; ph.style.display = 'none'; playBtn.textContent = '▶ Play'; playBtn.classList.remove('on'); setRec(false); }
+  function stopT() { medley = null; playing = false; curStep = -1; queue = []; ph.style.display = 'none'; playBtn.textContent = '▶ Play'; playBtn.classList.remove('on'); setRec(false); }
   function setRec(v) { recording = v; recBtn.classList.toggle('on', v); if (!v) msg.textContent = 'Click the grid to place notes (drag sideways to make them longer). Play keys with Z X Q W E… or click them. Space = play/stop.'; else msg.textContent = '🔴 Recording into Part '+(sel+1)+': play keys in time with the beat!'; }
   function scheduleStep(s, t) {
     tracks.forEach(tr => { if (tr.mute) return;
@@ -494,8 +508,8 @@
     }}
   ];
   let curSong = -1;
-  function loadSong(i) {
-    audio(); stopT();
+  let medley = null, medleyPos = 0, mixList = [];
+  function applySong(i) {
     const d = SONGS[i].make(); curSong = i;
     tracks = d.tracks.map(t => ({ inst:t.inst, notes:t.notes, mute:false, name:'' }));
     while (tracks.length < 4) tracks.push(mkTrack(['egtr','bass','piano','synth'][tracks.length]));
@@ -504,8 +518,33 @@
     let end = 16; tracks.forEach(t => t.notes.forEach(n => { end = Math.max(end, n.s + n.l); }));
     sel = 0; setBpm(d.bpm); setBars(Math.min(10, Math.ceil(end/16)));
     renderTracks(); renderRoll();
+  }
+  function loadSong(i) {
+    audio(); stopT(); medley = null; applySong(i);
     msg.textContent = 'Loaded ' + SONGS[i].name + '. Click the grid to change it!';
     startT();
+  }
+  // Mix spot: play songs one after another...
+  function mixInRow() {
+    if (!mixList.length) { msg.textContent = 'Add some songs to the mix first (press ＋ next to a song)!'; return; }
+    audio(); stopT(); medley = mixList.slice(); medleyPos = 0; applySong(medley[0]);
+    msg.textContent = '🎚️ Mix playing: ' + SONGS[medley[0]].name; startT();
+  }
+  function nextInMedley() {
+    medleyPos = (medleyPos + 1) % medley.length; applySong(medley[medleyPos]);
+    msg.textContent = '🎚️ Mix playing: ' + SONGS[medley[medleyPos]].name;
+  }
+  // ...or all at the same time (a mash-up!)
+  function mixTogether() {
+    if (mixList.length < 2) { msg.textContent = 'Add at least 2 songs to mash them together!'; return; }
+    audio(); stopT(); medley = null;
+    let all = [], end = 16;
+    mixList.forEach(i => SONGS[i].make().tracks.forEach(t => all.push({ inst:t.inst, notes:t.notes, mute:false, name:'' })));
+    tracks = all.slice(0, 8);
+    tracks.forEach(t => t.notes.forEach(n => { end = Math.max(end, n.s + n.l); }));
+    sel = 0; curSong = -1; setBpm(SONGS[mixList[0]].make().bpm); setBars(Math.min(10, Math.ceil(end/16)));
+    renderTracks(); renderRoll();
+    msg.textContent = '🌀 Mash-up! Mute parts (🔊) to pick your favorite mix.'; startT();
   }
   document.getElementById('helpBtn').onclick = () => helpOv.classList.add('show');
   const helpOv = document.getElementById('helpOv');
@@ -564,7 +603,8 @@
     if (playing && ctx) {
       while (nextT < ctx.currentTime + 0.15) {
         scheduleStep(step, nextT); queue.push({s:step, t:nextT});
-        nextT += stepDur(); step = (step+1) % steps;
+        nextT += stepDur(); step++;
+        if (step >= steps) { step = 0; if (medley) nextInMedley(); }
       }
     }
   }
