@@ -112,6 +112,7 @@
     <button id="recBtn" class="rec">● Rec</button>
     <span class="grp">BPM <button id="bpmDn">−</button><b id="bpmVal">120</b><button id="bpmUp">+</button></span>
     <span class="grp">Bars <button id="barDn">−</button><b id="barVal">2</b><button id="barUp">+</button></span>
+    <span class="grp">Key <button id="keyDn">♭</button><b id="keyVal">-1</b><button id="keyUp">♯</button></span>
     <button id="helpBtn">❓ How to</button>
     <button id="themeBtn">🎨 Theme</button>
     <button id="pauseBtn">⏸ Pause</button>
@@ -410,6 +411,11 @@
   function releaseAll() { Object.keys(live).forEach(release); }
 
   // ================= transport (audio-clock scheduler) =================
+  let transpose = -1; // half-steps; -1 = down a half step
+  const keyVal = document.getElementById('keyVal');
+  const setKey = v => { transpose = Math.max(-12, Math.min(12, v)); keyVal.textContent = (transpose > 0 ? '+' : '') + transpose; };
+  document.getElementById('keyDn').onclick = () => setKey(transpose - 1);
+  document.getElementById('keyUp').onclick = () => setKey(transpose + 1);
   let playing = false, step = 0, nextT = 0, queue = [], curStep = -1, curT = 0;
   const stepDur = () => 60 / bpm / 4;
   const playBtn = document.getElementById('playBtn'), recBtn = document.getElementById('recBtn');
@@ -419,7 +425,7 @@
   function scheduleStep(s, t) {
     tracks.forEach(tr => { if (tr.mute) return;
       tr.notes.forEach(nt => { if (nt.s !== s) return;
-        const v = voice(tr.inst, freqs[nt.n], t); v.release(t + nt.l * stepDur() * 0.96);
+        const v = voice(tr.inst, freqs[nt.n] * Math.pow(2, transpose/12), t); v.release(t + nt.l * stepDur() * 0.96);
       });
     });
   }
