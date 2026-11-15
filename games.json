@@ -46,5 +46,11 @@
     "title": "Paint by Number",
     "emoji": "🎨",
     "description": "100 realistic paint-by-number pictures with tiny pixels: planets, flowers, balloons, northern lights and more! 🌈"
+  },
+  {
+    "slug": "bobcats",
+    "title": "BOBCATS",
+    "emoji": "🎮",
+    "description": "Brand new and under construction!"
   }
 ]
