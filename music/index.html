@@ -31,7 +31,7 @@
   .pic canvas { border-radius:6px; background:#fff; }
   .pic .star { position:absolute; right:-4px; top:-6px; font-size:14px; line-height:1; }
   #stage { min-height:0; overflow:auto; display:flex; border-radius:10px; background:rgba(255,255,255,.04); }
-  #board { margin:auto; display:block; flex:none; cursor:pointer; }
+  #board { margin:auto; display:block; flex:none; cursor:pointer; border-radius:8px; box-shadow:0 10px 36px rgba(0,0,0,.5), 0 0 0 4px rgba(255,255,255,.08); }
   #msg { text-align:center; min-height:22px; font-weight:700; color:#ffd23f; }
   #bottom { display:flex; flex-direction:column; gap:8px; align-items:center; }
   #palette { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
@@ -119,6 +119,9 @@ const hueShift = (hex, deg) => {
 };
 const shiftPal = (pal, deg) => Object.fromEntries(Object.entries(pal).map(([k, v]) => [k, hueShift(v, deg)]));
 
+// ordered dithering: blends neighbouring shades so gradients look smooth
+const BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+const dz = (x, y) => (BAYER[y & 3][x & 3] + .5) / 16 - .5;
 // ---------- the pictures (each takes options so we can make many versions) ----------
 const butterfly = () => make(40, 32, (x, y) => {
   const u = Math.abs(x + .5 - 20), v = y + .5;
@@ -150,30 +153,37 @@ const butterfly = () => make(40, 32, (x, y) => {
 const BUTTERFLY_PAL = {1:'#3d1a5b',2:'#ff8c1a',3:'#ffd23f',4:'#ffffff',5:'#5a3418',6:'#ff5fa2',7:'#ffc2dd',8:'#52b788',9:'#2d6a4f',10:'#a8671f'};
 
 const sunset = (o = {}) => {
-  const w = 48, h = 32, sx = o.sunx ?? 24, sr = o.sunr ?? 6, ph = o.phase ?? 0;
-  const far = x => 17 + 3.2*Math.sin(x*.28 + ph) + 2.2*Math.sin(x*.11 + 1.3 + ph) + 1.4*Math.sin(x*.55);
-  const near = x => 21.5 + 2.4*Math.sin(x*.21 + 2 + ph) + 1.5*Math.sin(x*.47) - Math.max(0, 6 - Math.abs(x - sx)) * .3;
-  const tree = (cx, top, ht, hw, px, py) => py >= top && py <= top + ht && Math.abs(px - cx) <= ((py - top) / ht) * hw + .3;
+  const w = 48, h = 32, sx = o.sunx ?? 24, sr = o.sunr ?? 6, ph = o.phase ?? 0, B = palBuilder();
+  const sky = ramp(['#2b1055','#6a3093','#c06c84','#f67280','#ffb36b','#ffe08a'], 8).map(B.add);
+  const sun = ['#fffbe0','#fff1a8','#ffd166'].map(B.add);
+  const far = ['#8a58b0','#6a3d95'].map(B.add), nearM = ['#4a3580','#2f2260'].map(B.add), tree = B.add('#14213d');
+  const water = ramp(['#f08a5d','#c0556f','#6a3d7a','#3d2a63'], 4).map(B.add), refl = ['#fff1a8','#ffd166'].map(B.add), cloud = ['#f9a8a0','#c76a8f'].map(B.add);
+  const farF = x => 17 + 3.2*Math.sin(x*.28 + ph) + 2.2*Math.sin(x*.11 + 1.3 + ph) + 1.4*Math.sin(x*.55);
+  const nearF = x => 21.5 + 2.4*Math.sin(x*.21 + 2 + ph) + 1.5*Math.sin(x*.47) - Math.max(0, 6 - Math.abs(x - sx)) * .3;
+  const tr = (cx, top, ht, hw, px, py) => py >= top && py <= top + ht && Math.abs(px - cx) <= ((py - top) / ht) * hw + .3;
   const trees = [[4.5,20,11,3.6],[9,23,8,2.7],[1.5,23,8,2.4],[43.5,19,12,3.8],[39,23,8,2.8],[46.5,22,9,2.6]];
-  return make(w, h, (x, y) => {
+  const rows = make(w, h, (x, y) => {
     const px = x + .5, py = y + .5;
-    for (const [cx, top, ht, hw] of trees) if (tree(cx, top, ht, hw, px, py)) return 'a';
-    if (py > 28 && ((px < 7 && py < 31.6) || (px > 41 && py < 31.6))) return 'a';
+    for (const [cx, top, ht, hw] of trees) if (tr(cx, top, ht, hw, px, py)) return tree;
+    if (py > 28 && ((px < 7 && py < 31.6) || (px > 41 && py < 31.6))) return tree;
     if (py >= 24) {
-      if (Math.abs(px - sx) < sr - .8 - (py - 24) * .35 && Math.floor(py) % 2 === 0) return '7';
-      return py < 27 ? 'b' : (Math.floor(py) % 3 === 0 ? 'b' : 'c');
+      const dd = py - 24;
+      if (Math.abs(px - sx) < sr - .8 - dd * .3 && Math.floor(py) % 2 === 0) return refl[Math.abs(px - sx) < (sr - .8) / 2 ? 0 : 1];
+      return water[clamp(Math.floor(dd / 8 * 4 + dz(x, y) * 1.1), 0, 3)];
     }
-    if (py >= near(px)) return '9';
-    if (py >= far(px)) return '8';
-    if (Math.hypot(px - sx, py - 17) <= sr) return '7';
-    if (ed(px, py, 10, 10.5, 6, 1.1) <= 1) return '4';
-    if (ed(px, py, 38, 7.5, 5, 1) <= 1) return '3';
-    if (py < 10 && hsh(x, y) === 5) return '7';
-    const yy = y + Math.round(Math.sin(x * .35) * .9);
-    return yy < 4 ? '1' : yy < 8 ? '2' : yy < 12 ? '3' : yy < 15 ? '4' : yy < 18 ? '5' : '6';
+    const nf = nearF(px);
+    if (py >= nf) return nearM[py < nf + 2.2 + dz(x, y) ? 0 : 1];
+    const ff = farF(px);
+    if (py >= ff) return far[py < ff + 2.6 + dz(x, y) ? 0 : 1];
+    const sd = Math.hypot(px - sx, py - 17);
+    if (sd <= sr) return sun[clamp(Math.floor(sd / sr * 3 + dz(x, y) * .8), 0, 2)];
+    if (ed(px, py, 10, 10.5, 6, 1.1) <= 1) return cloud[0];
+    if (ed(px, py, 38, 7.5, 5, 1) <= 1) return cloud[1];
+    const yy = y + Math.sin(x * .35) * .9;
+    return sky[clamp(Math.floor(yy / 24 * 8 + dz(x, y)), 0, 7)];
   });
+  return { rows, pal: B.pal(), bg: '#2b1055', keep: [16] };
 };
-const SUNSET_PAL = {1:'#2b1055',2:'#6a3093',3:'#c06c84',4:'#f67280',5:'#ffb36b',6:'#ffe08a',7:'#fff7c9',8:'#7b4a9e',9:'#3b2a6b',10:'#14213d',11:'#f08a5d',12:'#6a3d7a'};
 
 const owl = () => make(36, 36, (x, y) => {
   const px = x + .5, v = y + .5, u = Math.abs(px - 18);
@@ -221,7 +231,7 @@ const MANDALA_PAL = {1:'#2b1d6b',2:'#e63946',3:'#ff9f1c',4:'#ffd23f',5:'#52b788'
 
 const planet = (o = {}) => {
   const w = 44, h = 34, cx = 21, cy = 17.5, R = o.R ?? 10.5, tilt = o.tilt ?? -.38, ringOn = o.ring !== false, wave = o.wave ?? 1.1, B = palBuilder();
-  const bands = [ramp(['#5a3b1f','#f6dfb0'], 4), ramp(['#4a1712','#f59a5d'], 4), ramp(['#2e1d3d','#caa0e0'], 4)].map(r => r.map(B.add));
+  const bands = [ramp(['#4a2f18','#a8794a','#f6dfb0'], 5), ramp(['#3a0f0c','#b44a2a','#ffb27a'], 5), ramp(['#24163a','#7a4f9a','#e2b8f5'], 5)].map(r => r.map(B.add));
   const rings = ['#c9b79c','#9c8a72','#e6d5b8','#a89478'].map(B.add), star = B.add('#cfd8ff');
   const L = [-.5, -.6, .62], ln = Math.hypot(...L); L.forEach((v, i) => L[i] = v / ln);
   const ca = Math.cos(tilt), sa = Math.sin(tilt);
@@ -234,21 +244,21 @@ const planet = (o = {}) => {
     if (ring && front) return ring;
     if (d <= 1) {
       const nx = px / R, ny = py / R, nz = Math.sqrt(Math.max(0, 1 - nx*nx - ny*ny)), lam = nx*L[0] + ny*L[1] + nz*L[2];
-      const l = clamp(Math.floor(lam * 4.2), 0, 3), b = (((Math.floor(ny * 3.4 + wave * Math.sin(nx * 3.2 + ny * 2.0) + 9)) % 3) + 3) % 3;
+      const l = clamp(Math.floor(lam * 5.4 + dz(x, y) * 1.1), 0, 4), b = (((Math.floor(ny * 3.4 + wave * Math.sin(nx * 3.2 + ny * 2.0) + 9)) % 3) + 3) % 3;
       return bands[b][l];
     }
     if (ring) return ring;
     if (hsh(x, y) % 53 === 0) return star;
     return '.';
   });
-  return { rows, pal: B.pal(), bg: '#0b0d2a' };
+  return { rows, pal: B.pal(), bg: '#0b0d2a', keep: [20] };
 };
 
 const hibiscus = (o = {}) => {
   const w = 40, h = 40, cx = 20, cy = 18, n = o.n || 5, len = o.len || 17, B = palBuilder();
-  const bg = ['#fff0e6','#ffe3d3','#ffd3bf'].map(B.add);
-  const pet = ramp(['#4a0a22','#c9184a','#ff4d6d','#ff8fa3','#ffd0dc'], 9).map(B.add);
-  const leaf = ['#1b4332','#2d6a4f','#52b788'].map(B.add);
+  const bg = ramp(['#fff6ee','#ffe0cf','#ffc9b3'], 4).map(B.add);
+  const pet = ramp(['#3d0820','#a3123f','#e0245a','#ff5d85','#ff9fb5','#ffd6e0'], 11).map(B.add);
+  const leaf = ramp(['#143626','#2d6a4f','#5fc28f'], 4).map(B.add);
   const stem = B.add('#ffd166'), pollen = B.add('#ff9f1c'), pist = B.add('#c1121f');
   const ang = o.ang ?? -0.9, ex = Math.cos(ang), ey = Math.sin(ang), tip = [cx + ex * 13.5, cy + ey * 13.5];
   const rows = make(w, h, (x, y) => {
@@ -260,32 +270,35 @@ const hibiscus = (o = {}) => {
     const th = Math.atan2(dy, dx) + Math.PI / 2, u = th / (2 * Math.PI) * n, phi = u - Math.floor(u), s = Math.abs(phi - .5) * 2;
     let Rp = len * (1 - .38 * Math.pow(s, 2.4)); if (s > .93) Rp *= .72;
     if (r <= Rp) {
-      let t = r / Rp; if (s < .06) t *= .78; if (Math.abs(s - .45) < .05) t *= .88;
-      return pet[clamp(Math.floor(t * 9), 0, 8)];
+      let t = r / Rp; if (s < .06) t *= .8; if (Math.abs(s - .45) < .05) t *= .9;
+      return pet[clamp(Math.floor(t * 11 + dz(x, y) * 1.2), 0, 10)];
     }
     for (const [lx, ly, a] of [[7, 35, .55], [33, 35, -.55]]) {
       const [p, q] = rot(px, py, lx, ly, a);
-      if (Math.hypot(p / 8.5, q / 3.2) <= 1) return Math.abs(q) < .5 ? leaf[0] : (q < 0 ? leaf[2] : leaf[1]);
+      if (Math.hypot(p / 8.5, q / 3.2) <= 1) return Math.abs(q) < .5 ? leaf[0] : leaf[clamp(Math.floor(1.5 - q * .9 + dz(x, y)), 1, 3)];
     }
-    const yy = y + Math.round(Math.sin(x * .3) * .8);
-    return yy < 12 ? bg[0] : yy < 26 ? bg[1] : bg[2];
+    const yy = y + Math.sin(x * .3) * .8;
+    return bg[clamp(Math.floor(yy / 40 * 4 + dz(x, y) * .9), 0, 3)];
   });
-  return { rows, pal: B.pal(), bg: '#fff0e6' };
+  // keep the background, leaves and stamen colors natural when we change the petals
+  return { rows, pal: B.pal(), bg: '#fff6ee', keep: [1,2,3,4].concat([16,17,18,19,20,21,22]) };
 };
 
+const SKIES = [['#1d3a8a','#6ea8f0','#ffd9b0','#ffb8a0'],['#2b1055','#c06c84','#ffb36b','#ffe08a'],['#0b3d91','#4ea8de','#bde0fe','#fff1e6'],['#3a0ca3','#b5179e','#f72585','#ffd6a5'],
+  ['#03045e','#0077b6','#90e0ef','#caf0f8'],['#10002b','#3c096c','#9d4edd','#ffb3c6'],['#134e4a','#2a9d8f','#e9c46a','#f4a261'],['#1b263b','#415a77','#a9bcd0','#ffe5d9']];
 const balloon = (o = {}) => {
   const w = 40, h = 44, G = o.G || 6, hc = o.hc || 3, W = o.W || 11, B = palBuilder();
-  const sky = ramp(['#1d3a8a','#6ea8f0','#ffd9b0','#ffb8a0'], 6).map(B.add);
+  const sky = ramp(SKIES[(o.sky || 0) % SKIES.length], 8).map(B.add);
   const cloud = ['#ffffff','#ffd9e0'].map(B.add);
-  const hues = [ramp(['#7a0f1c','#e63946','#ff8a8a'], 3), ramp(['#a86a00','#ffc300','#fff0a0'], 3), ramp(['#0b5563','#2ec4b6','#b8fff2'], 3)].map(r => r.map(B.add));
+  const hues = [ramp(['#7a0f1c','#e63946','#ff8a8a'], 4), ramp(['#a86a00','#ffc300','#fff0a0'], 4), ramp(['#0b5563','#2ec4b6','#b8fff2'], 4)].map(r => r.map(B.add));
   const basket = ['#5b3a1e','#8b5a2b','#c08a4d'].map(B.add), rope = B.add('#3a2a1a');
   const hw = v => v < 2 ? 0 : v <= 17 ? W * Math.sqrt(Math.max(0, 1 - Math.pow((17 - v) / 15, 2))) : v <= 30 ? 3.5 + (W - 3.5) * Math.pow(1 - (v - 17) / 13, .9) : 0;
   const rows = make(w, h, (x, y) => {
     const px = x + .5, v = y + .5, u = px - 20, half = hw(v);
     if (half > 0 && Math.abs(u) <= half) {
       const q = u / half, gore = Math.min(G - 1, Math.floor((q + 1) / 2 * G)), nz = Math.sqrt(Math.max(0, 1 - q * q));
-      const lam = -.55 * q + .8 * nz, l = lam > .78 ? 2 : lam > .42 ? 1 : 0;
-      return hues[gore % hc][l];
+      const lam = -.55 * q + .8 * nz + (v - 17) * -.004;
+      return hues[gore % hc][clamp(Math.floor((lam - .1) * 5 + dz(x, y) * 1.1), 0, 3)];
     }
     if (v > 30 && v <= 34.4 && Math.abs(Math.abs(u) - 3.1) < .55) return rope;
     if (v > 34.4 && v <= 39 && Math.abs(u) <= 3.8) {
@@ -294,16 +307,17 @@ const balloon = (o = {}) => {
     }
     if (ed(px, v, 8, 36, 6, 1.7) <= 1 || ed(px, v, 11, 35, 4, 1.3) <= 1) return ed(px, v, 8, 36, 6, 1.7) < .55 ? cloud[0] : cloud[1];
     if (ed(px, v, 33, 12, 5.5, 1.5) <= 1 || ed(px, v, 31, 11, 3.5, 1.2) <= 1) return ed(px, v, 33, 12, 5.5, 1.5) < .6 ? cloud[0] : cloud[1];
-    const yy = y + Math.round(Math.sin(x * .3) * .9);
-    return sky[clamp(Math.floor(yy / 44 * 6), 0, 5)];
+    const yy = y + Math.sin(x * .3) * .9;
+    return sky[clamp(Math.floor(yy / 44 * 8 + dz(x, y)), 0, 7)];
   });
-  return { rows, pal: B.pal(), bg: '#1d3a8a' };
+  // only the balloon colors change with the color shift; sky, clouds and basket stay natural
+  return { rows, pal: B.pal(), bg: '#1d3a8a', keep: [1,2,3,4,5,6,7,8,9,10].concat([23,24,25,26]) };
 };
 
 const aurora = (o = {}) => {
   const w = 48, h = 38, hz = 25, pk = o.peak ?? 30, pH = o.peakH ?? 8, fq = o.freq ?? .17, B = palBuilder();
-  const sky = ['#050a24','#0a1a3f','#0f3a55'].map(B.add);
-  const green = ramp(['#1f6f4a','#4be3a0','#d6ffe9'], 4).map(B.add), purple = ['#5a2a8f','#9b5de5'].map(B.add);
+  const sky = ramp(['#030618','#0a1a3f','#0f3a55'], 6).map(B.add);
+  const green = ramp(['#1f6f4a','#4be3a0','#d6ffe9'], 5).map(B.add), purple = ramp(['#4a2a8f','#9b5de5','#d9b8ff'], 3).map(B.add);
   const farM = B.add('#17314a'), nearM = B.add('#0b1626'), snow1 = B.add('#dfe9f5'), snow2 = B.add('#8fa8c4'), star = B.add('#ffffff');
   const far = x => 21 + 2.2 * Math.sin(x * .2 + 1) + 1.4 * Math.sin(x * .43) - pH * Math.exp(-Math.pow((x - pk) / 6, 2));
   const near = x => 23.4 + 1.8 * Math.sin(x * .31 + 2) + 1.1 * Math.sin(x * .7);
@@ -313,20 +327,21 @@ const aurora = (o = {}) => {
     const f = far(px);
     if (py >= f) return (f < 17 && py < f + 3 + (px > pk ? (px - pk) * .25 : 0)) ? (px < pk ? snow1 : snow2) : farM;
     const yc = 11 + 4 * Math.sin(x * fq) + 2 * Math.sin(x * .4 + 1), dy = py - yc, wd = dy > 0 ? 2.4 : 4.5;
-    const I = Math.exp(-Math.pow(dy / wd, 2)) * (.7 + .3 * Math.sin(x * 1.1 + Math.sin(x * .3) * 2));
-    if (I > .75) return green[3]; if (I > .55) return green[2]; if (I > .35) return green[1]; if (I > .2) return green[0];
-    const Ip = Math.exp(-Math.pow((py - (yc - 5)) / 3, 2)) * .85;
-    if (Ip > .45) return purple[1]; if (Ip > .25) return purple[0];
+    const I = Math.exp(-Math.pow(dy / wd, 2)) * (.7 + .3 * Math.sin(x * 1.1 + Math.sin(x * .3) * 2)) + dz(x, y) * .07;
+    if (I > .78) return green[4]; if (I > .62) return green[3]; if (I > .48) return green[2]; if (I > .33) return green[1]; if (I > .2) return green[0];
+    const Ip = Math.exp(-Math.pow((py - (yc - 5)) / 3, 2)) * .9 + dz(x, y) * .07;
+    if (Ip > .6) return purple[2]; if (Ip > .4) return purple[1]; if (Ip > .22) return purple[0];
     if (hsh(x, y) % 61 === 0 && y < 20) return star;
-    return y < 8 ? sky[0] : y < 16 ? sky[1] : sky[2];
+    return sky[clamp(Math.floor(y / hz * 6 + dz(x, y)), 0, 5)];
   };
   const rows = make(w, h, (x, y) => {
     if (y < hz) return scene(x, y);
     const yy = 2 * hz - 1 - y, xs = clamp(x + Math.round(Math.sin(y * 1.9) * 1.2), 0, w - 1);
-    if (y % 4 === 0 && hsh(x, y) % 5 < 2) return sky[2];
+    if (y % 4 === 0 && hsh(x, y) % 5 < 2) return sky[5];
     return scene(xs, yy);
   });
-  return { rows, pal: B.pal(), bg: '#050a24' };
+  // only the northern-light colors change; sky, mountains and snow stay natural
+  return { rows, pal: B.pal(), bg: '#030618', keep: [1,2,3,4,5,6].concat([15,16,17,18,19,20]) };
 };
 
 // easy pictures
@@ -353,15 +368,20 @@ const EASY = {
 // ---------- the list of 100 ----------
 const HN = [[0,''],[15,'Tangerine'],[30,'Sunny'],[45,'Lemon'],[60,'Lime'],[75,'Apple'],[90,'Mint'],[105,'Leaf'],[120,'Forest'],[135,'Jade'],[150,'Aqua'],[165,'Teal'],[180,'Ocean'],[195,'Lagoon'],[210,'Sky'],[225,'Cobalt'],[240,'Grape'],[255,'Indigo'],[270,'Violet'],[285,'Orchid'],[300,'Candy'],[315,'Berry'],[330,'Rose'],[345,'Cherry'],[360,'']];
 const hname = d => { d = ((d % 360) + 360) % 360; let best = HN[0]; HN.forEach(e => { if (Math.abs(e[0] - d) < Math.abs(best[0] - d)) best = e; }); return best[1]; };
-const withHue = (g, deg) => () => { const r = g(); return deg ? { rows: r.rows, pal: shiftPal(r.pal, deg), bg: hueShift(r.bg || '#000000', deg) } : r; };
+const withHue = (g, deg, keepAlways) => () => {
+  const r = g(); if (!deg) return r;
+  const keep = r.keep || keepAlways || [], pal = {};
+  Object.entries(r.pal).forEach(([k, v]) => { pal[k] = keep.includes(+k) ? v : hueShift(v, deg); });
+  return { rows: r.rows, pal, bg: r.noBgShift ? r.bg : hueShift(r.bg || '#000000', deg) };
+};
 const fixed = (rowsFn, pal, bg) => () => ({ rows: rowsFn(), pal, bg });
 const PIC_LIST = [];
-const addFamily = (family, base, level, specs, build) => {
+const addFamily = (family, base, level, specs, build, keep) => {
   const used = {};
   specs.forEach((sp, i) => {
     let nm = i === 0 ? base : base + ' ' + (hname(sp.h || 0) || ('#' + (i + 1)));
     if (used[nm]) nm += ' ' + (i + 1); used[nm] = 1;
-    PIC_LIST.push({ name: nm, family, level, gen: withHue(() => build(sp), sp.h || 0) });
+    PIC_LIST.push({ name: nm, family, level, gen: withHue(() => build(sp), sp.h || 0, keep) });
   });
 };
 addFamily('Planets', 'Planet', '⭐⭐⭐⭐', [
@@ -370,19 +390,19 @@ addFamily('Planets', 'Planet', '⭐⭐⭐⭐', [
 addFamily('Flowers', 'Hibiscus', '⭐⭐⭐⭐', [
   {n:5,h:0},{n:5,h:35},{n:6,h:75},{n:6,h:140},{n:7,h:190},{n:7,h:230},{n:8,h:260},{n:8,h:290},{n:5,h:320,len:16},{n:6,h:20,len:16.5},{n:7,h:105,len:16}], hibiscus);
 addFamily('Balloons', 'Balloon', '⭐⭐⭐⭐', [
-  {G:6,hc:3,h:0},{G:6,hc:3,h:60},{G:4,hc:2,h:120},{G:8,hc:3,h:180},{G:5,hc:3,h:240},{G:6,hc:2,h:300},
-  {G:7,hc:3,h:30},{G:4,hc:3,h:90},{G:8,hc:2,h:150},{G:5,hc:2,h:210},{G:6,hc:3,h:270}], balloon);
+  {G:6,hc:3,h:0,sky:0},{G:6,hc:3,h:60,sky:1},{G:4,hc:2,h:120,sky:2},{G:8,hc:3,h:180,sky:3},{G:5,hc:3,h:240,sky:4},{G:6,hc:2,h:300,sky:5},
+  {G:7,hc:3,h:30,sky:6},{G:4,hc:3,h:90,sky:7},{G:8,hc:2,h:150,sky:1},{G:5,hc:2,h:210,sky:2},{G:6,hc:3,h:270,sky:3}], balloon);
 addFamily('Northern Lights', 'Aurora', '⭐⭐⭐⭐', [
   {peak:30,h:0},{peak:18,h:60},{peak:36,h:100},{peak:24,h:180},{peak:14,h:220},{peak:32,h:260,freq:.12},
   {peak:20,h:300,freq:.22},{peak:28,h:340,peakH:10},{peak:12,h:40},{peak:38,h:80,freq:.2},{peak:22,h:140,freq:.14,peakH:6}], aurora);
 addFamily('Butterflies', 'Butterfly', '⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}],
-  () => ({ rows: butterfly(), pal: BUTTERFLY_PAL, bg: '#dff6ff' }));
+  () => ({ rows: butterfly(), pal: BUTTERFLY_PAL, bg: '#dff6ff' }), [4,5,8,9,10]);
 addFamily('Sunsets', 'Sunset', '⭐⭐⭐', [
   {h:0},{sunx:14,sunr:5,phase:1,h:40},{sunx:34,sunr:7,phase:2,h:100},{sunx:20,sunr:4,phase:3,h:160},{sunx:28,sunr:8,phase:4,h:200},{sunx:16,sunr:6,phase:5,h:240},
   {sunx:32,sunr:5,phase:6,h:280},{sunx:24,sunr:7,phase:.5,h:320},{sunx:12,sunr:6,phase:1.5,h:20},{sunx:36,sunr:5,phase:2.5,h:70},{sunx:22,sunr:8,phase:3.5,h:130}],
-  sp => ({ rows: sunset(sp), pal: SUNSET_PAL, bg: '#2b1055' }));
+  sp => sunset(sp));
 addFamily('Owls', 'Owl', '⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}],
-  () => ({ rows: owl(), pal: OWL_PAL, bg: '#1b2a49' }));
+  () => ({ rows: owl(), pal: OWL_PAL, bg: '#1b2a49' }), [5,6,7,8,11]);
 addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
   {N:16,rw:2.3,h:0},{N:12,h:40},{N:20,h:80},{N:24,h:120},{N:16,rw:2.0,h:160},{N:12,rw:2.6,h:200},{N:20,rw:2.1,h:240},{N:24,rw:2.4,h:280},{N:18,h:320},{N:14,h:20},{N:22,h:60}],
   sp => ({ rows: mandala(sp), pal: MANDALA_PAL, bg: '#fff8e7' }));
@@ -537,8 +557,9 @@ addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
       if (n === 0) g.fillStyle = pic.bg;
       else if (filled[i]) g.fillStyle = pic.pal[n];
       else g.fillStyle = n === sel ? '#ffe7a0' : '#f3f0ff';
-      g.fillRect(x + dx, y, cs, cs);
-      g.strokeStyle = n === 0 ? 'rgba(0,0,0,.05)' : (filled[i] ? 'rgba(0,0,0,.10)' : 'rgba(0,0,0,.18)'); g.lineWidth = 1; g.strokeRect(x + dx + .5, y + .5, cs - 1, cs - 1);
+      const done = n === 0 || filled[i];
+      g.fillRect(x + dx, y, done ? cs + .6 : cs, done ? cs + .6 : cs);
+      if (!done) { g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 1; g.strokeRect(x + dx + .5, y + .5, cs - 1, cs - 1); }
       if (n > 0 && !filled[i] && showNums) {
         g.fillStyle = n === sel ? '#2b1d6b' : '#9a93bd';
         g.font = (n === sel ? '900 ' : '700 ') + (n > 9 ? fs - 1 : fs) + 'px system-ui';
