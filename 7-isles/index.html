@@ -688,8 +688,7 @@
     claim(p, near.length && Math.random() < 0.7 ? pick(near) : pick(free));
   }
   function finishDraft() {
-    G.players.forEach(function (p, i) { if (i > 0) G.capital[i] = pick(ownedBy(i)); });
-    G.phase = 'capital'; G.choosing = true; say('👑 Now pick your capital: click one of your islands!'); refresh();
+    beginPlay();
   }
   function beginPlay() {
     G.phase = 'play'; G.choosing = false; G.seat = SEATS.indexOf(G.startIsland); G.turn = G.isl[SEATS[G.seat]].seat; G.rolled = false;
@@ -839,7 +838,6 @@
     var t = G.tut, me = G.players[0];
     if (G.phase === 'rolloff') return '🎓 Step 1: everyone rolls two dice. The highest roll picks an island first. Press Roll!';
     if (G.phase === 'draft') return G.pickList[G.pickIdx] === 0 ? '🎓 Step 2: press a glowing 👆 island to claim it. Islands side by side mean you roll twice in a row!' : '🎓 Step 2: the other rulers are picking their islands…';
-    if (G.phase === 'capital') return '🎓 Step 3: press one of YOUR islands (⭐) to give it a 👑 crown. That is your capital.';
     if (G.turn !== 0) return '🎓 The others are playing. You can rob a boat sailing on the sea at ANY time. Press one!';
     if (!G.rolled) return '🎓 Your turn! Press 🎲 Roll. Every island makes something, and lucky numbers give a bonus.';
     if (!t.crafted) return '🎓 Press 🛒 Shop and craft something. Try a ⛺ Tent!';
@@ -983,16 +981,12 @@
       l.style.background = I.owner >= 0 ? G.players[I.owner].color : ''; l.style.color = I.owner >= 0 ? '#101030' : ''; l.style.border = I.owner === 0 ? '3px solid #fff' : '';
       s.style.setProperty('--own', I.owner >= 0 ? G.players[I.owner].color : ''); if (I.owner < 0) s.style.removeProperty('--own');
       s.classList.toggle('sel', selected === nm);
-      var cr = s.querySelector('.crown'); if (!cr) { cr = document.createElement('div'); cr.className = 'crown'; cr.textContent = '👑'; s.appendChild(cr); }
-      var who = G.capital.indexOf(nm), show = who === 0 && G.phase === 'play';   // only YOUR capital shows a crown
-      cr.classList.toggle('on', show); cr.classList.toggle('me', who === 0); s.classList.toggle('cap', show);
-      if (show) cr.style.filter = 'drop-shadow(0 0 5px ' + G.players[who].color + ') drop-shadow(0 0 2px #000)';
     });
   }
   function renderInfo() {
     var box = $('info'); if (!selected) { box.style.display = 'none'; return; }
     var D = ISL[selected], I = G.isl[selected], last = G.dice[0] ? G.dice[0] + G.dice[1] : 0;
-    var h = '<button class="btn" id="infoX" style="float:right;padding:2px 9px">✖</button><h3>' + D.icon + ' ' + selected + '</h3><div>Owner: ' + ownerName(I.owner) + '</div>' + (G.capital[0] === selected ? '<div>👑 Your capital</div>' : '') + '<div>❤️ Health: <b>' + I.hp + '</b></div>';
+    var h = '<button class="btn" id="infoX" style="float:right;padding:2px 9px">✖</button><h3>' + D.icon + ' ' + selected + '</h3><div>Owner: ' + ownerName(I.owner) + '</div>' + '<div>❤️ Health: <b>' + I.hp + '</b></div>';
     h += '<div>👥 People: <b>' + I.people + '</b> / ' + I.housing + ' housing' + (I.knights ? ' · ⚔️ Knights: <b>' + I.knights + '</b>' : '') + '</div>';
     if (I.owner === 0 && I.people > 0) h += '<button class="btn" data-mk="1" style="margin:4px 0"' + (canKnight(0) && G.turn === 0 && G.phase === 'play' ? '' : ' disabled') + '>⚔️ Make a Knight (2⚙️ 1🐴)</button>';
     if (I.owner !== 0 && G.phase === 'play') h += '<button class="btn go" data-atkopen="1" style="margin:4px 0;width:100%">⚔️ Attack ' + selected + '</button>';
@@ -1407,7 +1401,6 @@
     if (moved > 6 || (e.target.closest && e.target.closest('.ui, .bar, #pause, .sail'))) return;
     var nm = islandAt(e.clientX, e.clientY);
     if (G.phase === 'draft' && G.pickList[G.pickIdx] === 0 && nm && G.isl[nm] && NORMAL.indexOf(nm) >= 0 && G.isl[nm].owner < 0) { claim(0, nm); return; }
-    if (G.choosing && nm && G.isl[nm] && G.isl[nm].owner === 0) { G.capital[0] = nm; say('👑 ' + nm + ' is your capital!'); beginPlay(); return; }
     selected = nm; refresh();
   });
 })();
