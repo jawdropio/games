@@ -52,5 +52,11 @@
     "title": "BOBCATS",
     "emoji": "🎮",
     "description": "Pac-Man starring a bobcat on HARD MODE! 6 super-fast coyotes, an infinite auto-aim machine gun, a 20-second forcefield, neon glow and explosions, an OP autopilot bot, and a mode where YOU are the ghost!"
+  },
+  {
+    "slug": "papa-games",
+    "title": "papa games",
+    "emoji": "🏰",
+    "description": "Brand new and under construction!"
   }
 ]
