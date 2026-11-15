@@ -34,7 +34,7 @@
   <span>Score: <b id="score">0</b></span>
   <span>Best: <b id="hi">0</b></span>
   <span id="lives"></span>
-  <span title="Press Space to zap the nearest coyote">⚡ Ammo: <b id="zaps">40</b></span>
+  <span title="Press Space to zap the nearest coyote">⚡ Ammo: <b id="zaps">∞</b></span>
   <span id="shield">🛡 F ready</span>
   <span>Level <b id="lvl">1</b></span>
   <span class="sp"></span>
@@ -47,7 +47,7 @@
   <canvas id="c" width="608" height="672"></canvas>
   <div id="overlay" class="show"><div class="card">
     <h1 id="ovTitle">🐾 BOBCATS</h1>
-    <p id="ovMsg">Gobble all the kibble and dodge the coyotes!<br>Grab a 🐟 to turn the tables.<br>Arrow keys or WASD to move.<br><b>HARD MODE:</b> fast coyotes! Hold <b>SPACE</b> for an auto-aim ⚡ machine gun!<br>Eat 30 kibble = +10 ammo.<br>Press <b>F</b> for a 🛡 forcefield (20 seconds).<br>Press <b>B</b> for 🤖 autopilot - the bot plays for you!<br>Press <b>G</b> to be the 👻 coyote and chase the bobcat!</p>
+    <p id="ovMsg">Gobble all the kibble and dodge the coyotes!<br>Grab a 🐟 to turn the tables.<br>Arrow keys or WASD to move.<br><b>HARD MODE:</b> fast coyotes! Hold <b>SPACE</b> for an auto-aim ⚡ machine gun!<br><b>Infinite ammo!</b> ♾️<br>Press <b>F</b> for a 🛡 forcefield (20 seconds).<br>Press <b>B</b> for 🤖 autopilot - the bot plays for you!<br>Press <b>G</b> to be the 👻 coyote and chase the bobcat!</p>
     <button id="go">Play!</button>
     <a href="../">← Arcade</a>
   </div></div>
@@ -285,7 +285,8 @@ function zap(cd = 6) {
     if (d < bd) { bd = d; best = g; }
   }
   if (!best) return;
-  zaps--; zapCd = cd; hud();
+  if (ghostMode) zaps--;
+  zapCd = cd; hud();
   beams.push({ x1: player.x, y1: player.y, x2: best.x, y2: best.y, t: 8 });
   best.mode = 'eyes'; best.fright = false; addScore(100); popup(best.x, best.y, 'ZAP!'); sfxZap();
 }
@@ -501,7 +502,7 @@ function render() {
 // ---------- HUD / overlay ----------
 function hud() {
   $('score').textContent = score; $('hi').textContent = hi;
-  $('lvl').textContent = level; $('zaps').textContent = zaps; $('lives').textContent = '🐱'.repeat(Math.max(0, lives));
+  $('lvl').textContent = level; $('zaps').textContent = ghostMode ? zaps : '∞'; $('lives').textContent = '🐱'.repeat(Math.max(0, lives));
 }
 let overlayAction = 'start';
 function showOverlay(title, msg, btn, action) {
