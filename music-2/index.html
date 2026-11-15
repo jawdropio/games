@@ -66,6 +66,7 @@
 </div>
 
 <div class="row">
+  <button class="demo" id="dark">🖤 Demo: Dark Crown</button>
   <button class="demo" id="royal">👑 Demo: Royal Anthem</button>
   <button class="demo" id="hero">🌟 Demo: Hero Song</button>
   <button class="demo" id="storm">⚡ Demo: Storm Rock</button>
@@ -534,6 +535,52 @@
     if (!songMode) $("mode").click();
     applyPat(0); syncUI(); selectTrack(0);
     say("Royal Anthem loaded! Press Play 👑");
+  };
+
+  // ---------- original anthem: Dark Crown ----------
+  $("dark").onclick = () => {
+    const A = emptyPat(), B = emptyPat(), C = emptyPat(), D = emptyPat();
+    const add = (p, t, s, l, n) => p.n[t].push({s, l, p: n});
+    const dr = (p, r, list, off = 0) => list.forEach(s => p.d[r][off + s] = true);
+    const Dm = [62,65,69], Bb = [58,62,65], Gm = [58,62,67], Am = [61,64,69], Dmaj = [62,66,69];
+    const prog1 = [[50,Dm], [46,Bb], [43,Gm], [45,Am]];
+    const prog2 = [[50,Dm], [46,Bb], [43,Gm], [50,Dmaj]];
+    const melB = [
+      [[0,74,6],[6,72,2],[8,69,8]],
+      [[0,70,6],[6,72,2],[8,74,8]],
+      [[0,74,4],[4,77,4],[8,79,6],[14,77,2]],
+      [[0,76,4],[4,73,4],[8,76,8]]];
+    const melC = [
+      [[0,81,4],[4,79,2],[6,77,2],[8,74,8]],
+      [[0,82,4],[4,81,2],[6,77,2],[8,74,8]],
+      [[0,79,4],[4,82,4],[8,81,4],[12,79,4]],
+      [[0,81,6],[6,76,2],[8,73,4],[12,76,4]]];
+    const melD = [melC[0], melC[1], [[0,79,4],[4,82,4],[8,84,8]], [[0,86,16]]];
+    const melody = (p, m) => m.forEach((bar, b) => bar.forEach(([s, n, l]) => add(p, 0, b * 16 + s, l, n - 12)));
+    const bass = (p, prog) => prog.forEach(([root], b) => { add(p, 1, b * 16, 8, root); add(p, 1, b * 16 + 8, 8, root); });
+    const power = (p, prog) => prog.forEach(([root], b) => [0, 8].forEach(s => { add(p, 2, b * 16 + s, 8, root); add(p, 2, b * 16 + s, 8, root + 7); }));
+    const arp = (p, prog) => prog.forEach(([, tri], b) => [0,1,2,1,0,1,2,1].forEach((ix, i) => add(p, 3, b * 16 + i * 2, 2, tri[ix])));
+    // A: creepy slow intro
+    bass(A, prog1); arp(A, prog1);
+    for (let b = 0; b < 4; b++) dr(A, 3, [0], b * 16);
+    dr(A, 2, [8,10,12,13,14,15], 48);
+    // B: haunting verse
+    melody(B, melB); bass(B, prog1); arp(B, prog1);
+    for (let b = 0; b < 4; b++) { dr(B, 3, [0,10], b * 16); dr(B, 2, [8], b * 16); dr(B, 0, [0,4,8,12], b * 16); }
+    // C: heavy epic chorus
+    melody(C, melC); bass(C, prog1); arp(C, prog1); power(C, prog1);
+    for (let b = 0; b < 4; b++) { dr(C, 3, [0,6,8,14], b * 16); dr(C, 2, [4,12], b * 16); dr(C, 1, [4,12], b * 16); dr(C, 0, [0,2,4,6,8,10,12,14], b * 16); }
+    // D: big finale, ends on a bright D major surprise
+    melody(D, melD); bass(D, prog2); arp(D, prog2); power(D, prog2);
+    for (let b = 0; b < 3; b++) { dr(D, 3, [0,6,8,14], b * 16); dr(D, 2, [4,12], b * 16); dr(D, 1, [4,12], b * 16); dr(D, 0, [0,2,4,6,8,10,12,14], b * 16); }
+    dr(D, 2, [12,13,14,15], 32); dr(D, 3, [0], 48); dr(D, 1, [0], 48);
+    pats[0] = A; pats[1] = B; pats[2] = C; pats[3] = D;
+    tracks[0].inst = "lead"; tracks[1].inst = "bass"; tracks[2].inst = "guitar"; tracks[3].inst = "piano";
+    tracks[0].vol = 0.7; tracks[2].vol = 0.5; tracks[3].vol = 0.6;
+    $("bpm").value = 80;
+    if (!songMode) $("mode").click();
+    applyPat(0); syncUI(); selectTrack(0);
+    say("Dark Crown loaded! Press Play 🖤");
   };
 
   let slot = 1;
