@@ -207,15 +207,9 @@
 
   // each instrument: envelope settings + build(f, t, out, osc list)
   const INST = {
-    egtr: { name:'Electric Guitar', icon:'🎸', peak:0.32, a:0.004, sus:0.75, dec:0.35, rel:0.1, build(f,t,out,n) {
-      const pre = lp(6000,3); pre.frequency.setTargetAtTime(2400,t,0.12);
-      const ws = ctx.createWaveShaper(); ws.curve = DIST; ws.oversample = '2x';
-      const post = lp(3400,0.5);
-      pre.connect(ws); ws.connect(post); post.connect(out);
-      const lfo = ctx.createOscillator(), lg = ctx.createGain();
-      lfo.frequency.value = 5.5; lg.gain.setValueAtTime(0,t); lg.gain.linearRampToValueAtTime(14,t+0.7);
-      lfo.connect(lg); lfo.start(t); n.push(lfo);
-      [-7,7].forEach(c => { const o = osc('sawtooth', f, t, pre, 0.5, n, c); lg.connect(o.detune); });
+    egtr: { name:'Electric Guitar', icon:'🎸', peak:0.5, bus:true, a:0.006, sus:0.75, dec:0.35, rel:0.08, build(f,t,out,n) {
+      const pre = lp(5000,2); pre.frequency.setTargetAtTime(2600,t,0.1); pre.connect(out);
+      [-7,7].forEach(c => osc('sawtooth', f, t, pre, 0.5, n, c));
       osc('square', f/2, t, pre, 0.15, n, 0);
     }},
     cgtr: { name:'Clean Guitar', icon:'🪕', peak:0.5, a:0.003, sus:0.0, dec:0.45, rel:0.08, build(f,t,out,n) {
@@ -243,13 +237,22 @@
   };
   const INST_IDS = Object.keys(INST);
 
+  const buses = {};
+  function getBus() { // one shared distortion for every guitar note (much lighter on the computer)
+    if (!buses.g) {
+      const ws = ctx.createWaveShaper(); ws.curve = DIST;
+      const post = lp(3400,0.5), vol = ctx.createGain(); vol.gain.value = 0.45;
+      ws.connect(post); post.connect(vol); vol.connect(master); buses.g = ws;
+    }
+    return buses.g;
+  }
   function voice(id, f, t) {
     const d = INST[id], g = ctx.createGain(), n = [];
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(d.peak, t + d.a);
     g.gain.setTargetAtTime(d.sus * d.peak, t + d.a, d.dec);
     d.build(f, t, g, n);
-    g.connect(master);
+    g.connect(d.bus ? getBus() : master);
     return { release(rt) {
       rt = Math.max(rt, t + d.a + 0.002);
       g.gain.setTargetAtTime(0, rt, d.rel);
@@ -277,14 +280,13 @@
   function renderTracks() {
     let h = '<div class="sub" style="margin-top:0">1. Pick a song</div><div id="songs">';
     SONGS.forEach((s,i) => { h += '<button data-song="'+i+'" class="'+(i===curSong?'on':'')+'">'+s.name+'</button>'; });
-    h += '</div><div class="sub">2. Your instruments</div>';
+    h += '</div><div class="sub">2. Your parts '+(tracks.length < 8 ? '<button data-act="add" style="padding:1px 8px">＋ Add part</button>' : '')+'</div>';
     tracks.forEach((t,i) => {
       h += '<div class="trk'+(i===sel?' sel':'')+(t.mute?' muted':'')+'" data-i="'+i+'" style="--tc:'+tc(i)+'">'
         + '<span class="nm">Part '+(i+1)+' '+INST[t.inst].icon+'</span>'
         + '<button data-act="mute" title="Mute">'+(t.mute?'🔇':'🔊')+'</button>'
         + '<button data-act="clr" title="Clear notes">✕</button></div>';
     });
-    if (tracks.length < 6) h += '<button data-act="add">＋ Add part</button>';
     h += '<div class="sub">3. Sound for Part '+(sel+1)+':</div><div id="insts">';
     INST_IDS.forEach(id => { h += '<button data-inst="'+id+'" class="'+(tracks[sel].inst===id?'on':'')+'">'+INST[id].icon+' '+INST[id].name+'</button>'; });
     h += '</div>';
@@ -489,6 +491,8 @@
     audio(); stopT();
     const d = SONGS[i].make(); curSong = i;
     tracks = d.tracks.map(t => ({ inst:t.inst, notes:t.notes, mute:false, name:'' }));
+    while (tracks.length < 4) tracks.push(mkTrack(['egtr','bass','piano','synth'][tracks.length]));
+    if (tracks[2] && !tracks[2].notes.length && tracks[1] && tracks[1].notes.length) tracks[2] = { inst:'organ', mute:false, name:'', notes: tracks[1].notes.map(n => ({n:n.n, s:n.s, l:n.l})) };
     while (tracks.length < 4) tracks.push(mkTrack(['egtr','bass','piano','synth'][tracks.length]));
     let end = 16; tracks.forEach(t => t.notes.forEach(n => { end = Math.max(end, n.s + n.l); }));
     sel = 0; setBpm(d.bpm); setBars(Math.min(10, Math.ceil(end/16)));
