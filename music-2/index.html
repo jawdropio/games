@@ -232,8 +232,8 @@
       rc.fillRect(n.s * CW + 1, (HIGH - n.p) * RH + 1, n.l * CW - 2, RH - 2);
       rc.strokeRect(n.s * CW + 1.5, (HIGH - n.p) * RH + 1.5, n.l * CW - 3, RH - 3);
     });
-    rc.fillStyle = "rgba(0,0,0,0.55)"; rc.fillRect(steps() * CW, 0, rollC.width, rollC.height);
-    if (step >= 0) { rc.fillStyle = "rgba(255,255,255,0.2)"; rc.fillRect(step * CW, 0, CW, rollC.height); }
+    rc.fillStyle = "#ff6b6b"; rc.fillRect(steps() * CW - 1, 0, 3, rollC.height);
+    if (step >= 0) { rc.fillStyle = "#fff"; rc.fillRect(step * CW, 0, 2, rollC.height); }
     // drums
     dc.fillStyle = "#1e1550"; dc.fillRect(0, 0, drumsC.width, drumsC.height);
     grid(dc, DR.length, DRH);
@@ -243,8 +243,8 @@
         dc.fillStyle = "#e5e7eb"; dc.fillRect(s * CW + 2, r * DRH + 3, CW - 4, DRH - 6);
       }
     }
-    dc.fillStyle = "rgba(0,0,0,0.55)"; dc.fillRect(steps() * CW, 0, drumsC.width, drumsC.height);
-    if (step >= 0) { dc.fillStyle = "rgba(255,255,255,0.2)"; dc.fillRect(step * CW, 0, CW, drumsC.height); }
+    dc.fillStyle = "#ff6b6b"; dc.fillRect(steps() * CW - 1, 0, 3, drumsC.height);
+    if (step >= 0) { dc.fillStyle = "#fff"; dc.fillRect(step * CW, 0, 2, drumsC.height); }
     dirty = false;
   }
   drawKeys(); drawLabels();
