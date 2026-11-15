@@ -217,12 +217,12 @@
     // roll
     for (let m = HIGH; m >= LOW; m--) {
       const y = (HIGH - m) * RH;
-      rc.fillStyle = isBlack(m) ? "#150d38" : "#1e1550"; rc.fillRect(0, y, rollC.width, RH);
+      rc.fillStyle = "#1e1550"; rc.fillRect(0, y, rollC.width, RH);
       if (m % 12 === 0) { rc.fillStyle = "#3a2d86"; rc.fillRect(0, y + RH - 1, rollC.width, 1); }
     }
     grid(rc, ROWS, RH);
     tracks.forEach((t, ti) => {
-      if (ti === sel) return;
+      return;
       rc.globalAlpha = 0.3; rc.fillStyle = TCOL[ti];
       t.notes.forEach(n => rc.fillRect(n.s * CW + 1, (HIGH - n.p) * RH + 1, n.l * CW - 2, RH - 2));
     });
