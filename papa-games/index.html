@@ -10,6 +10,18 @@
   #pauseBtn { position:fixed; top:8px; right:12px; z-index:5; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
   #botBtn { position:fixed; top:8px; right:120px; z-index:5; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
   #botBtn.on { background:#1f9d55; border-color:#7dffb0; }
+  #bj { position:fixed; inset:0; background:#120b2e; z-index:4; display:none; overflow:auto; padding:50px 12px 20px; box-sizing:border-box; text-align:center; }
+  #bj.show { display:block; }
+  #bjPauseBtn { position:fixed; top:8px; right:12px; z-index:6; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
+  .seat { max-width:560px; margin:8px auto; padding:8px 12px; background:#1b1245; border-radius:14px; text-align:left; border:3px solid transparent; }
+  .seat.turn { border-color:#ffe14d; } .seat.win { border-color:#5df07a; background:#1f3a2e; }
+  .seat b { font-size:18px; } .seat .tot { float:right; font-weight:700; color:#a99ee0; }
+  .card { display:inline-block; background:#fff; color:#222; border-radius:8px; padding:8px 6px; margin:6px 4px 0 0; min-width:30px; text-align:center; font-weight:800; font-size:20px; }
+  .card.red { color:#d6283c; }
+  .st { font-size:14px; color:#cfc8f5; margin-left:6px; }
+  #bjMsg { font-size:26px; font-weight:800; min-height:34px; margin:10px 0; }
+  .row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .row .btn { margin:6px 0; min-width:130px; } .btn:disabled { background:#2a1d5e; color:#8a80c0; cursor:default; }
   canvas { position:fixed; inset:0; width:100%; height:100%; }
   .overlay { position:fixed; inset:0; display:none; place-items:center; text-align:center; background:rgba(18,11,46,.85); z-index:4; }
   .overlay.show { display:grid; }
@@ -33,9 +45,21 @@
     <h1>🏰 papa games</h1>
     <p>Pick a game!</p>
     <button class="btn" id="playTetris">🧱 Blocks (Tetris)</button>
+    <button class="btn" id="playBJ">🃏 21 (vs bots)</button>
     <button class="btn off">🔒 More games soon</button>
     <p style="font-size:14px">B = robot helper 🤖 · ← → move · ↑ or Space spin · ↓ fall faster · Enter drop · P pause</p>
   </div>
+</div>
+<button id="bjPauseBtn">⏸ Pause</button>
+<div id="bj">
+  <h1>🃏 21 vs bots</h1>
+  <p>Get close to 21 without going over. Beat the bots!</p>
+  <div id="seats"></div>
+  <div id="bjMsg"></div>
+  <div class="row"><button class="btn" id="hit">Hit (H)</button><button class="btn" id="stand">Stand (S)</button><button class="btn" id="next">Next round (N)</button></div>
+  <p id="bjScore"></p>
+  <div class="row"><button class="btn" id="bjMenu" style="min-width:130px;font-size:16px">Menu</button></div>
+  <div id="bjPause" class="overlay"><div><h1>⏸ Paused</h1><button class="btn" id="bjResume">Resume</button><button class="btn" id="bjMenu2">Menu</button></div></div>
 </div>
 <div id="pause" class="overlay">
   <div><h1>⏸ Paused</h1><button class="btn" id="resume">Resume</button><button class="btn" id="toMenu1">Menu</button></div>
@@ -185,7 +209,7 @@ function hardDrop() {
 const held = { left: 0, right: 0, down: 0 };
 const KEYMAP = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowDown: 'down', s: 'down', S: 'down' };
 addEventListener('keydown', e => {
-  if (e.key === 'b' || e.key === 'B') { toggleBot(); return; }
+  if ((e.key === 'b' || e.key === 'B') && (state === 'play' || state === 'pause')) { toggleBot(); return; }
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { togglePause(); return; }
   if ((e.key === 'Enter') && state === 'over') { startGame(); return; }
   if (state !== 'play') return;
@@ -358,6 +382,126 @@ function frame(now) {
   draw();
   requestAnimationFrame(frame);
 }
+requestAnimationFrame(frame);
+})();
+</script>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const SUITS = ['♠','♥','♦','♣'], RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const P = [{ n:'You 🙂' }, { n:'Robo Rex 🤖', stand:17 }, { n:'Cautious Cat 🐱', stand:15 }, { n:'Wild Wolf 🐺', stand:19 }];
+let deck, hands, status, phase = 'idle', turn = 0, timer = 0, paused = false, wins = [0,0,0,0], rounds = 0, winners = [], best = 0;
+try { best = +localStorage.getItem('papa21Best') || 0; } catch (e) {}
+
+function shuffle() {
+  deck = [];
+  for (const s of SUITS) for (const r of RANKS) deck.push({ r, s });
+  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+}
+function total(h) {
+  let t = 0, aces = 0;
+  for (const c of h) { if (c.r === 'A') { aces++; t += 11; } else t += 'JQK'.includes(c.r) ? 10 : +c.r; }
+  while (t > 21 && aces) { t -= 10; aces--; }
+  return t;
+}
+const natural = h => h.length === 2 && total(h) === 21;
+function deal(i) { hands[i].push(deck.pop()); beep(500 + hands[i].length * 40, .06, 'triangle'); }
+
+let ac = null;
+function beep(f, d, type = 'square', v = .05) {
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(v, ac.currentTime); g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + d);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + d);
+  } catch (e) {}
+}
+
+function startRound() {
+  shuffle(); rounds++;
+  hands = P.map(() => []); status = P.map(() => ''); winners = [];
+  for (let k = 0; k < 2; k++) P.forEach((_, i) => hands[i].push(deck.pop()));
+  phase = 'you'; turn = 0; timer = 0;
+  $('bjMsg').textContent = 'Your turn!';
+  if (natural(hands[0])) { status[0] = 'BLACKJACK! 🎉'; startBots(); }
+  render();
+}
+function startBots() { phase = 'bots'; turn = 1; timer = 0; $('bjMsg').textContent = 'Bots are thinking...'; }
+function hit() {
+  if (phase !== 'you' || paused) return;
+  deal(0);
+  if (total(hands[0]) > 21) { status[0] = 'BUST! 💥'; beep(150, .3, 'sawtooth'); startBots(); }
+  else if (total(hands[0]) === 21) { status[0] = '21!'; startBots(); }
+  render();
+}
+function stand() {
+  if (phase !== 'you' || paused) return;
+  status[0] = 'Stand'; startBots(); render();
+}
+function rank(i) { const t = total(hands[i]); return t > 21 ? -1 : natural(hands[i]) ? 22 : t; }
+function finish() {
+  phase = 'done';
+  const rk = P.map((_, i) => rank(i)), top = Math.max(...rk);
+  winners = top < 0 ? [] : rk.map((r, i) => r === top ? i : -1).filter(i => i >= 0);
+  winners.forEach(i => wins[i]++);
+  const me = winners.includes(0);
+  $('bjMsg').textContent = !winners.length ? 'Everybody busted! 😲' : me ? (winners.length > 1 ? "It's a tie! 🤝" : 'You win! 🏆') : P[winners[0]].n + ' wins!';
+  if (me) [523, 659, 784].forEach((f, k) => setTimeout(() => beep(f, .15), k * 100)); else beep(200, .3, 'triangle');
+  if (wins[0] > best) { best = wins[0]; try { localStorage.setItem('papa21Best', best); } catch (e) {} }
+  render();
+}
+function update() {
+  if (phase !== 'bots' || paused) return;
+  if (++timer < 45) return;
+  timer = 0;
+  const i = turn, t = total(hands[i]);
+  if (t > 21) { status[i] = 'BUST! 💥'; turn++; }
+  else if (t < P[i].stand) deal(i);
+  else { status[i] = t === 21 ? '21!' : 'Stand'; turn++; }
+  if (turn > 3) finish();
+  render();
+}
+function render() {
+  $('seats').innerHTML = P.map((p, i) => {
+    const t = total(hands[i]);
+    const cards = hands[i].map(c => '<span class="card' + ('♥♦'.includes(c.s) ? ' red' : '') + '">' + c.r + c.s + '</span>').join('');
+    const cls = 'seat' + (phase === 'bots' && turn === i ? ' turn' : '') + (phase === 'you' && i === 0 ? ' turn' : '') + (winners.includes(i) ? ' win' : '');
+    return '<div class="' + cls + '"><b>' + p.n + '</b><span class="st">' + status[i] + '</span><span class="tot">' + t + '  ·  wins: ' + wins[i] + '</span><div>' + cards + '</div></div>';
+  }).join('');
+  $('hit').disabled = $('stand').disabled = phase !== 'you';
+  $('next').disabled = phase !== 'done';
+  $('bjScore').textContent = 'Round ' + rounds + '  ·  Your best win count: ' + best;
+}
+
+function open() {
+  $('menu').classList.remove('show'); $('bj').classList.add('show'); $('bjPauseBtn').style.display = 'block';
+  paused = false; $('bjPause').classList.remove('show');
+  if (!rounds) startRound(); else render();
+}
+function close() {
+  $('bj').classList.remove('show'); $('bjPauseBtn').style.display = 'none'; $('bjPause').classList.remove('show');
+  $('menu').classList.add('show');
+}
+function togglePause() { paused = !paused; $('bjPause').classList.toggle('show', paused); }
+const isOpen = () => $('bj').classList.contains('show');
+
+$('playBJ').onclick = open;
+$('hit').onclick = hit; $('stand').onclick = stand; $('next').onclick = () => { if (phase === 'done') startRound(); };
+$('bjMenu').onclick = $('bjMenu2').onclick = close;
+$('bjPauseBtn').onclick = togglePause; $('bjResume').onclick = togglePause;
+addEventListener('keydown', e => {
+  if (!isOpen()) return;
+  const k = e.key.toLowerCase();
+  if (k === 'p' || k === 'escape') togglePause();
+  else if (k === 'h') hit(); else if (k === 's') stand();
+  else if ((k === 'n' || k === 'enter') && phase === 'done' && !paused) startRound();
+});
+addEventListener('blur', () => { if (isOpen() && !paused) togglePause(); });
+
+const STEP = 1000 / 60; let last = performance.now(), acc = 0;
+function frame(now) { acc += Math.min(now - last, 250); last = now; while (acc >= STEP) { update(); acc -= STEP; } requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
 })();
 </script>
