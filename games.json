@@ -58,5 +58,11 @@
     "title": "papa games",
     "emoji": "🏰",
     "description": "A game menu with Blocks (Tetris + robot helper), 21 vs bots, Spades, and Bobcat Bowl: retro football where YOU are the Bobcats!"
+  },
+  {
+    "slug": "talk",
+    "title": "talk",
+    "emoji": "🎮",
+    "description": "Brand new and under construction!"
   }
 ]
