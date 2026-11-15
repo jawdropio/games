@@ -128,7 +128,7 @@
     <img id="fbLogo" src="assets/screenshot-2026-11-14-at-7.21.36-pm.png" alt="Bobcats logo" style="width:200px;border-radius:16px">
     <h1>Bobcat Bowl</h1><p>You are the Bobcats! Beat the Coyotes. 🏈</p><p id="fbRec"></p>
     <p id="fbCoins"></p><button class="btn" id="fbGo">🏈 Kickoff!</button><button class="btn" id="fbRefGo">🚩 Ref mode</button><button class="btn" id="fbRecBtn">🎓 Recruit players</button><button class="btn" id="fbMenu1">Menu</button>
-    <p style="font-size:14px;max-width:460px">OFFENSE: call a play (Quick pass, Deep pass, Run or QB run), read the coverage tip, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Man, Zone or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch to the player near the ball (you have to press it!). After a catch, press Space to take over the runner. Tackle the ball carrier!<br>REF MODE: throw the flag (Space) when you see a foul: a player over the blue line before the snap, a player jumping early, a yellow line between two players, or a hit on the QB.<br>After a touchdown, kick the extra point (+1) or GO FOR 2!<br>T = timeout (stops the clock). Watch out for 🚩 penalties! After you score you can try an ONSIDE kick. P pauses.</p>
+    <p style="font-size:14px;max-width:460px">OFFENSE: call a play (Quick pass, Deep pass, Run or QB run), read the coverage tip, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Man, Zone or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch to the player near the ball (you have to press it!). Tackle the ball carrier!<br>REF MODE: throw the flag (Space) when you see a foul: a player over the blue line before the snap, a player jumping early, a yellow line between two players, or a hit on the QB.<br>After a touchdown, kick the extra point (+1) or GO FOR 2!<br>T = timeout (stops the clock). Watch out for 🚩 penalties! After you score you can try an ONSIDE kick. P pauses.</p>
   </div></div>
   <div id="fbOver" class="overlay"><div><h1 id="fbOverTitle"></h1><p id="fbOverText"></p><button class="btn" id="fbAgain">Play again</button><button class="btn" id="fbRecBtn2">🎓 Recruit players</button><button class="btn" id="fbMenu2">Menu</button></div></div>
   <div id="fbRecruit" class="overlay"><div style="width:min(540px,92vw)"><h1>🎓 Recruit players</h1><p id="rcCoins"></p><div id="rcList"></div><button class="btn" id="rcBack">Back</button></div></div>
@@ -828,7 +828,9 @@ const POS = [
   { k: 'db', label: '🛡️ Defensive backs', txt: 'Cover faster' },
   { k: 'k', label: '🦵 Kicker', txt: 'Field goals go in more' }
 ];
-const COST = [0, 0, 80, 150, 250, 400];
+const COST = [0, 0, 100, 300, 700, 1500];
+const MULT = { qb: 1.5, rb: 1.2, wr: 1.2, ol: .9, dl: 1, db: 1, k: .6 };
+const price = (k, lvl) => Math.round(COST[lvl] * MULT[k] / 10) * 10;
 const NA = ['Turbo','Blaze','Storm','Rocket','Ninja','Thunder','Comet','Sparky','Shadow','Flash'], NB = ['Whiskers','Claw','Paws','Fang','Tail','Pounce','Prowl','Stripe','Growl','Leap'];
 const newName = () => NA[Math.floor(Math.random() * NA.length)] + ' ' + NB[Math.floor(Math.random() * NB.length)];
 let roster = { lv: { qb: 3, rb: 3, wr: 3, ol: 3, dl: 3, db: 3, k: 3 }, nm: { qb: 'Captain Claw', rb: 'Zoom Paws', wr: 'Sky Pounce', ol: 'Big Fur', dl: 'Mighty Fang', db: 'Shadow Tail', k: 'Boot Kitty' } }, coins = 100;
@@ -1096,7 +1098,7 @@ function updatePlay(dt) {
       const nq = Math.min(...P.defs.map(o => dist(o, P.qb)));
       if (P.t >= P.tThrow || nq < 2.6) aiThrow();
     }
-    if (B.mode === 'held' && (P.qb.x - g.los) * d > .2) { P.carrier = P.qb; B.mode = 'carried'; }
+    if (B.mode === 'held' && (P.qb.x - g.los) * d > .2) { P.carrier = P.qb; B.mode = 'carried'; P.manual = true; }
   }
   if (B.mode === 'flying') {
     const tg = P.target;
@@ -1176,7 +1178,7 @@ function resolveCatch() {
   if (!meOff && P.ctl && dist(P.ctl, r) < 2.2 && Math.random() < .6) return endPlay('int', r.x);
   if (Math.random() < pc) { P.carrier = r; P.ball.mode = 'carried'; P.target = null; sfx.catchB();
     if (!g.ref) {
-      if (meOff) { g.st.comp++; P.completed = true; toast = 'CAUGHT IT! Press SPACE to take control!'; toastT = 130; }
+      if (meOff) { g.st.comp++; P.completed = true; P.manual = true; toast = 'CAUGHT IT! RUN! 🏃'; toastT = 90; }
       else { toast = 'Press SPACE to switch to a defender near the ball!'; toastT = 130; }
     }
   }
@@ -1268,7 +1270,7 @@ function newGame() {
 function endGame() {
   const win = g.my > g.cpu, tie = g.my === g.cpu;
   if (!tie) { if (win) rec.w++; else rec.l++; try { localStorage.setItem('papaBowlW', rec.w); localStorage.setItem('papaBowlL', rec.l); } catch (e) {} }
-  const earn = (win ? 120 : tie ? 80 : 50) + 10 * g.tds; coins += earn; saveAll(); updCoins();
+  const earn = (win ? 150 : tie ? 100 : 60) + 15 * g.tds; coins += earn; saveAll(); updCoins();
   $('fbOverTitle').textContent = tie ? "It's a tie! 🤝" : win ? 'BOBCATS WIN! 🏆' : 'Coyotes win... 😢';
   $('fbOverText').textContent = 'Final: Bobcats ' + g.my + ' – Coyotes ' + g.cpu + '  ·  Pass ' + g.st.comp + '/' + g.st.att + ' for ' + g.st.py + ' yds  ·  Rush ' + g.st.ry + ' yds  ·  Sacks ' + g.st.sacks + '  ·  INTs ' + g.st.ints + '  ·  Coins earned: +' + earn + ' 🪙 (you have ' + coins + ')';
   if (win) sfx.fanfare(); else sfx.bad();
@@ -1319,11 +1321,11 @@ function endRef() {
 // ---------- recruiting 🎓 ----------
 function updCoins() {
   $('fbCoins').textContent = 'Coins: ' + coins + ' 🪙';
-  $('rcCoins').textContent = 'You have ' + coins + ' 🪙. You earn coins win or lose!';
+  $('rcCoins').textContent = 'You have ' + coins + ' 🪙. You earn coins win or lose. Better players cost MORE!';
 }
 function renderRecruit() {
   $('rcList').innerHTML = POS.map(q => {
-    const lv = L(q.k), nxt = lv < 5 ? COST[lv + 1] : 0;
+    const lv = L(q.k), nxt = lv < 5 ? price(q.k, lv + 1) : 0;
     return '<div class="rcrow"><div><b>' + q.label + '</b><br><span>' + roster.nm[q.k] + ' ' + '★'.repeat(lv) + '☆'.repeat(5 - lv) + '</span><br><small>' + q.txt + '</small></div>' +
       (lv < 5 ? '<button class="btn" data-k="' + q.k + '"' + (coins < nxt ? ' disabled' : '') + '>Recruit ' + nxt + ' 🪙</button>' : '<b>⭐ MAX</b>') + '</div>';
   }).join('');
@@ -1332,7 +1334,7 @@ function openRecruit() { updCoins(); renderRecruit(); $('fbRecruit').classList.a
 $('rcList').onclick = e => {
   const b = e.target.closest('[data-k]'); if (!b) return;
   const k = b.dataset.k, lv = L(k); if (lv >= 5) return;
-  const c = COST[lv + 1]; if (coins < c) return;
+  const c = price(k, lv + 1); if (coins < c) return;
   coins -= c; roster.lv[k] = lv + 1; roster.nm[k] = newName(); saveAll(); sfx.fanfare(); updCoins(); renderRecruit();
 };
 $('rcBack').onclick = () => $('fbRecruit').classList.remove('show');
