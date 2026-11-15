@@ -1300,7 +1300,8 @@ function refPresnap() {
 function flag() {
   if (!g || !g.ref || !P || P.flagged || paused) return;
   if (phase !== 'presnap' && phase !== 'play' && !(phase === 'result' && timer < 70)) return;
-  P.flagged = true; toast = '🚩 FLAG THROWN!'; toastT = 80; sfx.whistle();
+  P.flagged = true; toast = '🚩 FLAG THROWN! Play stopped.'; toastT = 100; sfx.whistle();
+  if (phase === 'presnap' || phase === 'play') refResult();   // the whistle blows: the play stops right away
 }
 function refResult() { banner = ''; sub = ''; setPhase('result'); }
 function refJudge() {
@@ -1479,9 +1480,9 @@ function drawPlayers() {
 function drawTell() {
   const f = P.foul, u = scale;
   const link = (a, b) => { ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(sx(a.x), sy(a.y) - .5 * u); ctx.lineTo(sx(b.x), sy(b.y) - .5 * u); ctx.stroke(); };
-  if (f.type === 'holding' && phase === 'play' && P.t >= 1 && P.t < 3) link(f.unit, f.opp);
-  else if (f.type === 'dpi' && phase === 'play' && P.t - f.t0 < 1.6) link(f.unit, f.opp);
-  else if (f.type === 'roughing' && f.hit && phase === 'play' && P.t - f.t0 < 1) { link(f.unit, P.qb); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(sx(P.qb.x), sy(P.qb.y) - .5 * u, 1.2 * u, 0, 7); ctx.stroke(); }
+  if (f.type === 'holding' && (phase === 'play' || phase === 'result') && P.t >= 1 && P.t < 3) link(f.unit, f.opp);
+  else if (f.type === 'dpi' && (phase === 'play' || phase === 'result') && P.t - f.t0 < 1.6) link(f.unit, f.opp);
+  else if (f.type === 'roughing' && f.hit && (phase === 'play' || phase === 'result') && P.t - f.t0 < 1) { link(f.unit, P.qb); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(sx(P.qb.x), sy(P.qb.y) - .5 * u, 1.2 * u, 0, 7); ctx.stroke(); }
 }
 function pill(x, y, w, h, c) { ctx.fillStyle = c; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, 12); else ctx.rect(x, y, w, h); ctx.fill(); }
 function drawHUD() {
@@ -1524,7 +1525,7 @@ function drawHUD() {
 }
 function hintText() {
   const me = g.poss === 'me';
-  if (g.ref) { if (phase === 'result') return timer < 70 ? 'Was there a foul? Last chance – press SPACE to flag!' : ''; return 'You are the REF! Press SPACE (or 🚩) the moment you see a foul!'; }
+  if (g.ref) { if (phase === 'result') return timer >= 70 ? '' : P.flagged ? '🚩 Flag thrown! Let\'s check the play...' : 'Was there a foul? Last chance – press SPACE to flag!'; return 'You are the REF! Press SPACE (or 🚩) the moment you see a foul!'; }
   if (phase === 'pat') return 'TOUCHDOWN! Kick the extra point (+1, almost sure) or GO FOR 2 (+2)!';
   if (phase === 'kickoff') return 'KICKOFF! Kick deep, or try an ONSIDE kick to keep the ball!';
   if (phase === 'onside') return 'Press SPACE (or tap) to kick when the line is in the GREEN!';
