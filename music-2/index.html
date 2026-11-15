@@ -3,15 +3,217 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>music</title>
+<title>Song Maker</title>
 <style>
-  html, body { margin:0; height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; display:grid; place-items:center; text-align:center; }
-  a { position:fixed; top:12px; left:12px; color:#a99ee0; text-decoration:none; font-weight:700; }
-  h1 { font-size:48px; margin:0 0 12px; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; min-height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+  body { display:flex; flex-direction:column; align-items:center; padding:10px; gap:8px; }
+  #top { width:100%; max-width:900px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  #top a { color:#a99ee0; text-decoration:none; font-weight:700; }
+  h1 { font-size:22px; margin:0; flex:1; text-align:center; }
+  button, select { font:inherit; font-weight:700; border:0; border-radius:10px; padding:8px 12px; background:#3b2d86; color:#fff; cursor:pointer; }
+  button:hover { background:#5441b8; }
+  button.big { background:#22c55e; font-size:18px; padding:8px 18px; }
+  button.big.on { background:#ef4444; }
+  #controls { width:100%; max-width:900px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
+  label { font-weight:700; font-size:14px; display:flex; align-items:center; gap:6px; }
+  #grid { width:100%; max-width:900px; display:grid; grid-template-columns:64px repeat(16, 1fr); gap:3px; }
+  .lab { font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:flex-end; padding-right:4px; color:#cfc8ff; }
+  .cell { aspect-ratio:1; min-height:20px; border-radius:6px; background:#251a5c; cursor:pointer; }
+  .cell.beat { background:#2f2274; }
+  .cell.on { background:var(--c); box-shadow:0 0 8px var(--c); }
+  .cell.now { outline:3px solid #fff; }
+  #msg { height:20px; font-size:14px; color:#ffd86b; }
+  #pause { position:fixed; inset:0; background:rgba(10,5,30,.8); display:none; place-items:center; font-size:36px; font-weight:800; }
+  #pause.show { display:grid; }
 </style>
 </head>
 <body>
-<a href="../">← Arcade</a>
-<div><h1>🎮 music</h1><p>🚧 Under construction. Tell your buddy what to build!</p></div>
+<div id="top">
+  <a href="../">← Arcade</a>
+  <h1>🎵 Song Maker</h1>
+  <button id="pauseBtn">⏸ Pause (P)</button>
+</div>
+<div id="controls">
+  <button class="big" id="play">▶ Play</button>
+  <label>Speed <input type="range" id="bpm" min="60" max="200" value="120"></label>
+  <label>Sound <select id="inst">
+    <option value="triangle">🎹 Piano</option>
+    <option value="square">👾 Video game</option>
+    <option value="sine">🔔 Bells</option>
+    <option value="sawtooth">🎸 Buzzy</option>
+  </select></label>
+  <button id="clear">🗑 Clear</button>
+  <button id="rand">🎲 Surprise me</button>
+</div>
+<div id="controls">
+  Slot:
+  <button class="slot" data-s="1">1</button><button class="slot" data-s="2">2</button><button class="slot" data-s="3">3</button>
+  <button id="save">💾 Save</button>
+  <button id="load">📂 Load</button>
+</div>
+<div id="msg">Click the squares to make a song!</div>
+<div id="grid"></div>
+<div id="pause">⏸ Paused — press P</div>
+
+<script>
+(() => {
+  const STEPS = 16;
+  const rows = [
+    {n:"High C", f:1046.5, c:"#ff6b9d"}, {n:"B", f:987.8, c:"#ff8e5e"}, {n:"A", f:880, c:"#ffc94d"},
+    {n:"G", f:784, c:"#9be564"}, {n:"E", f:659.3, c:"#4de3c1"}, {n:"D", f:587.3, c:"#4db8ff"},
+    {n:"C", f:523.3, c:"#8a7dff"}, {n:"Low G", f:392, c:"#c67dff"},
+    {n:"🥁 Snare", drum:"snare", c:"#e5e7eb"}, {n:"🥁 Kick", drum:"kick", c:"#ff4d4d"}, {n:"🥁 Hat", drum:"hat", c:"#ffe14d"}
+  ];
+  const data = rows.map(() => Array(STEPS).fill(false));
+  const grid = document.getElementById("grid");
+  const cells = [];
+  const $ = id => document.getElementById(id);
+
+  rows.forEach((r, ri) => {
+    const l = document.createElement("div"); l.className = "lab"; l.textContent = r.n; grid.appendChild(l);
+    cells[ri] = [];
+    for (let s = 0; s < STEPS; s++) {
+      const c = document.createElement("div");
+      c.className = "cell" + (s % 4 === 0 ? " beat" : "");
+      c.style.setProperty("--c", r.c);
+      c.dataset.r = ri; c.dataset.s = s;
+      grid.appendChild(c); cells[ri][s] = c;
+    }
+  });
+
+  // ---- sound ----
+  let ac = null, noiseBuf = null;
+  function audio() {
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state === "suspended") ac.resume();
+    return ac;
+  }
+  function tone(f) {
+    const a = audio(), t = a.currentTime;
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = $("inst").value; o.frequency.value = f;
+    const vol = o.type === "sawtooth" || o.type === "square" ? 0.08 : 0.2;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + 0.45);
+  }
+  function drum(kind) {
+    const a = audio(), t = a.currentTime, g = a.createGain();
+    g.connect(a.destination);
+    if (kind === "kick") {
+      const o = a.createOscillator();
+      o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.15);
+      g.gain.setValueAtTime(0.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      o.connect(g); o.start(t); o.stop(t + 0.3);
+    } else {
+      const n = a.createBufferSource(), f = a.createBiquadFilter();
+      n.buffer = noiseBuf; f.type = "highpass"; f.frequency.value = kind === "hat" ? 7000 : 1500;
+      const len = kind === "hat" ? 0.06 : 0.18;
+      g.gain.setValueAtTime(kind === "hat" ? 0.18 : 0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + len);
+      n.connect(f).connect(g); n.start(t); n.stop(t + len + 0.02);
+    }
+  }
+  const hit = r => r.drum ? drum(r.drum) : tone(r.f);
+
+  // ---- editing ----
+  let painting = null;
+  grid.addEventListener("pointerdown", e => {
+    const c = e.target.closest(".cell"); if (!c) return;
+    const r = +c.dataset.r, s = +c.dataset.s;
+    painting = !data[r][s]; set(r, s, painting, true);
+    e.preventDefault();
+  });
+  grid.addEventListener("pointerover", e => {
+    if (painting === null || !(e.buttons & 1)) return;
+    const c = e.target.closest(".cell"); if (!c) return;
+    set(+c.dataset.r, +c.dataset.s, painting, false);
+  });
+  addEventListener("pointerup", () => painting = null);
+  function set(r, s, v, preview) {
+    data[r][s] = v; cells[r][s].classList.toggle("on", v);
+    if (v && preview) hit(rows[r]);
+  }
+  function refresh() { rows.forEach((_, r) => { for (let s = 0; s < STEPS; s++) cells[r][s].classList.toggle("on", data[r][s]); }); }
+  const say = t => $("msg").textContent = t;
+
+  $("clear").onclick = () => { data.forEach(r => r.fill(false)); refresh(); say("Fresh and empty! ✨"); };
+  $("rand").onclick = () => {
+    const pent = [0, 1, 3, 4, 5, 6];
+    data.forEach(r => r.fill(false));
+    for (let s = 0; s < STEPS; s += 2) if (Math.random() < 0.75) data[pent[Math.floor(Math.random() * pent.length)]][s] = true;
+    for (let s = 0; s < STEPS; s += 4) data[9][s] = true;
+    for (let s = 4; s < STEPS; s += 8) data[8][s] = true;
+    for (let s = 2; s < STEPS; s += 4) data[10][s] = true;
+    refresh(); say("Surprise! 🎲");
+  };
+
+  // ---- save / load ----
+  let slot = 1;
+  document.querySelectorAll(".slot").forEach(b => b.onclick = () => {
+    slot = +b.dataset.s;
+    document.querySelectorAll(".slot").forEach(x => x.style.background = "");
+    b.style.background = "#22c55e"; say("Slot " + slot + " picked");
+  });
+  document.querySelector('.slot[data-s="1"]').style.background = "#22c55e";
+  $("save").onclick = () => {
+    try {
+      localStorage.setItem("songmaker-" + slot, JSON.stringify({d:data, bpm:$("bpm").value, inst:$("inst").value}));
+      say("Saved to slot " + slot + "! 💾");
+    } catch (e) { say("Couldn't save here 😢"); }
+  };
+  $("load").onclick = () => {
+    try {
+      const s = JSON.parse(localStorage.getItem("songmaker-" + slot));
+      if (!s) { say("Slot " + slot + " is empty"); return; }
+      s.d.forEach((r, i) => { if (data[i]) data[i] = r.slice(0, STEPS); });
+      $("bpm").value = s.bpm; $("inst").value = s.inst; refresh(); say("Loaded slot " + slot + "! 📂");
+    } catch (e) { say("Couldn't load that one"); }
+  };
+
+  // ---- playback: fixed 60 updates per second ----
+  let playing = false, paused = false, step = -1, acc = 0, last = 0, ticks = 0;
+  const DT = 1000 / 60;
+  function setPlaying(v) {
+    playing = v; $("play").textContent = v ? "■ Stop" : "▶ Play"; $("play").classList.toggle("on", v);
+    if (v) { audio(); step = -1; ticks = 1e9; }
+    else if (step >= 0) { cells.forEach(r => r.forEach(c => c.classList.remove("now"))); }
+  }
+  function advance() {
+    if (step >= 0) rows.forEach((_, r) => cells[r][step].classList.remove("now"));
+    step = (step + 1) % STEPS;
+    rows.forEach((r, ri) => { cells[ri][step].classList.add("now"); if (data[ri][step]) hit(r); });
+  }
+  function update() {
+    if (!playing || paused) return;
+    ticks += 1;
+    const need = 3600 / (+$("bpm").value * 2); // 8th notes
+    if (ticks >= need) { ticks = ticks > 1e8 ? 0 : ticks - need; advance(); }
+  }
+  function loop(now) {
+    acc += Math.min(now - last, 250); last = now;
+    while (acc >= DT) { update(); acc -= DT; }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(t => { last = t; loop(t); });
+
+  $("play").onclick = () => { if (paused) togglePause(); setPlaying(!playing); };
+  function togglePause() {
+    paused = !paused; $("pause").classList.toggle("show", paused);
+    $("pauseBtn").textContent = paused ? "▶ Resume (P)" : "⏸ Pause (P)";
+  }
+  $("pauseBtn").onclick = togglePause;
+  $("pause").onclick = togglePause;
+  addEventListener("keydown", e => {
+    if (e.key === "p" || e.key === "P" || e.key === "Escape") togglePause();
+    else if (e.key === " " && e.target === document.body) { e.preventDefault(); $("play").click(); }
+  });
+})();
+</script>
 </body>
 </html>
