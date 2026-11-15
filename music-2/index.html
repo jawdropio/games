@@ -3,90 +3,114 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Song Maker</title>
+<title>Song Maker Pro</title>
 <style>
   * { box-sizing:border-box; }
-  html, body { margin:0; min-height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
-  body { display:flex; flex-direction:column; align-items:center; padding:10px; gap:8px; }
-  #top { width:100%; max-width:900px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  html, body { margin:0; min-height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none; }
+  body { display:flex; flex-direction:column; align-items:center; padding:8px; gap:8px; }
+  .row { width:100%; max-width:1100px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; }
   #top a { color:#a99ee0; text-decoration:none; font-weight:700; }
   h1 { font-size:22px; margin:0; flex:1; text-align:center; }
-  button, select { font:inherit; font-weight:700; border:0; border-radius:10px; padding:8px 12px; background:#3b2d86; color:#fff; cursor:pointer; }
+  button, select { font:inherit; font-weight:700; border:0; border-radius:10px; padding:7px 11px; background:#3b2d86; color:#fff; cursor:pointer; }
   button:hover { background:#5441b8; }
   button.big { background:#22c55e; font-size:18px; padding:8px 18px; }
   button.big.on { background:#ef4444; }
-  #controls { width:100%; max-width:900px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
-  label { font-weight:700; font-size:14px; display:flex; align-items:center; gap:6px; }
-  #grid { width:100%; max-width:900px; display:grid; grid-template-columns:64px repeat(16, 1fr); gap:3px; }
-  .lab { font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:flex-end; padding-right:4px; color:#cfc8ff; }
-  .cell { aspect-ratio:1; min-height:20px; border-radius:6px; background:#251a5c; cursor:pointer; }
-  .cell.beat { background:#2f2274; }
-  .cell.on { background:var(--c); box-shadow:0 0 8px var(--c); }
-  .cell.now { outline:3px solid #fff; }
-  #msg { height:20px; font-size:14px; color:#ffd86b; }
-  #pause { position:fixed; inset:0; background:rgba(10,5,30,.8); display:none; place-items:center; font-size:36px; font-weight:800; }
+  button.demo { background:#d946ef; }
+  button.active { background:#22c55e; }
+  label { font-weight:700; font-size:13px; display:flex; align-items:center; gap:6px; }
+  input[type=range] { width:90px; }
+  .card { background:#1d1450; border:3px solid #1d1450; border-radius:12px; padding:6px 8px; display:flex; flex-direction:column; gap:4px; cursor:pointer; min-width:150px; }
+  .card.sel { border-color:var(--c); box-shadow:0 0 10px var(--c); }
+  .card b { color:var(--c); font-size:14px; }
+  .card .line { display:flex; gap:6px; align-items:center; }
+  .card select { padding:3px 6px; font-size:13px; }
+  .card button { padding:3px 8px; font-size:13px; }
+  .card button.muted { background:#ef4444; }
+  .wrap { width:100%; max-width:1100px; overflow:auto; background:#0e0826; border-radius:10px; position:relative; }
+  #rollWrap { height:min(46vh, 420px); }
+  #drumWrap { overflow-x:auto; overflow-y:hidden; }
+  .wrap > div { display:flex; width:max-content; }
+  .side { position:sticky; left:0; z-index:2; flex:none; }
+  canvas { display:block; }
+  #roll, #drums { touch-action:none; cursor:crosshair; }
+  #msg { height:20px; font-size:14px; color:#ffd86b; text-align:center; }
+  #pause { position:fixed; inset:0; background:rgba(10,5,30,.82); display:none; place-items:center; font-size:36px; font-weight:800; z-index:10; }
   #pause.show { display:grid; }
 </style>
 </head>
 <body>
-<div id="top">
+<div class="row" id="top">
   <a href="../">← Arcade</a>
-  <h1>🎵 Song Maker</h1>
+  <h1>🎹 Song Maker Pro</h1>
   <button id="pauseBtn">⏸ Pause (P)</button>
 </div>
-<div id="controls">
+
+<div class="row">
   <button class="big" id="play">▶ Play</button>
-  <label>Speed <input type="range" id="bpm" min="60" max="200" value="120"></label>
-  <label>Sound <select id="inst">
-    <option value="triangle">🎹 Piano</option>
-    <option value="square">👾 Video game</option>
-    <option value="sine">🔔 Bells</option>
-    <option value="sawtooth">🎸 Buzzy</option>
-  </select></label>
-  <button id="clear">🗑 Clear</button>
-  <button id="rand">🎲 Surprise me</button>
+  <label>Tempo <input type="range" id="bpm" min="60" max="200" value="120"><span id="bpmV">120</span></label>
+  <label>Bars <select id="bars"><option>1</option><option>2</option><option>3</option><option selected>4</option></select></label>
+  <label><input type="checkbox" id="echo"> Echo</label>
+  <label>Master <input type="range" id="master" min="0" max="100" value="80"></label>
+  <label>🥁 <input type="range" id="drumVol" min="0" max="100" value="70"></label>
 </div>
-<div id="controls">
+
+<div class="row" id="cards"></div>
+
+<div class="row">
+  <button id="clearTrack">🧽 Clear this track</button>
+  <button id="clearAll">🗑 Clear all</button>
+  <button class="demo" id="demo">🎮 Demo: Megalovania riff</button>
   Slot:
   <button class="slot" data-s="1">1</button><button class="slot" data-s="2">2</button><button class="slot" data-s="3">3</button>
   <button id="save">💾 Save</button>
   <button id="load">📂 Load</button>
 </div>
-<div id="msg">Click the squares to make a song!</div>
-<div id="grid"></div>
+<div id="msg">Click the roll to add a note. Drag right to make it longer. Click a note to remove it.</div>
+
+<div class="wrap" id="rollWrap"><div>
+  <canvas class="side" id="keys"></canvas><canvas id="roll"></canvas>
+</div></div>
+<div class="wrap" id="drumWrap"><div>
+  <canvas class="side" id="dlabels"></canvas><canvas id="drums"></canvas>
+</div></div>
 <div id="pause">⏸ Paused — press P</div>
 
 <script>
 (() => {
-  const STEPS = 16;
-  const rows = [
-    {n:"High C", f:1046.5, c:"#ff6b9d"}, {n:"B", f:987.8, c:"#ff8e5e"}, {n:"A", f:880, c:"#ffc94d"},
-    {n:"G", f:784, c:"#9be564"}, {n:"E", f:659.3, c:"#4de3c1"}, {n:"D", f:587.3, c:"#4db8ff"},
-    {n:"C", f:523.3, c:"#8a7dff"}, {n:"Low G", f:392, c:"#c67dff"},
-    {n:"🥁 Snare", drum:"snare", c:"#e5e7eb"}, {n:"🥁 Kick", drum:"kick", c:"#ff4d4d"}, {n:"🥁 Hat", drum:"hat", c:"#ffe14d"}
-  ];
-  const data = rows.map(() => Array(STEPS).fill(false));
-  const grid = document.getElementById("grid");
-  const cells = [];
+  const LOW = 36, HIGH = 84, ROWS = HIGH - LOW + 1, RH = 14, CW = 22, MAXSTEPS = 64, KEYW = 56, DRH = 24;
+  const NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const isBlack = m => [1,3,6,8,10].includes(m % 12);
+  const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+  const INSTS = {piano:"🎹 Piano", chip:"👾 Chiptune", lead:"🎸 Saw lead", bell:"🔔 Bells", bass:"🔊 Bass", flute:"🪈 Soft flute"};
+  const TCOL = ["#ff6b9d", "#4db8ff", "#9be564", "#ffc94d"];
+  const DR = ["Hat", "Clap", "Snare", "Kick"];
   const $ = id => document.getElementById(id);
 
-  rows.forEach((r, ri) => {
-    const l = document.createElement("div"); l.className = "lab"; l.textContent = r.n; grid.appendChild(l);
-    cells[ri] = [];
-    for (let s = 0; s < STEPS; s++) {
-      const c = document.createElement("div");
-      c.className = "cell" + (s % 4 === 0 ? " beat" : "");
-      c.style.setProperty("--c", r.c);
-      c.dataset.r = ri; c.dataset.s = s;
-      grid.appendChild(c); cells[ri][s] = c;
-    }
-  });
+  const tracks = [
+    {inst:"chip", vol:0.8, mute:false, notes:[]},
+    {inst:"bass", vol:0.8, mute:false, notes:[]},
+    {inst:"piano", vol:0.8, mute:false, notes:[]},
+    {inst:"bell", vol:0.8, mute:false, notes:[]}
+  ];
+  const drums = DR.map(() => Array(MAXSTEPS).fill(false));
+  let bars = 4, sel = 0, dirty = true;
+  const steps = () => bars * 16;
+  const say = t => $("msg").textContent = t;
 
-  // ---- sound ----
-  let ac = null, noiseBuf = null;
+  // ---------- sound ----------
+  let ac = null, bus, drumBus, master, delay, echoSend, noiseBuf;
   function audio() {
     if (!ac) {
       ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain(); master.gain.value = $("master").value / 100;
+      const comp = ac.createDynamicsCompressor();
+      master.connect(comp); comp.connect(ac.destination);
+      bus = ac.createGain(); bus.connect(master);
+      drumBus = ac.createGain(); drumBus.gain.value = $("drumVol").value / 100; drumBus.connect(master);
+      delay = ac.createDelay(2); delay.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.38;
+      echoSend = ac.createGain(); echoSend.gain.value = $("echo").checked ? 0.45 : 0;
+      bus.connect(echoSend); echoSend.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(master);
       noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -94,110 +118,287 @@
     if (ac.state === "suspended") ac.resume();
     return ac;
   }
-  function tone(f) {
-    const a = audio(), t = a.currentTime;
-    const o = a.createOscillator(), g = a.createGain();
-    o.type = $("inst").value; o.frequency.value = f;
-    const vol = o.type === "sawtooth" || o.type === "square" ? 0.08 : 0.2;
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-    o.connect(g).connect(a.destination); o.start(t); o.stop(t + 0.45);
+  function playNote(inst, midi, dur, vol) {
+    const a = audio(), t = a.currentTime, f = mf(midi);
+    const g = a.createGain(); g.connect(bus);
+    let dest = g;
+    if (inst === "lead" || inst === "bass") {
+      const lp = a.createBiquadFilter(); lp.type = "lowpass";
+      lp.frequency.value = inst === "bass" ? 600 : Math.min(f * 6, 7000);
+      lp.connect(g); dest = lp;
+    }
+    const oscs = [];
+    const osc = (type, fr, gain) => {
+      const o = a.createOscillator(), y = a.createGain();
+      o.type = type; o.frequency.value = fr; y.gain.value = gain;
+      o.connect(y); y.connect(dest); oscs.push(o);
+    };
+    let peak = vol * 0.22, end;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.006);
+    if (inst === "piano") {
+      osc("triangle", f, 1); osc("sine", f * 2, 0.35);
+      g.gain.exponentialRampToValueAtTime(peak * 0.35, t + Math.max(dur, 0.15));
+      g.gain.exponentialRampToValueAtTime(0.0005, t + Math.max(dur, 0.15) + 0.5);
+      end = t + Math.max(dur, 0.15) + 0.55;
+    } else if (inst === "bell") {
+      osc("sine", f, 1); osc("sine", f * 2.76, 0.35);
+      g.gain.exponentialRampToValueAtTime(0.0005, t + Math.max(dur * 1.5, 0.9));
+      end = t + Math.max(dur * 1.5, 0.9) + 0.05;
+    } else {
+      if (inst === "chip") { osc("square", f, 0.5); peak *= 0.6; }
+      else if (inst === "lead") osc("sawtooth", f, 0.7);
+      else if (inst === "bass") { osc("sawtooth", f, 0.7); osc("sine", f / 2, 0.9); }
+      else if (inst === "flute") { osc("sine", f, 1); osc("triangle", f * 2, 0.15); }
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(peak, t + 0.012);
+      g.gain.setValueAtTime(peak, t + Math.max(dur - 0.02, 0.02));
+      g.gain.linearRampToValueAtTime(0.0001, t + Math.max(dur, 0.05) + 0.08);
+      end = t + Math.max(dur, 0.05) + 0.1;
+    }
+    oscs.forEach(o => { o.start(t); o.stop(end); });
   }
-  function drum(kind) {
+  function playDrum(kind) {
     const a = audio(), t = a.currentTime, g = a.createGain();
-    g.connect(a.destination);
-    if (kind === "kick") {
+    g.connect(drumBus);
+    if (kind === "Kick") {
       const o = a.createOscillator();
       o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.15);
-      g.gain.setValueAtTime(0.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      g.gain.setValueAtTime(0.8, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
       o.connect(g); o.start(t); o.stop(t + 0.3);
-    } else {
-      const n = a.createBufferSource(), f = a.createBiquadFilter();
-      n.buffer = noiseBuf; f.type = "highpass"; f.frequency.value = kind === "hat" ? 7000 : 1500;
-      const len = kind === "hat" ? 0.06 : 0.18;
-      g.gain.setValueAtTime(kind === "hat" ? 0.18 : 0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + len);
-      n.connect(f).connect(g); n.start(t); n.stop(t + len + 0.02);
+      return;
+    }
+    const n = a.createBufferSource(), f = a.createBiquadFilter();
+    n.buffer = noiseBuf;
+    f.type = kind === "Clap" ? "bandpass" : "highpass";
+    f.frequency.value = kind === "Hat" ? 7000 : kind === "Clap" ? 1500 : 1800;
+    const len = kind === "Hat" ? 0.05 : kind === "Clap" ? 0.12 : 0.18;
+    const vol = kind === "Hat" ? 0.25 : 0.5;
+    g.gain.setValueAtTime(vol, t);
+    if (kind === "Clap") { g.gain.setValueAtTime(0.1, t + 0.015); g.gain.setValueAtTime(vol, t + 0.03); }
+    g.gain.exponentialRampToValueAtTime(0.001, t + len);
+    n.connect(f); f.connect(g); n.start(t); n.stop(t + len + 0.02);
+  }
+
+  // ---------- drawing ----------
+  const keysC = $("keys"), rollC = $("roll"), drumsC = $("drums"), dlabC = $("dlabels");
+  keysC.width = KEYW; keysC.height = ROWS * RH;
+  rollC.width = MAXSTEPS * CW; rollC.height = ROWS * RH;
+  dlabC.width = KEYW; dlabC.height = DR.length * DRH;
+  drumsC.width = MAXSTEPS * CW; drumsC.height = DR.length * DRH;
+  const rk = keysC.getContext("2d"), rc = rollC.getContext("2d"), dk = dlabC.getContext("2d"), dc = drumsC.getContext("2d");
+  let step = -1;
+
+  function drawKeys() {
+    for (let m = HIGH; m >= LOW; m--) {
+      const y = (HIGH - m) * RH;
+      rk.fillStyle = isBlack(m) ? "#222" : "#f4f1ff"; rk.fillRect(0, y, KEYW, RH);
+      rk.fillStyle = "#888"; rk.fillRect(0, y + RH - 1, KEYW, 1);
+      if (m % 12 === 0 || m % 12 === 7 || m % 12 === 2) {
+        rk.fillStyle = isBlack(m) ? "#fff" : "#333"; rk.font = "bold 10px system-ui";
+        rk.fillText(NAMES[m % 12] + (Math.floor(m / 12) - 1), 6, y + RH - 3);
+      }
     }
   }
-  const hit = r => r.drum ? drum(r.drum) : tone(r.f);
-
-  // ---- editing ----
-  let painting = null;
-  grid.addEventListener("pointerdown", e => {
-    const c = e.target.closest(".cell"); if (!c) return;
-    const r = +c.dataset.r, s = +c.dataset.s;
-    painting = !data[r][s]; set(r, s, painting, true);
-    e.preventDefault();
-  });
-  grid.addEventListener("pointerover", e => {
-    if (painting === null || !(e.buttons & 1)) return;
-    const c = e.target.closest(".cell"); if (!c) return;
-    set(+c.dataset.r, +c.dataset.s, painting, false);
-  });
-  addEventListener("pointerup", () => painting = null);
-  function set(r, s, v, preview) {
-    data[r][s] = v; cells[r][s].classList.toggle("on", v);
-    if (v && preview) hit(rows[r]);
+  function drawLabels() {
+    dk.fillStyle = "#1d1450"; dk.fillRect(0, 0, KEYW, DR.length * DRH);
+    dk.fillStyle = "#cfc8ff"; dk.font = "bold 11px system-ui";
+    DR.forEach((n, i) => dk.fillText("🥁 " + n, 4, i * DRH + 16));
   }
-  function refresh() { rows.forEach((_, r) => { for (let s = 0; s < STEPS; s++) cells[r][s].classList.toggle("on", data[r][s]); }); }
-  const say = t => $("msg").textContent = t;
+  function grid(ctx, rowsN, rh, w) {
+    for (let s = 0; s <= MAXSTEPS; s++) {
+      ctx.fillStyle = s % 16 === 0 ? "#8a7dff" : s % 4 === 0 ? "#4a3b9a" : "#2a1f66";
+      ctx.fillRect(s * CW, 0, 1, rowsN * rh);
+    }
+  }
+  function draw() {
+    // roll
+    for (let m = HIGH; m >= LOW; m--) {
+      const y = (HIGH - m) * RH;
+      rc.fillStyle = isBlack(m) ? "#150d38" : "#1e1550"; rc.fillRect(0, y, rollC.width, RH);
+      if (m % 12 === 0) { rc.fillStyle = "#3a2d86"; rc.fillRect(0, y + RH - 1, rollC.width, 1); }
+    }
+    grid(rc, ROWS, RH);
+    tracks.forEach((t, ti) => {
+      if (ti === sel) return;
+      rc.globalAlpha = 0.3; rc.fillStyle = TCOL[ti];
+      t.notes.forEach(n => rc.fillRect(n.s * CW + 1, (HIGH - n.p) * RH + 1, n.l * CW - 2, RH - 2));
+    });
+    rc.globalAlpha = 1;
+    rc.fillStyle = TCOL[sel]; rc.strokeStyle = "#fff"; rc.lineWidth = 1;
+    tracks[sel].notes.forEach(n => {
+      rc.fillRect(n.s * CW + 1, (HIGH - n.p) * RH + 1, n.l * CW - 2, RH - 2);
+      rc.strokeRect(n.s * CW + 1.5, (HIGH - n.p) * RH + 1.5, n.l * CW - 3, RH - 3);
+    });
+    rc.fillStyle = "rgba(0,0,0,0.55)"; rc.fillRect(steps() * CW, 0, rollC.width, rollC.height);
+    if (step >= 0) { rc.fillStyle = "rgba(255,255,255,0.2)"; rc.fillRect(step * CW, 0, CW, rollC.height); }
+    // drums
+    dc.fillStyle = "#1e1550"; dc.fillRect(0, 0, drumsC.width, drumsC.height);
+    grid(dc, DR.length, DRH);
+    for (let r = 0; r < DR.length; r++) {
+      dc.fillStyle = "#2a1f66"; dc.fillRect(0, (r + 1) * DRH - 1, drumsC.width, 1);
+      for (let s = 0; s < MAXSTEPS; s++) if (drums[r][s]) {
+        dc.fillStyle = "#e5e7eb"; dc.fillRect(s * CW + 2, r * DRH + 3, CW - 4, DRH - 6);
+      }
+    }
+    dc.fillStyle = "rgba(0,0,0,0.55)"; dc.fillRect(steps() * CW, 0, drumsC.width, drumsC.height);
+    if (step >= 0) { dc.fillStyle = "rgba(255,255,255,0.2)"; dc.fillRect(step * CW, 0, CW, drumsC.height); }
+    dirty = false;
+  }
+  drawKeys(); drawLabels();
 
-  $("clear").onclick = () => { data.forEach(r => r.fill(false)); refresh(); say("Fresh and empty! ✨"); };
-  $("rand").onclick = () => {
-    const pent = [0, 1, 3, 4, 5, 6];
-    data.forEach(r => r.fill(false));
-    for (let s = 0; s < STEPS; s += 2) if (Math.random() < 0.75) data[pent[Math.floor(Math.random() * pent.length)]][s] = true;
-    for (let s = 0; s < STEPS; s += 4) data[9][s] = true;
-    for (let s = 4; s < STEPS; s += 8) data[8][s] = true;
-    for (let s = 2; s < STEPS; s += 4) data[10][s] = true;
-    refresh(); say("Surprise! 🎲");
+  // ---------- editing ----------
+  let drag = null, dpaint = null;
+  const pos = (e, c) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  rollC.addEventListener("pointerdown", e => {
+    const [x, y] = pos(e, rollC);
+    const s = Math.floor(x / CW), m = HIGH - Math.floor(y / RH);
+    if (s < 0 || s >= steps() || m < LOW || m > HIGH) return;
+    const list = tracks[sel].notes;
+    const i = list.findIndex(n => n.p === m && s >= n.s && s < n.s + n.l);
+    if (i >= 0) list.splice(i, 1);
+    else {
+      drag = {s, l: 1, p: m}; list.push(drag);
+      playNote(tracks[sel].inst, m, 0.25, tracks[sel].vol);
+      rollC.setPointerCapture(e.pointerId);
+    }
+    dirty = true; e.preventDefault();
+  });
+  rollC.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const s = Math.floor(pos(e, rollC)[0] / CW);
+    const nl = Math.max(1, Math.min(s - drag.s + 1, steps() - drag.s));
+    if (nl !== drag.l) { drag.l = nl; dirty = true; }
+  });
+  const endDrag = () => { drag = null; dpaint = null; };
+  addEventListener("pointerup", endDrag); addEventListener("pointercancel", endDrag);
+
+  keysC.addEventListener("pointerdown", e => {
+    const m = HIGH - Math.floor(pos(e, keysC)[1] / RH);
+    if (m >= LOW && m <= HIGH) playNote(tracks[sel].inst, m, 0.4, tracks[sel].vol);
+  });
+
+  function drumCell(e, first) {
+    const [x, y] = pos(e, drumsC);
+    const s = Math.floor(x / CW), r = Math.floor(y / DRH);
+    if (s < 0 || s >= steps() || r < 0 || r >= DR.length) return;
+    if (first) { dpaint = !drums[r][s]; }
+    if (dpaint === null || drums[r][s] === dpaint) return;
+    drums[r][s] = dpaint; dirty = true;
+    if (dpaint && first) playDrum(DR[r]);
+  }
+  drumsC.addEventListener("pointerdown", e => { drumCell(e, true); drumsC.setPointerCapture(e.pointerId); e.preventDefault(); });
+  drumsC.addEventListener("pointermove", e => { if (dpaint !== null && (e.buttons & 1 || e.pointerType === "touch")) drumCell(e, false); });
+
+  // keep the two scroll boxes lined up
+  const rw = $("rollWrap"), dw = $("drumWrap");
+  rw.addEventListener("scroll", () => { if (dw.scrollLeft !== rw.scrollLeft) dw.scrollLeft = rw.scrollLeft; });
+  dw.addEventListener("scroll", () => { if (rw.scrollLeft !== dw.scrollLeft) rw.scrollLeft = dw.scrollLeft; });
+  rw.scrollTop = (HIGH - 78) * RH;
+
+  // ---------- track cards ----------
+  const cardsEl = $("cards");
+  tracks.forEach((t, i) => {
+    const c = document.createElement("div");
+    c.className = "card"; c.style.setProperty("--c", TCOL[i]);
+    const opts = Object.entries(INSTS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+    c.innerHTML = `<b>Track ${i + 1}</b><div class="line"><select>${opts}</select></div>
+      <div class="line"><input type="range" min="0" max="100" value="80"><button>🔊</button></div>`;
+    const selEl = c.querySelector("select"), vol = c.querySelector("input"), mu = c.querySelector("button");
+    selEl.value = t.inst;
+    selEl.onchange = () => { t.inst = selEl.value; playNote(t.inst, 69, 0.3, t.vol); };
+    vol.oninput = () => t.vol = vol.value / 100;
+    mu.onclick = ev => { ev.stopPropagation(); t.mute = !t.mute; mu.textContent = t.mute ? "🔇" : "🔊"; mu.classList.toggle("muted", t.mute); };
+    [selEl, vol].forEach(x => x.addEventListener("click", ev => ev.stopPropagation()));
+    c.onclick = () => selectTrack(i);
+    cardsEl.appendChild(c); t.el = c; t.selEl = selEl; t.volEl = vol;
+  });
+  function selectTrack(i) { sel = i; tracks.forEach((t, k) => t.el.classList.toggle("sel", k === i)); dirty = true; }
+  selectTrack(0);
+
+  // ---------- buttons ----------
+  $("bpm").oninput = () => { $("bpmV").textContent = $("bpm").value; if (delay) delay.delayTime.value = 60 / $("bpm").value * 0.75; };
+  $("bars").onchange = () => { bars = +$("bars").value; dirty = true; };
+  $("echo").onchange = () => { audio(); echoSend.gain.value = $("echo").checked ? 0.45 : 0; };
+  $("master").oninput = () => { if (master) master.gain.value = $("master").value / 100; };
+  $("drumVol").oninput = () => { if (drumBus) drumBus.gain.value = $("drumVol").value / 100; };
+  $("clearTrack").onclick = () => { tracks[sel].notes.length = 0; dirty = true; say("Track " + (sel + 1) + " is empty ✨"); };
+  $("clearAll").onclick = () => { tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false)); dirty = true; say("Everything cleared! ✨"); };
+
+  function syncUI() {
+    $("bpmV").textContent = $("bpm").value; $("bars").value = bars;
+    tracks.forEach(t => { t.selEl.value = t.inst; t.volEl.value = t.vol * 100; });
+    dirty = true;
+  }
+  $("demo").onclick = () => {
+    tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false));
+    const pair = [62, 60, 59, 58], bass = [50, 48, 47, 46];
+    const mel = [[0,0,1],[1,0,1],[2,74,2],[4,69,3],[7,68,2],[9,67,2],[11,65,2],[13,62,1],[14,65,1],[15,67,1]];
+    for (let b = 0; b < 4; b++) {
+      const o = b * 16;
+      mel.forEach(([s, p, l]) => tracks[0].notes.push({s: o + s, l, p: p === 0 ? pair[b] : p}));
+      for (let s = 0; s < 16; s += 2) tracks[1].notes.push({s: o + s, l: 1, p: bass[b]});
+      tracks[2].notes.push({s: o, l: 8, p: bass[b] + 12 + 7}, {s: o + 8, l: 8, p: bass[b] + 12 + 3});
+      for (let s = 0; s < 16; s += 2) drums[0][o + s] = true;
+      drums[3][o] = drums[3][o + 8] = true; drums[3][o + 3] = true;
+      drums[2][o + 4] = drums[2][o + 12] = true;
+    }
+    tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "flute";
+    bars = 4; $("bpm").value = 120; syncUI(); selectTrack(0); say("Megalovania riff loaded! Press Play 🎮");
   };
 
-  // ---- save / load ----
   let slot = 1;
   document.querySelectorAll(".slot").forEach(b => b.onclick = () => {
     slot = +b.dataset.s;
-    document.querySelectorAll(".slot").forEach(x => x.style.background = "");
-    b.style.background = "#22c55e"; say("Slot " + slot + " picked");
+    document.querySelectorAll(".slot").forEach(x => x.classList.toggle("active", x === b)); say("Slot " + slot + " picked");
   });
-  document.querySelector('.slot[data-s="1"]').style.background = "#22c55e";
+  document.querySelector('.slot[data-s="1"]').classList.add("active");
   $("save").onclick = () => {
     try {
-      localStorage.setItem("songmaker-" + slot, JSON.stringify({d:data, bpm:$("bpm").value, inst:$("inst").value}));
+      localStorage.setItem("songmaker-pro-" + slot, JSON.stringify({
+        t: tracks.map(t => ({inst: t.inst, vol: t.vol, notes: t.notes})), d: drums, bpm: $("bpm").value, bars}));
       say("Saved to slot " + slot + "! 💾");
     } catch (e) { say("Couldn't save here 😢"); }
   };
   $("load").onclick = () => {
     try {
-      const s = JSON.parse(localStorage.getItem("songmaker-" + slot));
+      const s = JSON.parse(localStorage.getItem("songmaker-pro-" + slot));
       if (!s) { say("Slot " + slot + " is empty"); return; }
-      s.d.forEach((r, i) => { if (data[i]) data[i] = r.slice(0, STEPS); });
-      $("bpm").value = s.bpm; $("inst").value = s.inst; refresh(); say("Loaded slot " + slot + "! 📂");
+      s.t.forEach((x, i) => { if (tracks[i]) { tracks[i].inst = INSTS[x.inst] ? x.inst : "piano"; tracks[i].vol = +x.vol || 0.8; tracks[i].notes = x.notes.filter(n => n.p >= LOW && n.p <= HIGH); } });
+      s.d.forEach((r, i) => { if (drums[i]) drums[i] = r.slice(0, MAXSTEPS); });
+      bars = Math.min(4, Math.max(1, +s.bars || 4)); $("bpm").value = s.bpm; syncUI(); say("Loaded slot " + slot + "! 📂");
     } catch (e) { say("Couldn't load that one"); }
   };
 
-  // ---- playback: fixed 60 updates per second ----
-  let playing = false, paused = false, step = -1, acc = 0, last = 0, ticks = 0;
+  // ---------- playback: fixed 60 updates per second ----------
+  let playing = false, paused = false, acc = 0, last = 0, ticks = 0, first = true;
   const DT = 1000 / 60;
   function setPlaying(v) {
     playing = v; $("play").textContent = v ? "■ Stop" : "▶ Play"; $("play").classList.toggle("on", v);
-    if (v) { audio(); step = -1; ticks = 1e9; }
-    else if (step >= 0) { cells.forEach(r => r.forEach(c => c.classList.remove("now"))); }
+    if (v) { audio(); step = -1; first = true; ticks = 0; }
+    else { step = -1; dirty = true; }
   }
   function advance() {
-    if (step >= 0) rows.forEach((_, r) => cells[r][step].classList.remove("now"));
-    step = (step + 1) % STEPS;
-    rows.forEach((r, ri) => { cells[ri][step].classList.add("now"); if (data[ri][step]) hit(r); });
+    step = (step + 1) % steps(); dirty = true;
+    const stepSec = 60 / $("bpm").value / 4;
+    tracks.forEach(t => { if (!t.mute) t.notes.forEach(n => { if (n.s === step) playNote(t.inst, n.p, n.l * stepSec, t.vol); }); });
+    DR.forEach((n, r) => { if (drums[r][step]) playDrum(n); });
+    // auto-scroll to follow the playhead
+    const x = step * CW;
+    if (x < rw.scrollLeft || x > rw.scrollLeft + rw.clientWidth - KEYW - CW * 2) rw.scrollLeft = Math.max(0, x - CW * 2);
   }
   function update() {
     if (!playing || paused) return;
+    const need = 3600 / ($("bpm").value * 4);
+    if (first) { first = false; advance(); return; }
     ticks += 1;
-    const need = 3600 / (+$("bpm").value * 2); // 8th notes
-    if (ticks >= need) { ticks = ticks > 1e8 ? 0 : ticks - need; advance(); }
+    if (ticks >= need) { ticks -= need; advance(); }
   }
   function loop(now) {
     acc += Math.min(now - last, 250); last = now;
     while (acc >= DT) { update(); acc -= DT; }
+    if (dirty) draw();
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(t => { last = t; loop(t); });
@@ -211,7 +412,7 @@
   $("pause").onclick = togglePause;
   addEventListener("keydown", e => {
     if (e.key === "p" || e.key === "P" || e.key === "Escape") togglePause();
-    else if (e.key === " " && e.target === document.body) { e.preventDefault(); $("play").click(); }
+    else if (e.key === " " && !/SELECT|INPUT/.test(e.target.tagName)) { e.preventDefault(); $("play").click(); }
   });
 })();
 </script>

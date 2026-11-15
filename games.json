@@ -67,8 +67,8 @@
   },
   {
     "slug": "music-2",
-    "title": "Song Maker",
-    "emoji": "🎵",
-    "description": "Make your own songs! Click squares to add notes and drums, pick a sound, change the speed, press Play, and save 3 songs."
+    "title": "Song Maker Pro",
+    "emoji": "🎹",
+    "description": "A pro-style song studio! Piano roll with long notes, 4 instrument tracks, drums, echo, 3 save slots, and a Megalovania riff demo to play with."
   }
 ]
