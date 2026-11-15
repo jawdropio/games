@@ -66,6 +66,7 @@
 </div>
 
 <div class="row">
+  <button class="demo" id="royal">👑 Demo: Royal Anthem</button>
   <button class="demo" id="hero">🌟 Demo: Hero Song</button>
   <button class="demo" id="storm">⚡ Demo: Storm Rock</button>
   <button id="clearTrack">🧽 Clear this track</button>
@@ -488,6 +489,52 @@
     say("Hero Song loaded! Press Play and feel the power 🌟");
   };
 
+
+  // ---------- original anthem: Royal Anthem ----------
+  $("royal").onclick = () => {
+    const A = emptyPat(), B = emptyPat(), C = emptyPat(), D = emptyPat();
+    const add = (p, t, s, l, n) => p.n[t].push({s, l, p: n});
+    const dr = (p, r, list, off = 0) => list.forEach(s => p.d[r][off + s] = true);
+    const Cm = [60,63,67], Ab = [56,60,63], Eb = [55,58,63], Bb = [58,62,65], Cmaj = [60,64,67];
+    const prog1 = [[48,Cm], [44,Ab], [51,Eb], [46,Bb]];
+    const prog2 = [[48,Cm], [44,Ab], [46,Bb], [48,Cmaj]];
+    const melB = [
+      [[0,67,4],[4,72,4],[8,75,4],[12,74,2],[14,72,2]],
+      [[0,68,4],[4,72,4],[8,75,6],[14,72,2]],
+      [[0,70,4],[4,74,4],[8,75,4],[12,79,4]],
+      [[0,77,4],[4,74,4],[8,70,4],[12,74,4]]];
+    const melC = [
+      [[0,79,6],[6,77,2],[8,75,8]],
+      [[0,80,6],[6,79,2],[8,75,8]],
+      [[0,82,6],[6,79,2],[8,77,4],[12,75,4]],
+      [[0,74,4],[4,77,4],[8,79,8]]];
+    const melD = [melC[0], melC[1], [[0,77,4],[4,79,4],[8,82,8]], [[0,84,16]]];
+    const melody = (p, m) => m.forEach((bar, b) => bar.forEach(([s, n, l]) => add(p, 0, b * 16 + s, l, n - 12)));
+    const bass = (p, prog) => prog.forEach(([root], b) => { add(p, 1, b * 16, 8, root); add(p, 1, b * 16 + 8, 8, root); });
+    const chords = (p, prog, whole) => prog.forEach(([, tri], b) => (whole ? [[0, 16]] : [[0, 8], [8, 8]]).forEach(([s, l]) => tri.forEach(n => add(p, 2, b * 16 + s, l, n))));
+    const bells = (p, prog) => prog.forEach(([, tri], b) => [0,1,2,1,0,1,2,1].forEach((ix, i) => add(p, 3, b * 16 + i * 2, 2, tri[ix])));
+    // A: slow, grand intro
+    chords(A, prog1, true); bass(A, prog1); bells(A, prog1);
+    for (let b = 0; b < 4; b++) dr(A, 3, [0], b * 16);
+    dr(A, 2, [8,10,12,13,14,15], 48);
+    // B: verse with a marching beat
+    melody(B, melB); chords(B, prog1, false); bass(B, prog1);
+    for (let b = 0; b < 4; b++) { dr(B, 3, [0,8], b * 16); dr(B, 2, [4,12], b * 16); dr(B, 0, [0,4,8,12], b * 16); }
+    // C: grand chorus
+    melody(C, melC); chords(C, prog1, false); bass(C, prog1); bells(C, prog1);
+    for (let b = 0; b < 4; b++) { dr(C, 3, [0,8], b * 16); dr(C, 2, [4,12], b * 16); dr(C, 1, [4,12], b * 16); dr(C, 0, [0,2,4,6,8,10,12,14], b * 16); }
+    // D: glorious finale (ends bright, in C major)
+    melody(D, melD); chords(D, prog2, false); bass(D, prog2); bells(D, prog2);
+    for (let b = 0; b < 3; b++) { dr(D, 3, [0,8], b * 16); dr(D, 2, [4,12], b * 16); dr(D, 1, [4,12], b * 16); dr(D, 0, [0,2,4,6,8,10,12,14], b * 16); }
+    dr(D, 2, [12,13,14,15], 32); dr(D, 3, [0], 48); dr(D, 1, [0], 48);
+    pats[0] = A; pats[1] = B; pats[2] = C; pats[3] = D;
+    tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "piano"; tracks[3].inst = "bell";
+    tracks[0].vol = 0.6; tracks[2].vol = 0.7; tracks[3].vol = 0.5;
+    $("bpm").value = 88;
+    if (!songMode) $("mode").click();
+    applyPat(0); syncUI(); selectTrack(0);
+    say("Royal Anthem loaded! Press Play 👑");
+  };
 
   let slot = 1;
   document.querySelectorAll(".slot").forEach(b => b.onclick = () => {
