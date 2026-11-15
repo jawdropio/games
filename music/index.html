@@ -36,6 +36,7 @@
 <div class="bar">
   <button id="recBtn">⏺ Record</button>
   <button id="playBtn">▶ Play song</button>
+  <button id="megaBtn">💀 Auto-play Megalovania</button>
   <button id="waveBtn">🎸 Sound: Piano</button>
 </div>
 <div id="msg"></div>
@@ -122,7 +123,10 @@
     if (recording && !fromPlayback) song.push({n:note, t:performance.now()-recStart, d:'up'});
   }
 
-  function stopPlayback() { playTimers.forEach(clearTimeout); playTimers = []; playBtn.textContent = '▶ Play song'; stopAll(); }
+  function stopPlayback() {
+    playTimers.forEach(clearTimeout); playTimers = []; playBtn.textContent = '▶ Play song'; stopAll();
+    const mb = document.getElementById('megaBtn'); delete mb.dataset.playing; mb.textContent = '💀 Auto-play Megalovania';
+  }
   recBtn.onclick = () => {
     audio();
     stopPlayback();
@@ -140,6 +144,28 @@
     song.forEach(ev => playTimers.push(setTimeout(() => ev.d==='down' ? press(ev.n,true) : release(ev.n,true), ev.t)));
     const end = song[song.length-1].t + 400;
     playTimers.push(setTimeout(() => { stopPlayback(); msg.textContent = '🎉 Nice song!'; }, end));
+  };
+  // ---- auto-play: Megalovania intro (times are in eighth-notes) ----
+  const MEGA_PHRASE = [['D4',0,1],['D4',1,1],['D5',2,2],['A4',5,3],['G#4',9,2],['G4',11,2],['F4',13,2],['D4',15,1],['F4',16,1],['G4',17,1]];
+  const megaBtn = document.getElementById('megaBtn');
+  megaBtn.onclick = () => {
+    audio();
+    if (megaBtn.dataset.playing) { stopPlayback(); return; }
+    if (recording) recBtn.onclick();
+    stopPlayback();
+    const E = 125, notes = [];
+    [0, 20].forEach((off, i) => MEGA_PHRASE.forEach(([n,s,l]) => {
+      const name = (i === 1 && n === 'D4') ? 'C4' : n;
+      notes.push([name, (off+s)*E, l*E*0.85]);
+    }));
+    // second phrase starts on C4 C4 instead of D4 D4
+    megaBtn.dataset.playing = '1'; megaBtn.textContent = '⏹ Stop';
+    msg.textContent = '🎶 Playing the Megalovania intro...';
+    notes.forEach(([n,t,len]) => {
+      playTimers.push(setTimeout(() => press(n,true), t));
+      playTimers.push(setTimeout(() => release(n,true), t+len));
+    });
+    playTimers.push(setTimeout(() => { stopPlayback(); msg.textContent = '🎉 Ba da da daaa!'; }, 5200));
   };
   document.getElementById('waveBtn').onclick = e => {
     waveIdx = (waveIdx+1) % WAVES.length;
