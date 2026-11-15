@@ -59,6 +59,8 @@
 <div class="row">
   <button class="demo" id="storm">⚡ Demo: Storm Rock</button>
   <button id="clearTrack">🧽 Clear this track</button>
+  <button id="copyLow">⬇ Copy lower</button>
+  <button id="copyHigh">⬆ Copy higher</button>
   <button id="clearAll">🗑 Clear all</button>
   <button class="demo" id="demo">🎮 Demo: Megalovania riff</button>
   Slot:
@@ -82,7 +84,7 @@
   const NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
   const isBlack = m => [1,3,6,8,10].includes(m % 12);
   const mf = m => 440 * Math.pow(2, (m - 69) / 12);
-  const INSTS = {piano:"🎹 Piano", chip:"👾 Chiptune", lead:"🎸 Saw lead", bell:"🔔 Bells", bass:"🔊 Bass", flute:"🪈 Soft flute"};
+  const INSTS = {piano:"🎹 Piano", chip:"👾 Chiptune", lead:"🎸 Saw lead", bell:"🔔 Bells", bass:"🔊 Bass", flute:"🪈 Soft flute", guitar:"🎸 Electric guitar"};
   const TCOL = ["#ff6b9d", "#4db8ff", "#9be564", "#ffc94d"];
   const DR = ["Hat", "Clap", "Snare", "Kick"];
   const $ = id => document.getElementById(id);
@@ -90,7 +92,7 @@
   const tracks = [
     {inst:"chip", vol:0.8, mute:false, notes:[]},
     {inst:"bass", vol:0.8, mute:false, notes:[]},
-    {inst:"piano", vol:0.8, mute:false, notes:[]},
+    {inst:"guitar", vol:0.8, mute:false, notes:[]},
     {inst:"bell", vol:0.8, mute:false, notes:[]}
   ];
   const drums = DR.map(() => Array(MAXSTEPS).fill(false));
@@ -123,7 +125,13 @@
     const a = audio(), t = a.currentTime, f = mf(midi);
     const g = a.createGain(); g.connect(bus);
     let dest = g;
-    if (inst === "lead" || inst === "bass") {
+    if (inst === "guitar") {
+      const sh = a.createWaveShaper(), curve = new Float32Array(256);
+      for (let i = 0; i < 256; i++) curve[i] = Math.tanh((i / 127.5 - 1) * 3);
+      sh.curve = curve;
+      const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2800;
+      sh.connect(lp); lp.connect(g); dest = sh;
+    } else if (inst === "lead" || inst === "bass") {
       const lp = a.createBiquadFilter(); lp.type = "lowpass";
       lp.frequency.value = inst === "bass" ? 250 : Math.min(f * 3, 2500);
       lp.connect(g); dest = lp;
@@ -150,6 +158,7 @@
       if (inst === "chip") { osc("square", f, 0.5); peak *= 0.6; }
       else if (inst === "lead") { osc("sawtooth", f, 0.35); osc("triangle", f, 0.6); }
       else if (inst === "bass") { osc("triangle", f, 0.8); osc("sine", f / 2, 0.9); }
+      else if (inst === "guitar") { osc("sawtooth", f, 0.45); osc("sawtooth", f * 1.004, 0.3); osc("triangle", f, 0.4); peak *= 0.6; }
       else if (inst === "flute") { osc("sine", f, 1); osc("triangle", f * 2, 0.15); }
       g.gain.cancelScheduledValues(t);
       g.gain.setValueAtTime(0.0001, t);
@@ -325,6 +334,18 @@
   $("master").oninput = () => { if (master) master.gain.value = $("master").value / 100; };
   $("drumVol").oninput = () => { if (drumBus) drumBus.gain.value = $("drumVol").value / 100; };
   $("clearTrack").onclick = () => { tracks[sel].notes.length = 0; dirty = true; say("Track " + (sel + 1) + " is empty ✨"); };
+  function copyShift(d) {
+    const list = tracks[sel].notes, add = [];
+    list.forEach(n => {
+      const p = n.p + d;
+      if (p < LOW || p > HIGH || list.some(x => x.s === n.s && x.p === p)) return;
+      add.push({s: n.s, l: n.l, p});
+    });
+    list.push(...add); dirty = true;
+    say(add.length ? "Added " + add.length + " notes " + (d < 0 ? "lower" : "higher") + "! 📋" : "Nothing to copy 🤔 (add notes first)");
+  }
+  $("copyLow").onclick = () => copyShift(-12);
+  $("copyHigh").onclick = () => copyShift(12);
   $("clearAll").onclick = () => { tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false)); dirty = true; say("Everything cleared! ✨"); };
 
   function syncUI() {
@@ -341,12 +362,11 @@
       mel.forEach(([s, p, l]) => tracks[0].notes.push({s: o + s, l, p: p === 0 ? pair[b] : p}));
       if (b < 4) continue; // bars 1-4: melody only, like the sheet music
       for (let s = 0; s < 16; s += 2) tracks[1].notes.push({s: o + s, l: 1, p: bass[b]});
-      tracks[2].notes.push({s: o, l: 8, p: bass[b] + 19}, {s: o + 8, l: 8, p: bass[b] + 15});
       for (let s = 0; s < 16; s += 2) drums[0][o + s] = true;
       drums[3][o] = drums[3][o + 8] = drums[3][o + 3] = true;
       drums[2][o + 4] = drums[2][o + 12] = true;
     }
-    tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "flute";
+    tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "guitar";
     bars = 8; $("bpm").value = 120; syncUI(); selectTrack(0); say("Megalovania riff loaded! Press Play 🎮");
   };
 
@@ -357,12 +377,11 @@
       const o = b * 16;
       for (let s = 0; s < 16; s++) tracks[0].notes.push({s: o + s, l: 1, p: s % 2 === 0 ? 71 : scale[(b * 4 + (s >> 1)) % scale.length]});
       for (let s = 0; s < 16; s += 2) tracks[1].notes.push({s: o + s, l: 1, p: roots[b] - 12});
-      tracks[2].notes.push({s: o, l: 8, p: roots[b]}, {s: o, l: 8, p: roots[b] + 7}, {s: o + 8, l: 8, p: roots[b]}, {s: o + 8, l: 8, p: roots[b] + 7});
       for (let s = 0; s < 16; s += 2) drums[0][o + s] = true;
       for (let s = 0; s < 16; s += 4) drums[3][o + s] = true;
       drums[2][o + 4] = drums[2][o + 12] = true;
     }
-    tracks[0].inst = "lead"; tracks[1].inst = "bass"; tracks[2].inst = "lead";
+    tracks[0].inst = "lead"; tracks[1].inst = "bass"; tracks[2].inst = "guitar";
     bars = 4; $("bpm").value = 130; syncUI(); selectTrack(0); say("Storm Rock loaded! Press Play ⚡");
   };
 
