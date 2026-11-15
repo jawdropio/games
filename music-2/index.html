@@ -66,6 +66,7 @@
 </div>
 
 <div class="row">
+  <button class="demo" id="hero">🌟 Demo: Hero Song</button>
   <button class="demo" id="storm">⚡ Demo: Storm Rock</button>
   <button id="clearTrack">🧽 Clear this track</button>
   <button id="copyLow">⬇ Copy lower</button>
@@ -432,6 +433,61 @@
     for (let k = 1; k <= 4; k++) { const j = (cur + k) % 4; if (!isEmpty(pats[j])) { applyPat(j); return; } }
   }
   setInterval(partButtons, 400);
+
+  // ---------- original anthem: Hero Song ----------
+  $("hero").onclick = () => {
+    const A = emptyPat(), B = emptyPat(), C = emptyPat(), D = emptyPat();
+    const add = (p, t, s, l, n) => p.n[t].push({s, l, p: n});
+    const dr = (p, r, list, off = 0) => list.forEach(s => p.d[r][off + s] = true);
+    const evens = [0,2,4,6,8,10,12,14];
+    const CGAF = [[48,[60,64,67]], [43,[59,62,67]], [45,[57,60,64]], [41,[57,60,65]]];
+    const CGFC = [[48,[60,64,67]], [43,[59,62,67]], [41,[57,60,65]], [48,[60,64,67]]];
+    const melB = [
+      [[0,76,3],[4,79,2],[6,76,2],[8,72,4],[12,74,2],[14,76,2]],
+      [[0,74,3],[4,71,2],[6,74,2],[8,79,4],[12,77,2],[14,74,2]],
+      [[0,72,3],[4,76,2],[6,81,2],[8,79,4],[12,76,2],[14,72,2]],
+      [[0,77,3],[4,76,2],[6,74,2],[8,74,2],[10,76,2],[12,79,4]]];
+    const melC = [
+      [[0,79,4],[4,79,2],[6,81,2],[8,84,4],[12,81,2],[14,79,2]],
+      [[0,79,4],[4,74,2],[6,79,2],[8,83,4],[12,79,2],[14,74,2]],
+      [[0,81,4],[4,81,2],[6,84,2],[8,81,4],[12,79,2],[14,76,2]],
+      [[0,77,4],[4,81,2],[6,77,2],[8,79,8]]];
+    const melD = [melC[0], melC[1],
+      [[0,77,4],[4,81,2],[6,84,2],[8,81,4],[12,77,2],[14,81,2]],
+      [[0,84,16]]];
+    const melody = (p, m) => m.forEach((bar, b) => bar.forEach(([s, n, l]) => add(p, 0, b * 16 + s, l, n)));
+    const bass = (p, prog, eighths) => prog.forEach(([root], b) => {
+      if (eighths) evens.forEach(s => add(p, 1, b * 16 + s, 1, root));
+      else { add(p, 1, b * 16, 8, root); add(p, 1, b * 16 + 8, 8, root); }
+    });
+    const bells = (p, prog, up) => prog.forEach(([, tri], b) => [0,1,2,1,0,1,2,1].forEach((ix, i) => add(p, 3, b * 16 + i * 2, 2, tri[ix] + (up ? 12 : 0))));
+    const guitar = (p, prog, rhythm) => prog.forEach(([root], b) => {
+      (b === 3 && rhythm === "end" ? [[0, 16]] : rhythm === "big" || rhythm === "end" ? [[0,8],[8,8]] : [[0,6],[6,2],[8,6],[14,2]])
+        .forEach(([s, l]) => { add(p, 2, b * 16 + s, l, root); add(p, 2, b * 16 + s, l, root + 7); });
+    });
+    // A: sparkly build-up
+    bells(A, CGAF, false); bass(A, CGAF, false);
+    for (let b = 0; b < 4; b++) { dr(A, 0, [0,4,8,12], b * 16); if (b > 0) dr(A, 3, [0,8], b * 16); }
+    dr(A, 2, [8,9,10,11,12,13,14,15], 48); dr(A, 3, [0], 48);
+    // B: verse
+    melody(B, melB); bass(B, CGAF, true); bells(B, CGAF, false);
+    for (let b = 0; b < 4; b++) { dr(B, 3, [0,8], b * 16); dr(B, 2, [4,12], b * 16); dr(B, 0, evens, b * 16); }
+    // C: powerful chorus
+    melody(C, melC); bass(C, CGAF, true); bells(C, CGAF, true); guitar(C, CGAF, "chorus");
+    for (let b = 0; b < 4; b++) { dr(C, 3, [0,4,8,12], b * 16); dr(C, 2, [4,12], b * 16); dr(C, 1, [4,12], b * 16); dr(C, 0, evens, b * 16); }
+    // D: triumphant finale
+    melody(D, melD); bass(D, CGFC, true); bells(D, CGFC, true); guitar(D, CGFC, "end");
+    for (let b = 0; b < 3; b++) { dr(D, 3, [0,4,8,12], b * 16); dr(D, 2, [4,12], b * 16); dr(D, 1, [4,12], b * 16); dr(D, 0, evens, b * 16); }
+    dr(D, 2, [12,13,14,15], 32); dr(D, 3, [0], 48); dr(D, 2, [0], 48); dr(D, 1, [0], 48);
+    pats[0] = A; pats[1] = B; pats[2] = C; pats[3] = D;
+    tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "guitar"; tracks[3].inst = "bell";
+    tracks[0].vol = 0.7; tracks[2].vol = 0.6; tracks[3].vol = 0.6;
+    $("bpm").value = 128;
+    if (!songMode) $("mode").click();
+    applyPat(0); syncUI(); selectTrack(0);
+    say("Hero Song loaded! Press Play and feel the power 🌟");
+  };
+
 
   let slot = 1;
   document.querySelectorAll(".slot").forEach(b => b.onclick = () => {
