@@ -34,7 +34,7 @@
   #pause.on { display:grid; }
   #pause h1 { font-size:48px; margin:0 0 14px; }
   /* Eraser and zoom buttons are hidden for now. Delete this line to bring them back. */
-  #eraser, #tools, #zin, #zout, #zfit { display:none !important; }
+  #zin, #zout, #zfit { display:none !important; }
   /* ---- 7 Isles game screens ---- */
   /* The game is switched OFF for now: only the islands show. To bring it back, delete the next line and set PLAY = true in the game script. */
   body:not(.play) .ui, body:not(.play) #banner, body:not(.play) #frame { display:none !important; }
@@ -1469,7 +1469,7 @@
     return null;
   }
   addEventListener('click', function (e) {
-    if (document.body.classList.contains('play')) return;
+    if (document.body.classList.contains('play') || (window.SI && window.SI.eraser())) return;      // no island card while erasing
     if (e.target.closest && e.target.closest('.bar, #pause, #isleCard, #shopPanel')) return;
     var n = islandAt(e.clientX, e.clientY);
     show(n === current ? null : n);          // press the same island again to close
