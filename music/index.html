@@ -16,7 +16,17 @@
   button { font:inherit; font-weight:700; color:#f4f1ff; background:#2b1d6b; border:2px solid #5b46c9; border-radius:10px; padding:6px 12px; cursor:pointer; }
   button:hover { background:#3b2a8f; }
   button.on { background:#ffd23f; color:#2b1d6b; border-color:#ffd23f; }
-  #pics { display:flex; gap:6px; flex-wrap:wrap; }
+  #picName { font-weight:700; color:#ffd23f; font-size:14px; }
+  #gal { place-items:stretch; padding:14px; }
+  .galwrap { background:#1b1245; border:2px solid #5b46c9; border-radius:14px; padding:12px; display:flex; flex-direction:column; min-height:0; text-align:left; }
+  .galtop { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  #galBox { overflow:auto; flex:1; min-height:0; }
+  #galBox h3 { margin:10px 0 6px; color:#ffd23f; font-size:15px; }
+  .galgrid { display:flex; flex-wrap:wrap; gap:8px; }
+  .galgrid .pic { display:flex; flex-direction:column; align-items:center; gap:3px; line-height:1.1; font-size:10px; width:84px; padding:4px; }
+  .galgrid .pic canvas { width:72px; height:72px; }
+  .galgrid .pic .nm { max-width:76px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pic.on { background:#ffd23f; border-color:#ffd23f; color:#2b1d6b; }
   .pic { padding:3px; border-radius:10px; position:relative; line-height:0; }
   .pic canvas { border-radius:6px; background:#fff; }
   .pic .star { position:absolute; right:-4px; top:-6px; font-size:14px; line-height:1; }
@@ -50,7 +60,7 @@
 <div id="top">
   <a href="../">← Arcade</a>
   <h1>🎨 Paint by Number</h1>
-  <div id="pics"></div>
+  <button id="prevBtn" title="Previous picture">◀</button><button id="galBtn">🖼️ Pictures</button><button id="nextPicBtn" title="Next picture">▶</button><span id="picName"></span>
   <span class="sp"></span>
   <button id="hoverBtn" class="on" title="Paint just by moving the mouse — no clicking!">🖱️ Hover paint</button>
   <button id="zoomOut" title="Zoom out (−)">🔍−</button>
@@ -69,6 +79,10 @@
   <div id="bar"><div id="fill"></div><div id="pct">0%</div></div>
 </div>
 
+<div class="ov" id="gal"><div class="galwrap">
+  <div class="galtop"><b>🖼️ Pick a picture</b><span class="sp"></span><button id="galClose">✕ Close</button></div>
+  <div id="galBox"></div>
+</div></div>
 <div class="ov" id="win"><div>
   <h2>🎉 You did it!</h2>
   <p id="winTxt" style="font-size:18px"></p>
@@ -81,13 +95,31 @@
 (() => {
   // ================= pictures =================
   // A picture is rows of squares. A number/letter = paint that color. A dot = background (already painted).
-  const CH = '123456789abcdefghijklmnopqrstuvwxyz';
+  // We make 100 pictures; each one is only drawn the first time you need it.
+const CH = '123456789abcdefghijklmnopqrstuvwxyz';
 const make = (w, h, fn) => { const rows = []; for (let y = 0; y < h; y++) { let r = ''; for (let x = 0; x < w; x++) r += (fn(x, y) || '.'); rows.push(r); } return rows; };
 const hsh = (x, y) => ((x * 374761393 + y * 668265263) >>> 0) % 97;
 const rot = (u, v, cu, cv, ang) => { const du = u - cu, dv = v - cv, ca = Math.cos(ang), sa = Math.sin(ang); return [du*ca + dv*sa, -du*sa + dv*ca]; };
 const ed = (u, v, cu, cv, rx, ry, ang) => { const [a, b] = rot(u, v, cu, cv, ang || 0); return Math.hypot(a / rx, b / ry); };
 const inTri = (px, py, a, b, c) => { const s = (p, q, r) => (p[0]-r[0])*(q[1]-r[1]) - (q[0]-r[0])*(p[1]-r[1]); const P = [px,py], d1 = s(P,a,b), d2 = s(P,b,c), d3 = s(P,c,a); return !((d1<0||d2<0||d3<0) && (d1>0||d2>0||d3>0)); };
+const hex2 = h => [1,3,5].map(i => parseInt(h.slice(i, i + 2), 16));
+const toHex = a => '#' + a.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+const mixc = (a, b, t) => { const A = hex2(a), B = hex2(b); return toHex(A.map((v, i) => v + (B[i] - v) * t)); };
+const ramp = (cols, n) => Array.from({length: n}, (_, k) => { const t = n === 1 ? 0 : k / (n - 1) * (cols.length - 1), i = Math.min(cols.length - 2, Math.floor(t)); return mixc(cols[i], cols[i + 1], t - i); });
+const palBuilder = () => { const P = []; return { add: h => { P.push(h); return CH[P.length - 1]; }, pal: () => Object.fromEntries(P.map((h, i) => [i + 1, h])) }; };
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+const hueShift = (hex, deg) => {
+  const [r, g, b] = hex2(hex).map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  let h = 0, s = 0;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  h = ((h + deg) % 360 + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [R, G, B] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return toHex([(R + m) * 255, (G + m) * 255, (B + m) * 255]);
+};
+const shiftPal = (pal, deg) => Object.fromEntries(Object.entries(pal).map(([k, v]) => [k, hueShift(v, deg)]));
 
+// ---------- the pictures (each takes options so we can make many versions) ----------
 const butterfly = () => make(40, 32, (x, y) => {
   const u = Math.abs(x + .5 - 20), v = y + .5;
   if (v > 1 && v < 7.5 && Math.abs(u - (1.8 + (7.5 - v) * .8)) < .6) return '5';
@@ -97,48 +129,43 @@ const butterfly = () => make(40, 32, (x, y) => {
   let d = ed(u, v, 10.5, 11, 11.5, 7.2, -0.5);
   if (d <= 1) {
     if (d > .88) return '1';
-    const sp = [[8.5,9.5],[12.5,12],[16,8.5],[11,6.5]];
-    for (const [su, sv] of sp) { const q = Math.hypot(u - su, v - sv); if (q <= 1.4) return '4'; if (q <= 2.2) return '1'; }
-    if (d > .72) return '2';
-    if (d > .55) return '3';
-    return '2';
+    for (const [su, sv] of [[8.5,9.5],[12.5,12],[16,8.5],[11,6.5]]) { const q = Math.hypot(u - su, v - sv); if (q <= 1.4) return '4'; if (q <= 2.2) return '1'; }
+    if (d > .72) return '2'; if (d > .55) return '3'; return '2';
   }
   d = ed(u, v, 8.5, 22.5, 8, 5.6, 0.55);
   if (d <= 1) {
     if (d > .86) return '1';
-    const sp = [[7.5,22.5],[11,24.5]];
-    for (const [su, sv] of sp) { const q = Math.hypot(u - su, v - sv); if (q <= 1.1) return '4'; if (q <= 1.8) return '1'; }
-    if (d > .66) return '6';
-    if (d > .45) return '7';
-    return '6';
+    for (const [su, sv] of [[7.5,22.5],[11,24.5]]) { const q = Math.hypot(u - su, v - sv); if (q <= 1.1) return '4'; if (q <= 1.8) return '1'; }
+    if (d > .66) return '6'; if (d > .45) return '7'; return '6';
   }
   if (v > 25) {
     const [a, b] = rot(u, v, 14, 29.2, -0.35);
-    if (Math.abs(a / 7) <= 1 && Math.abs(b / 2.4) <= 1 && Math.hypot(a / 7, b / 2.4) <= 1) return Math.abs(b) < .45 ? '9' : '8';
+    if (Math.hypot(a / 7, b / 2.4) <= 1) return Math.abs(b) < .45 ? '9' : '8';
     const [a2, b2] = rot(u, v, 8, 30.4, 0.3);
     if (Math.hypot(a2 / 6, b2 / 2.2) <= 1) return Math.abs(b2) < .4 ? '9' : '8';
     if (Math.hypot(u - 18.3, v - 26.6) < 2) return Math.hypot(u - 18.3, v - 26.6) < .8 ? '3' : '6';
   }
   return '.';
 });
+const BUTTERFLY_PAL = {1:'#3d1a5b',2:'#ff8c1a',3:'#ffd23f',4:'#ffffff',5:'#5a3418',6:'#ff5fa2',7:'#ffc2dd',8:'#52b788',9:'#2d6a4f',10:'#a8671f'};
 
-const sunset = () => {
-  const w = 48, h = 32;
-  const far = x => 17 + 3.2*Math.sin(x*.28) + 2.2*Math.sin(x*.11 + 1.3) + 1.4*Math.sin(x*.55);
-  const near = x => 21.5 + 2.4*Math.sin(x*.21 + 2) + 1.5*Math.sin(x*.47) - Math.max(0, 6 - Math.abs(x - 24)) * .3;
-  const tree = (cx, top, ht, hw, px, py) => { if (py >= top && py <= top + ht) return Math.abs(px - cx) <= ((py - top) / ht) * hw + .3; return false; };
+const sunset = (o = {}) => {
+  const w = 48, h = 32, sx = o.sunx ?? 24, sr = o.sunr ?? 6, ph = o.phase ?? 0;
+  const far = x => 17 + 3.2*Math.sin(x*.28 + ph) + 2.2*Math.sin(x*.11 + 1.3 + ph) + 1.4*Math.sin(x*.55);
+  const near = x => 21.5 + 2.4*Math.sin(x*.21 + 2 + ph) + 1.5*Math.sin(x*.47) - Math.max(0, 6 - Math.abs(x - sx)) * .3;
+  const tree = (cx, top, ht, hw, px, py) => py >= top && py <= top + ht && Math.abs(px - cx) <= ((py - top) / ht) * hw + .3;
   const trees = [[4.5,20,11,3.6],[9,23,8,2.7],[1.5,23,8,2.4],[43.5,19,12,3.8],[39,23,8,2.8],[46.5,22,9,2.6]];
   return make(w, h, (x, y) => {
     const px = x + .5, py = y + .5;
     for (const [cx, top, ht, hw] of trees) if (tree(cx, top, ht, hw, px, py)) return 'a';
     if (py > 28 && ((px < 7 && py < 31.6) || (px > 41 && py < 31.6))) return 'a';
     if (py >= 24) {
-      if (Math.abs(px - 24) < 5.2 - (py - 24) * .35 && Math.floor(py) % 2 === 0) return '7';
+      if (Math.abs(px - sx) < sr - .8 - (py - 24) * .35 && Math.floor(py) % 2 === 0) return '7';
       return py < 27 ? 'b' : (Math.floor(py) % 3 === 0 ? 'b' : 'c');
     }
     if (py >= near(px)) return '9';
     if (py >= far(px)) return '8';
-    if (Math.hypot(px - 24, py - 17) <= 6) return '7';
+    if (Math.hypot(px - sx, py - 17) <= sr) return '7';
     if (ed(px, py, 10, 10.5, 6, 1.1) <= 1) return '4';
     if (ed(px, py, 38, 7.5, 5, 1) <= 1) return '3';
     if (py < 10 && hsh(x, y) === 5) return '7';
@@ -146,6 +173,7 @@ const sunset = () => {
     return yy < 4 ? '1' : yy < 8 ? '2' : yy < 12 ? '3' : yy < 15 ? '4' : yy < 18 ? '5' : '6';
   });
 };
+const SUNSET_PAL = {1:'#2b1055',2:'#6a3093',3:'#c06c84',4:'#f67280',5:'#ffb36b',6:'#ffe08a',7:'#fff7c9',8:'#7b4a9e',9:'#3b2a6b',10:'#14213d',11:'#f08a5d',12:'#6a3d7a'};
 
 const owl = () => make(36, 36, (x, y) => {
   const px = x + .5, v = y + .5, u = Math.abs(px - 18);
@@ -156,11 +184,8 @@ const owl = () => make(36, 36, (x, y) => {
   if (v > 29 && v <= 31.5 && u < 9 && u > 3 && Math.floor(u * 1.5) % 2 === 0 && v > 30.6) return '6';
   if (v >= 13 && v <= 17.6 && u <= (17.8 - v) * .55) return '6';
   const eye = Math.hypot(u - 4.9, v - 12.2);
-  if (eye <= 1.0 && u > 4.5 && v < 12 ) return '4';
-  if (eye <= 1.7) return '7';
-  if (eye <= 3.0) return '6';
-  if (eye <= 3.9) return '5';
-  if (eye <= 5.0) return '3';
+  if (eye <= 1.0 && u > 4.5 && v < 12) return '4';
+  if (eye <= 1.7) return '7'; if (eye <= 3.0) return '6'; if (eye <= 3.9) return '5'; if (eye <= 5.0) return '3';
   const ear = inTri(u, v, [2.5, 7.2], [8.2, 2.0], [8.4, 9.6]);
   if (ear) return inTri(u, v, [4, 7.2], [7.4, 3.8], [7.6, 8.6]) ? '4' : '1';
   const wing = ed(u, v, 11, 22.5, 4.2, 9.5, -0.12);
@@ -170,48 +195,46 @@ const owl = () => make(36, 36, (x, y) => {
     const vv = (v - 14) % 3, uu = (u + (Math.floor((v - 14) / 3) % 2) * 1.5) % 3;
     return Math.hypot(uu - 1.5, vv - .5) > 1.9 ? '4' : '3';
   }
-  const head = Math.hypot(u / 9.2, (v - 12) / 8.6);
-  const body = ed(u, v, 0, 22.5, 10.2, 10.8);
+  const head = Math.hypot(u / 9.2, (v - 12) / 8.6), body = ed(u, v, 0, 22.5, 10.2, 10.8);
   if (head <= 1 || body <= 1) { const dd = Math.min(head, body); return dd > .88 ? '1' : '2'; }
   if (hsh(x, y) < 3 && v < 28) return 'b';
   if (Math.hypot(px - 29, v - 7) <= 3.4) return '8';
   return '.';
 });
+const OWL_PAL = {1:'#4a2c14',2:'#8b5a2b',3:'#f7e7c1',4:'#d9b382',5:'#ffffff',6:'#ff9f1c',7:'#111111',8:'#fff3b0',9:'#5c3a1c',11:'#cfd8ff',12:'#6b4226'};
 
-const mandala = () => make(40, 40, (x, y) => {
-  const dx = x + .5 - 20, dy = y + .5 - 20, r = Math.hypot(dx, dy);
-  if (r > 19.6) return '.';
-  if (r < 2.4) return r < 1.2 ? '9' : '8';
-  if (r > 18.3) return '1';
-  const sector = ((Math.atan2(dy, dx) / (2 * Math.PI)) + .5) * 16, s = Math.floor(sector) % 16, f = Math.min(s, 15 - s);
-  const t = Math.abs((sector % 1) - .5) * 2, k = Math.floor((r - 2.4) / 2.3);
-  if (k % 2 === 1 && t > .72) return '1';
-  if (k === 2 && r - 2.4 - 2*2.3 < 1.0 && t < .35) return '8';
-  return CH[((k + f) % 6) + 1];
-});
-// ---------- shaded pictures (many shades) ----------
-const hex2 = h => [1,3,5].map(i => parseInt(h.slice(i, i + 2), 16));
-const toHex = a => '#' + a.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
-const mixc = (a, b, t) => { const A = hex2(a), B = hex2(b); return toHex(A.map((v, i) => v + (B[i] - v) * t)); };
-const ramp = (cols, n) => Array.from({length: n}, (_, k) => { const t = n === 1 ? 0 : k / (n - 1) * (cols.length - 1), i = Math.min(cols.length - 2, Math.floor(t)); return mixc(cols[i], cols[i + 1], t - i); });
-const palBuilder = () => { const P = []; return { add: h => { P.push(h); return CH[P.length - 1]; }, pal: () => Object.fromEntries(P.map((h, i) => [i + 1, h])) }; };
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const mandala = (o = {}) => {
+  const N = o.N || 16, rw = o.rw || 2.3;
+  return make(40, 40, (x, y) => {
+    const dx = x + .5 - 20, dy = y + .5 - 20, r = Math.hypot(dx, dy);
+    if (r > 19.6) return '.';
+    if (r < 2.4) return r < 1.2 ? '9' : '8';
+    if (r > 18.3) return '1';
+    const sector = ((Math.atan2(dy, dx) / (2 * Math.PI)) + .5) * N, s = Math.floor(sector) % N, f = Math.min(s, N - 1 - s);
+    const t = Math.abs((sector % 1) - .5) * 2, k = Math.floor((r - 2.4) / rw);
+    if (k % 2 === 1 && t > .72) return '1';
+    if (k === 2 && r - 2.4 - 2 * rw < 1.0 && t < .35) return '8';
+    return CH[((k + f) % 6) + 1];
+  });
+};
+const MANDALA_PAL = {1:'#2b1d6b',2:'#e63946',3:'#ff9f1c',4:'#ffd23f',5:'#52b788',6:'#4895ef',7:'#9b5de5',8:'#ffffff',9:'#ff5fa2'};
 
-const planet = () => {
-  const w = 44, h = 34, cx = 21, cy = 17.5, R = 10.5, B = palBuilder();
+const planet = (o = {}) => {
+  const w = 44, h = 34, cx = 21, cy = 17.5, R = o.R ?? 10.5, tilt = o.tilt ?? -.38, ringOn = o.ring !== false, wave = o.wave ?? 1.1, B = palBuilder();
   const bands = [ramp(['#5a3b1f','#f6dfb0'], 4), ramp(['#4a1712','#f59a5d'], 4), ramp(['#2e1d3d','#caa0e0'], 4)].map(r => r.map(B.add));
   const rings = ['#c9b79c','#9c8a72','#e6d5b8','#a89478'].map(B.add), star = B.add('#cfd8ff');
   const L = [-.5, -.6, .62], ln = Math.hypot(...L); L.forEach((v, i) => L[i] = v / ln);
+  const ca = Math.cos(tilt), sa = Math.sin(tilt);
   const rows = make(w, h, (x, y) => {
-    const px = x + .5 - cx, py = y + .5 - cy, ca = Math.cos(-.38), sa = Math.sin(-.38);
+    const px = x + .5 - cx, py = y + .5 - cy;
     const rx = px * ca - py * sa, ry = px * sa + py * ca, rad = Math.hypot(rx, ry / .3) / R;
     let ring = null;
-    if (rad >= 1.4 && rad <= 2.15) { const t = (rad - 1.4) / .75; ring = t < .3 ? rings[0] : t < .55 ? rings[1] : t < .68 ? null : t < .85 ? rings[2] : rings[3]; }
+    if (ringOn && rad >= 1.4 && rad <= 2.15) { const t = (rad - 1.4) / .75; ring = t < .3 ? rings[0] : t < .55 ? rings[1] : t < .68 ? null : t < .85 ? rings[2] : rings[3]; }
     const front = ry > 0, d = Math.hypot(px, py) / R;
     if (ring && front) return ring;
     if (d <= 1) {
       const nx = px / R, ny = py / R, nz = Math.sqrt(Math.max(0, 1 - nx*nx - ny*ny)), lam = nx*L[0] + ny*L[1] + nz*L[2];
-      const l = clamp(Math.floor(lam * 4.2), 0, 3), b = (((Math.floor(ny * 3.4 + 1.1 * Math.sin(nx * 3.2 + ny * 2.0) + 9)) % 3) + 3) % 3;
+      const l = clamp(Math.floor(lam * 4.2), 0, 3), b = (((Math.floor(ny * 3.4 + wave * Math.sin(nx * 3.2 + ny * 2.0) + 9)) % 3) + 3) % 3;
       return bands[b][l];
     }
     if (ring) return ring;
@@ -221,28 +244,25 @@ const planet = () => {
   return { rows, pal: B.pal(), bg: '#0b0d2a' };
 };
 
-const hibiscus = () => {
-  const w = 40, h = 40, cx = 20, cy = 18, B = palBuilder();
+const hibiscus = (o = {}) => {
+  const w = 40, h = 40, cx = 20, cy = 18, n = o.n || 5, len = o.len || 17, B = palBuilder();
   const bg = ['#fff0e6','#ffe3d3','#ffd3bf'].map(B.add);
   const pet = ramp(['#4a0a22','#c9184a','#ff4d6d','#ff8fa3','#ffd0dc'], 9).map(B.add);
   const leaf = ['#1b4332','#2d6a4f','#52b788'].map(B.add);
   const stem = B.add('#ffd166'), pollen = B.add('#ff9f1c'), pist = B.add('#c1121f');
-  const ang = -0.9, ex = Math.cos(ang), ey = Math.sin(ang), tip = [cx + ex * 13.5, cy + ey * 13.5];
+  const ang = o.ang ?? -0.9, ex = Math.cos(ang), ey = Math.sin(ang), tip = [cx + ex * 13.5, cy + ey * 13.5];
   const rows = make(w, h, (x, y) => {
     const px = x + .5, py = y + .5, dx = px - cx, dy = py - cy, r = Math.hypot(dx, dy);
-    // stamen
     const tt = clamp(dx * ex + dy * ey, 0, 13), sd = Math.hypot(dx - ex * tt, dy - ey * tt);
     if (sd < .75 && tt < 12.5) return stem;
     for (const [ox, oy] of [[0,0],[1.7,1.2],[-1.5,1.5],[.3,-1.9]]) if (Math.hypot(px - tip[0] - ox, py - tip[1] - oy) < 1.15) return pollen;
     if (Math.hypot(px - tip[0] - .4, py - tip[1] - .2) < 1.3) return pist;
-    // petals
-    const th = Math.atan2(dy, dx) + Math.PI / 2, u = th / (2 * Math.PI) * 5, phi = u - Math.floor(u), s = Math.abs(phi - .5) * 2;
-    let Rp = 17 * (1 - .38 * Math.pow(s, 2.4)); if (s > .93) Rp *= .72;
+    const th = Math.atan2(dy, dx) + Math.PI / 2, u = th / (2 * Math.PI) * n, phi = u - Math.floor(u), s = Math.abs(phi - .5) * 2;
+    let Rp = len * (1 - .38 * Math.pow(s, 2.4)); if (s > .93) Rp *= .72;
     if (r <= Rp) {
       let t = r / Rp; if (s < .06) t *= .78; if (Math.abs(s - .45) < .05) t *= .88;
       return pet[clamp(Math.floor(t * 9), 0, 8)];
     }
-    // leaves
     for (const [lx, ly, a] of [[7, 35, .55], [33, 35, -.55]]) {
       const [p, q] = rot(px, py, lx, ly, a);
       if (Math.hypot(p / 8.5, q / 3.2) <= 1) return Math.abs(q) < .5 ? leaf[0] : (q < 0 ? leaf[2] : leaf[1]);
@@ -253,24 +273,24 @@ const hibiscus = () => {
   return { rows, pal: B.pal(), bg: '#fff0e6' };
 };
 
-const balloon = () => {
-  const w = 40, h = 44, B = palBuilder();
+const balloon = (o = {}) => {
+  const w = 40, h = 44, G = o.G || 6, hc = o.hc || 3, W = o.W || 11, B = palBuilder();
   const sky = ramp(['#1d3a8a','#6ea8f0','#ffd9b0','#ffb8a0'], 6).map(B.add);
   const cloud = ['#ffffff','#ffd9e0'].map(B.add);
   const hues = [ramp(['#7a0f1c','#e63946','#ff8a8a'], 3), ramp(['#a86a00','#ffc300','#fff0a0'], 3), ramp(['#0b5563','#2ec4b6','#b8fff2'], 3)].map(r => r.map(B.add));
   const basket = ['#5b3a1e','#8b5a2b','#c08a4d'].map(B.add), rope = B.add('#3a2a1a');
-  const hw = v => v < 2 ? 0 : v <= 17 ? 11 * Math.sqrt(Math.max(0, 1 - Math.pow((17 - v) / 15, 2))) : v <= 30 ? 3.5 + 7.5 * Math.pow(1 - (v - 17) / 13, .9) : 0;
+  const hw = v => v < 2 ? 0 : v <= 17 ? W * Math.sqrt(Math.max(0, 1 - Math.pow((17 - v) / 15, 2))) : v <= 30 ? 3.5 + (W - 3.5) * Math.pow(1 - (v - 17) / 13, .9) : 0;
   const rows = make(w, h, (x, y) => {
     const px = x + .5, v = y + .5, u = px - 20, half = hw(v);
     if (half > 0 && Math.abs(u) <= half) {
-      const q = u / half, gore = Math.min(5, Math.floor((q + 1) / 2 * 6)), nz = Math.sqrt(Math.max(0, 1 - q * q));
+      const q = u / half, gore = Math.min(G - 1, Math.floor((q + 1) / 2 * G)), nz = Math.sqrt(Math.max(0, 1 - q * q));
       const lam = -.55 * q + .8 * nz, l = lam > .78 ? 2 : lam > .42 ? 1 : 0;
-      return hues[gore % 3][l];
+      return hues[gore % hc][l];
     }
     if (v > 30 && v <= 34.4 && Math.abs(Math.abs(u) - 3.1) < .55) return rope;
     if (v > 34.4 && v <= 39 && Math.abs(u) <= 3.8) {
       const weave = (Math.floor(v) + Math.floor(px)) % 2;
-      return basket[v < 35.4 ? 0 : (u < -1.2 ? 2 - weave : 1 - weave + (u > 1.5 ? 0 : 0))];
+      return basket[v < 35.4 ? 0 : (u < -1.2 ? 2 - weave : 1 - weave)];
     }
     if (ed(px, v, 8, 36, 6, 1.7) <= 1 || ed(px, v, 11, 35, 4, 1.3) <= 1) return ed(px, v, 8, 36, 6, 1.7) < .55 ? cloud[0] : cloud[1];
     if (ed(px, v, 33, 12, 5.5, 1.5) <= 1 || ed(px, v, 31, 11, 3.5, 1.2) <= 1) return ed(px, v, 33, 12, 5.5, 1.5) < .6 ? cloud[0] : cloud[1];
@@ -280,19 +300,19 @@ const balloon = () => {
   return { rows, pal: B.pal(), bg: '#1d3a8a' };
 };
 
-const aurora = () => {
-  const w = 48, h = 38, hz = 25, B = palBuilder();
+const aurora = (o = {}) => {
+  const w = 48, h = 38, hz = 25, pk = o.peak ?? 30, pH = o.peakH ?? 8, fq = o.freq ?? .17, B = palBuilder();
   const sky = ['#050a24','#0a1a3f','#0f3a55'].map(B.add);
   const green = ramp(['#1f6f4a','#4be3a0','#d6ffe9'], 4).map(B.add), purple = ['#5a2a8f','#9b5de5'].map(B.add);
   const farM = B.add('#17314a'), nearM = B.add('#0b1626'), snow1 = B.add('#dfe9f5'), snow2 = B.add('#8fa8c4'), star = B.add('#ffffff');
-  const far = x => 21 + 2.2 * Math.sin(x * .2 + 1) + 1.4 * Math.sin(x * .43) - 8 * Math.exp(-Math.pow((x - 30) / 6, 2));
+  const far = x => 21 + 2.2 * Math.sin(x * .2 + 1) + 1.4 * Math.sin(x * .43) - pH * Math.exp(-Math.pow((x - pk) / 6, 2));
   const near = x => 23.4 + 1.8 * Math.sin(x * .31 + 2) + 1.1 * Math.sin(x * .7);
   const scene = (x, y) => {
     const px = x + .5, py = y + .5;
     if (py >= near(px)) return nearM;
     const f = far(px);
-    if (py >= f) return (f < 17 && py < f + 3 + (px - 30) * .25 * (px > 30 ? 1 : 0)) ? (px < 30 ? snow1 : snow2) : farM;
-    const yc = 11 + 4 * Math.sin(x * .17) + 2 * Math.sin(x * .4 + 1), dy = py - yc, wd = dy > 0 ? 2.4 : 4.5;
+    if (py >= f) return (f < 17 && py < f + 3 + (px > pk ? (px - pk) * .25 : 0)) ? (px < pk ? snow1 : snow2) : farM;
+    const yc = 11 + 4 * Math.sin(x * fq) + 2 * Math.sin(x * .4 + 1), dy = py - yc, wd = dy > 0 ? 2.4 : 4.5;
     const I = Math.exp(-Math.pow(dy / wd, 2)) * (.7 + .3 * Math.sin(x * 1.1 + Math.sin(x * .3) * 2));
     if (I > .75) return green[3]; if (I > .55) return green[2]; if (I > .35) return green[1]; if (I > .2) return green[0];
     const Ip = Math.exp(-Math.pow((py - (yc - 5)) / 3, 2)) * .85;
@@ -309,50 +329,85 @@ const aurora = () => {
   return { rows, pal: B.pal(), bg: '#050a24' };
 };
 
-  const rainbow = () => {
-    const w = 20, h = 11, cx = 10, cy = 11;
-    const clouds = [[2.6,9.4,2.3],[4.8,9.9,2.0],[1.0,10.2,1.6],[17.4,9.4,2.3],[15.2,9.9,2.0],[19.0,10.2,1.6]];
+// easy pictures
+const EASY = {
+  Heart: { bg:'#fff1ea', pal:{1:'#9d0208',2:'#e63946',3:'#ffc2cf'}, rows:[
+    '................','...1111..1111...','..122221122221..','.12322222222221.','.12332222222221.','.12222222222221.',
+    '..122222222221..','...1222222221...','....12222221....','.....122221.....','......1221......','.......11.......','................' ]},
+  Rocket: { bg:'#1d2b53', pal:{1:'#3a3f5c',2:'#f1f3f9',3:'#e63946',4:'#74c0fc',5:'#ff8c1a',6:'#ffe066'}, rows:[
+    '.......11.......','......1331......','.....133331.....','.....133331.....','.....122221.....','.....124421.....','.....124421.....',
+    '.....122221.....','.....122221.....','...1312222131...','..133122221331..','..131122221131..','..11.111111.11..','......5665......','.......66.......','.......55.......' ]},
+  Cat: { bg:'#cfefff', pal:{1:'#4a2c14',2:'#ff9f43',3:'#fff6e8',4:'#ff8fa3',5:'#52b788'}, rows:[
+    '.11..........11.','.1221......1221.','.12421111112421.','.12222222222221.','.12255222255221.','.12255222255221.',
+    '.12222222222221.','.12222244222221.','.12223333332221.','..122333333221..','...1222222221...','....11111111....' ]},
+  Rainbow: { bg:'#cfefff', pal:{1:'#e63946',2:'#ff9f1c',3:'#ffd60a',4:'#52b788',5:'#4895ef',6:'#9b5de5',7:'#ffffff'}, rows: (() => {
+    const w = 20, h = 11, cx = 10, cy = 11, clouds = [[2.6,9.4,2.3],[4.8,9.9,2.0],[1.0,10.2,1.6],[17.4,9.4,2.3],[15.2,9.9,2.0],[19.0,10.2,1.6]];
     return make(w, h, (x, y) => {
       const px = x + .5, py = y + .5, d = Math.hypot(px - cx, py - cy);
-      if (clouds.some(([a,b,rad]) => Math.hypot(px-a, py-b) <= rad)) return '7';
+      if (clouds.some(([a, b, rad]) => Math.hypot(px - a, py - b) <= rad)) return '7';
       if (d <= 10 && d > 4) return String(Math.min(6, Math.floor(10 - d) + 1));
       return '.';
-    });
-  };
-  const PICS = [
-    Object.assign({ name:'Planet', level:'⭐⭐⭐⭐' }, planet()),
-    Object.assign({ name:'Hibiscus', level:'⭐⭐⭐⭐' }, hibiscus()),
-    Object.assign({ name:'Balloon', level:'⭐⭐⭐⭐' }, balloon()),
-    Object.assign({ name:'Aurora', level:'⭐⭐⭐⭐' }, aurora()),
-    { name:'Butterfly', level:'⭐⭐⭐', bg:'#dff6ff', pal:{1:'#3d1a5b',2:'#ff8c1a',3:'#ffd23f',4:'#ffffff',5:'#5a3418',6:'#ff5fa2',7:'#ffc2dd',8:'#52b788',9:'#2d6a4f',10:'#a8671f'}, rows: butterfly() },
-    { name:'Sunset', level:'⭐⭐⭐', bg:'#2b1055', pal:{1:'#2b1055',2:'#6a3093',3:'#c06c84',4:'#f67280',5:'#ffb36b',6:'#ffe08a',7:'#fff7c9',8:'#7b4a9e',9:'#3b2a6b',10:'#14213d',11:'#f08a5d',12:'#6a3d7a'}, rows: sunset() },
-    { name:'Owl', level:'⭐⭐⭐', bg:'#1b2a49', pal:{1:'#4a2c14',2:'#8b5a2b',3:'#f7e7c1',4:'#d9b382',5:'#ffffff',6:'#ff9f1c',7:'#111111',8:'#fff3b0',9:'#5c3a1c',10:'#52b788',11:'#cfd8ff',12:'#6b4226'}, rows: owl() },
-    { name:'Mandala', level:'⭐⭐⭐', bg:'#fff8e7', pal:{1:'#2b1d6b',2:'#e63946',3:'#ff9f1c',4:'#ffd23f',5:'#52b788',6:'#4895ef',7:'#9b5de5',8:'#ffffff',9:'#ff5fa2'}, rows: mandala() },
-    { name:'Heart', level:'⭐', bg:'#fff1ea', pal:{1:'#9d0208',2:'#e63946',3:'#ffc2cf'}, rows:[
-      '................','...1111..1111...','..122221122221..','.12322222222221.','.12332222222221.','.12222222222221.',
-      '..122222222221..','...1222222221...','....12222221....','.....122221.....','......1221......','.......11.......','................' ]},
-    { name:'Rocket', level:'⭐⭐', bg:'#1d2b53', pal:{1:'#3a3f5c',2:'#f1f3f9',3:'#e63946',4:'#74c0fc',5:'#ff8c1a',6:'#ffe066'}, rows:[
-      '.......11.......','......1331......','.....133331.....','.....133331.....','.....122221.....','.....124421.....','.....124421.....',
-      '.....122221.....','.....122221.....','...1312222131...','..133122221331..','..131122221131..','..11.111111.11..','......5665......','.......66.......','.......55.......' ]},
-    { name:'Cat', level:'⭐⭐', bg:'#cfefff', pal:{1:'#4a2c14',2:'#ff9f43',3:'#fff6e8',4:'#ff8fa3',5:'#52b788'}, rows:[
-      '.11..........11.','.1221......1221.','.12421111112421.','.12222222222221.','.12255222255221.','.12255222255221.',
-      '.12222222222221.','.12222244222221.','.12223333332221.','..122333333221..','...1222222221...','....11111111....' ]},
-    { name:'Rainbow', level:'⭐⭐', bg:'#cfefff', pal:{1:'#e63946',2:'#ff9f1c',3:'#ffd60a',4:'#52b788',5:'#4895ef',6:'#9b5de5',7:'#ffffff'}, rows: rainbow() }
-  ];
-  // ===END PICS===
+    }); })() }
+};
+
+// ---------- the list of 100 ----------
+const HN = [[0,''],[15,'Tangerine'],[30,'Sunny'],[45,'Lemon'],[60,'Lime'],[75,'Apple'],[90,'Mint'],[105,'Leaf'],[120,'Forest'],[135,'Jade'],[150,'Aqua'],[165,'Teal'],[180,'Ocean'],[195,'Lagoon'],[210,'Sky'],[225,'Cobalt'],[240,'Grape'],[255,'Indigo'],[270,'Violet'],[285,'Orchid'],[300,'Candy'],[315,'Berry'],[330,'Rose'],[345,'Cherry'],[360,'']];
+const hname = d => { d = ((d % 360) + 360) % 360; let best = HN[0]; HN.forEach(e => { if (Math.abs(e[0] - d) < Math.abs(best[0] - d)) best = e; }); return best[1]; };
+const withHue = (g, deg) => () => { const r = g(); return deg ? { rows: r.rows, pal: shiftPal(r.pal, deg), bg: hueShift(r.bg || '#000000', deg) } : r; };
+const fixed = (rowsFn, pal, bg) => () => ({ rows: rowsFn(), pal, bg });
+const PIC_LIST = [];
+const addFamily = (family, base, level, specs, build) => {
+  const used = {};
+  specs.forEach((sp, i) => {
+    let nm = i === 0 ? base : base + ' ' + (hname(sp.h || 0) || ('#' + (i + 1)));
+    if (used[nm]) nm += ' ' + (i + 1); used[nm] = 1;
+    PIC_LIST.push({ name: nm, family, level, gen: withHue(() => build(sp), sp.h || 0) });
+  });
+};
+addFamily('Planets', 'Planet', '⭐⭐⭐⭐', [
+  {h:0},{tilt:.3,h:200},{ring:false,R:12,h:90},{tilt:-.6,h:300},{ring:false,R:11,wave:2,h:160},{tilt:.15,h:40},
+  {tilt:-.2,R:9,h:250},{ring:false,R:12.5,h:330},{tilt:.5,h:120},{tilt:-.45,R:9.5,h:180},{ring:false,R:11,wave:3,h:20}], planet);
+addFamily('Flowers', 'Hibiscus', '⭐⭐⭐⭐', [
+  {n:5,h:0},{n:5,h:35},{n:6,h:75},{n:6,h:140},{n:7,h:190},{n:7,h:230},{n:8,h:260},{n:8,h:290},{n:5,h:320,len:16},{n:6,h:20,len:16.5},{n:7,h:105,len:16}], hibiscus);
+addFamily('Balloons', 'Balloon', '⭐⭐⭐⭐', [
+  {G:6,hc:3,h:0},{G:6,hc:3,h:60},{G:4,hc:2,h:120},{G:8,hc:3,h:180},{G:5,hc:3,h:240},{G:6,hc:2,h:300},
+  {G:7,hc:3,h:30},{G:4,hc:3,h:90},{G:8,hc:2,h:150},{G:5,hc:2,h:210},{G:6,hc:3,h:270}], balloon);
+addFamily('Northern Lights', 'Aurora', '⭐⭐⭐⭐', [
+  {peak:30,h:0},{peak:18,h:60},{peak:36,h:100},{peak:24,h:180},{peak:14,h:220},{peak:32,h:260,freq:.12},
+  {peak:20,h:300,freq:.22},{peak:28,h:340,peakH:10},{peak:12,h:40},{peak:38,h:80,freq:.2},{peak:22,h:140,freq:.14,peakH:6}], aurora);
+addFamily('Butterflies', 'Butterfly', '⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}],
+  () => ({ rows: butterfly(), pal: BUTTERFLY_PAL, bg: '#dff6ff' }));
+addFamily('Sunsets', 'Sunset', '⭐⭐⭐', [
+  {h:0},{sunx:14,sunr:5,phase:1,h:40},{sunx:34,sunr:7,phase:2,h:100},{sunx:20,sunr:4,phase:3,h:160},{sunx:28,sunr:8,phase:4,h:200},{sunx:16,sunr:6,phase:5,h:240},
+  {sunx:32,sunr:5,phase:6,h:280},{sunx:24,sunr:7,phase:.5,h:320},{sunx:12,sunr:6,phase:1.5,h:20},{sunx:36,sunr:5,phase:2.5,h:70},{sunx:22,sunr:8,phase:3.5,h:130}],
+  sp => ({ rows: sunset(sp), pal: SUNSET_PAL, bg: '#2b1055' }));
+addFamily('Owls', 'Owl', '⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}],
+  () => ({ rows: owl(), pal: OWL_PAL, bg: '#1b2a49' }));
+addFamily('Mandalas', 'Mandala', '⭐⭐⭐', [
+  {N:16,rw:2.3,h:0},{N:12,h:40},{N:20,h:80},{N:24,h:120},{N:16,rw:2.0,h:160},{N:12,rw:2.6,h:200},{N:20,rw:2.1,h:240},{N:24,rw:2.4,h:280},{N:18,h:320},{N:14,h:20},{N:22,h:60}],
+  sp => ({ rows: mandala(sp), pal: MANDALA_PAL, bg: '#fff8e7' }));
+[['Heart','⭐',[0,200,100]],['Rocket','⭐⭐',[0,120,280]],['Cat','⭐⭐',[0,150,260]],['Rainbow','⭐⭐',[0,90,200]]].forEach(([nm, lv, hs]) => {
+  const e = EASY[nm];
+  hs.forEach((hd, i) => PIC_LIST.push({ name: i === 0 ? nm : (hname(hd) + ' ' + nm), family: 'Easy', level: lv, gen: () => ({ rows: e.rows, pal: hd ? shiftPal(e.pal, hd) : e.pal, bg: hd ? hueShift(e.bg, hd) : e.bg }) }));
+});
+
+  const PICS = PIC_LIST;
   const CHARS = CH;
-  PICS.forEach(p => {
+  function ensure(p) {
+    if (p.cells) return p;
+    const r = p.gen(); p.rows = r.rows; p.bg = r.bg || '#fff';
     p.w = p.rows[0].length; p.h = p.rows.length;
     const raw = p.rows.join('').split('').map(ch => ch === '.' ? 0 : CHARS.indexOf(ch) + 1);
     // drop colors nobody uses, then renumber so the numbers go 1, 2, 3... with no gaps
     const used = [...new Set(raw.filter(n => n > 0))].sort((x, y) => x - y), map = {}, pal = {};
-    used.forEach((o, i) => { map[o] = i + 1; pal[i + 1] = p.pal[o]; });
+    used.forEach((o, i) => { map[o] = i + 1; pal[i + 1] = r.pal[o]; });
     p.pal = pal; p.cells = raw.map(n => n ? map[n] : 0);
     p.total = p.cells.filter(n => n > 0).length;
-  });
+    return p;
+  }
 
   // ================= state =================
-  let pi = 0, pic = PICS[0], filled = [], sel = 0, showNums = true, paused = false, muted = false, hover = true, zoom = 1;
+  let pi = 0, pic = ensure(PICS[0]), filled = [], sel = 0, showNums = true, paused = false, muted = false, hover = true, zoom = 1;
   let wrong = null, hint = null, won = false, dirty = true, autoQ = null;
   const doneSet = {};
   try { JSON.parse(localStorage.getItem('pbn-done') || '[]').forEach(n => doneSet[n] = 1); } catch(e) {}
@@ -365,7 +420,7 @@ const aurora = () => {
     : 'Paint the squares that say ' + sel + '! ' + (hover ? 'Just move your mouse over them — no clicking needed. 🖌️' : 'Click or drag. 🖌️');
 
   function loadPic(i) {
-    autoQ = null; pi = i; pic = PICS[i]; filled = new Array(pic.cells.length).fill(0); won = false; hint = null; wrong = null; zoom = 1;
+    autoQ = null; pi = i; pic = ensure(PICS[i]); filled = new Array(pic.cells.length).fill(0); won = false; hint = null; wrong = null; zoom = 1;
     try {
       const s = localStorage.getItem('pbn-' + pic.name);
       if (s && s.length === filled.length) filled = s.split('').map(Number);
@@ -380,22 +435,42 @@ const aurora = () => {
 
   // ================= picture picker + palette =================
   function thumb(p) {
-    const c = document.createElement('canvas'); c.width = c.height = 44;
-    const g = c.getContext('2d'), s = Math.min(44 / p.w, 44 / p.h), ox = (44 - p.w*s)/2, oy = (44 - p.h*s)/2;
-    g.fillStyle = p.bg; g.fillRect(0,0,44,44);
+    const c = document.createElement('canvas'); c.width = c.height = 72;
+    const g = c.getContext('2d'), s = Math.min(72 / p.w, 72 / p.h), ox = (72 - p.w*s)/2, oy = (72 - p.h*s)/2;
+    g.fillStyle = p.bg; g.fillRect(0,0,72,72);
     p.cells.forEach((n,i) => { if (n) { g.fillStyle = p.pal[n]; g.fillRect(ox + (i%p.w)*s, oy + Math.floor(i/p.w)*s, s+.5, s+.5); } });
     return c;
   }
   function renderPics() {
-    const el = $('pics'); el.innerHTML = '';
-    PICS.forEach((p,i) => {
+    const done = PICS.filter(p => doneSet[p.name]).length;
+    $('picName').textContent = (pi + 1) + '/' + PICS.length + ' · ' + pic.name + (doneSet[pic.name] ? ' ⭐' : '');
+    $('galBtn').textContent = '🖼️ Pictures  ⭐ ' + done + '/' + PICS.length;
+    if ($('gal').classList.contains('show')) buildGallery();
+  }
+  function buildGallery() {
+    const box = $('galBox'), keep = box.scrollTop; box.innerHTML = '';
+    let fam = null, grid = null;
+    PICS.forEach((p, i) => {
+      if (p.family !== fam) {
+        fam = p.family;
+        const h = document.createElement('h3'); const n = PICS.filter(q => q.family === fam);
+        h.textContent = fam + '  (' + n.filter(q => doneSet[q.name]).length + '/' + n.length + ' ⭐)'; box.appendChild(h);
+        grid = document.createElement('div'); grid.className = 'galgrid'; box.appendChild(grid);
+      }
+      ensure(p);
       const b = document.createElement('button'); b.className = 'pic' + (i === pi ? ' on' : ''); b.title = p.name + ' ' + p.level;
       b.appendChild(thumb(p));
-      if (doneSet[p.name]) { const s = document.createElement('span'); s.className = 'star'; s.textContent = '⭐'; b.appendChild(s); }
-      b.onclick = () => { if (i !== pi) loadPic(i); };
-      el.appendChild(b);
+      const lab = document.createElement('span'); lab.className = 'nm'; lab.textContent = p.name; b.appendChild(lab);
+      if (doneSet[p.name]) { const st = document.createElement('span'); st.className = 'star'; st.textContent = '⭐'; b.appendChild(st); }
+      b.onclick = () => { $('gal').classList.remove('show'); if (i !== pi) loadPic(i); };
+      grid.appendChild(b);
     });
+    box.scrollTop = keep;
   }
+  $('galBtn').onclick = () => { $('gal').classList.add('show'); buildGallery(); };
+  $('galClose').onclick = () => $('gal').classList.remove('show');
+  $('prevBtn').onclick = () => loadPic((pi + PICS.length - 1) % PICS.length);
+  $('nextPicBtn').onclick = () => loadPic((pi + 1) % PICS.length);
   function renderPalette() {
     const el = $('palette'); el.innerHTML = ''; el.className = Object.keys(pic.pal).length > 12 ? 'many' : '';
     Object.keys(pic.pal).forEach(k => {
