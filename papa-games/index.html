@@ -58,6 +58,10 @@
   .rcrow { display:flex; justify-content:space-between; align-items:center; gap:10px; background:#1b1245; border-radius:12px; padding:8px 12px; margin:6px 0; text-align:left; }
   .rcrow .btn { margin:0; min-width:0; font-size:15px; padding:8px 12px; white-space:nowrap; }
   .rcrow small { color:#cfc8f5; }
+  .rcrow { flex-wrap:wrap; } .rcl { flex:1; min-width:170px; } .rcr { flex:1.3; min-width:210px; }
+  .tab { min-width:0 !important; font-size:15px !important; padding:8px 14px !important; margin:4px !important; } .tab.sel { outline:3px solid #ffe14d; }
+  .at { display:flex; align-items:center; gap:6px; font-size:12px; margin:2px 0; } .at span { width:74px; } .at i { flex:1; height:8px; background:#0d0826; border-radius:4px; overflow:hidden; display:block; }
+  .at u { display:block; height:100%; background:#4de1ff; } .at b { width:24px; text-align:right; } .ovr { color:#ffe14d; font-weight:800; } .good { color:#5df07a; font-weight:800; }
   #fbPauseBtn { position:fixed; top:8px; right:12px; z-index:6; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
   canvas { position:fixed; inset:0; width:100%; height:100%; }
   .overlay { overflow:auto; position:fixed; inset:0; display:none; place-items:center; text-align:center; background:rgba(18,11,46,.85); z-index:4; }
@@ -131,7 +135,7 @@
     <p style="font-size:14px;max-width:460px">OFFENSE: call a play (Quick pass, Deep pass, Run or QB run), read the coverage tip, then press HIKE (Space). Pass = click a receiver (or press 1 2 3), green ring = open! Running: ↑ ↓ steer, → boost, Space juke.<br>DEFENSE: pick Man, Zone or Blitz, then steer your dot with the arrows, Shift = boost, Space = switch to the player near the ball (you have to press it!). Tackle the ball carrier!<br>REF MODE: throw the flag (Space) when you see a foul: a player over the blue line before the snap, a player jumping early, a yellow line between two players, or a hit on the QB.<br>After a touchdown, kick the extra point (+1) or GO FOR 2!<br>T = timeout (stops the clock). Watch out for 🚩 penalties! After you score you can try an ONSIDE kick. P pauses.</p>
   </div></div>
   <div id="fbOver" class="overlay"><div><h1 id="fbOverTitle"></h1><p id="fbOverText"></p><button class="btn" id="fbAgain">Play again</button><button class="btn" id="fbRecBtn2">🎓 Recruit players</button><button class="btn" id="fbMenu2">Menu</button></div></div>
-  <div id="fbRecruit" class="overlay"><div style="width:min(540px,92vw)"><h1>🎓 Recruit players</h1><p id="rcCoins"></p><div id="rcList"></div><button class="btn" id="rcBack">Back</button></div></div>
+  <div id="fbRecruit" class="overlay"><div style="width:min(620px,94vw)"><h1>🎓 Your team</h1><p id="rcCoins"></p><div class="row"><button class="btn tab" id="tabTeam">👥 My team</button><button class="btn tab" id="tabShop">🛒 Recruit</button><button class="btn tab" id="tabTrain">🏋️ Training</button></div><div id="rcList"></div><button class="btn" id="rcBack">Back</button></div></div>
   <div id="fbPause" class="overlay"><div><h1>⏸ Paused</h1><button class="btn" id="fbResume">Resume</button><button class="btn" id="fbMenu3">Menu</button></div></div>
 </div>
 <div id="pause" class="overlay">
@@ -841,7 +845,16 @@ try {
   const c = localStorage.getItem('papaBowlCoins'); if (c !== null) coins = +c || 0;
 } catch (e) {}
 POS.forEach(q => { if (!(roster.lv[q.k] >= 1 && roster.lv[q.k] <= 6)) roster.lv[q.k] = 3; if (!roster.nm[q.k]) roster.nm[q.k] = newName(); });
-const L = k => roster.lv[k] >= 6 ? 7 : roster.lv[k];   // an OP player counts as a level 7!
+const ATTR = { qb: ['Arm', 'Accuracy', 'Vision'], rb: ['Speed', 'Power', 'Agility'], wr: ['Speed', 'Hands', 'Routes'], ol: ['Strength', 'Blocking', 'Stamina'], dl: ['Strength', 'Pass rush', 'Tackling'], db: ['Speed', 'Coverage', 'Tackling'], k: ['Leg power', 'Accuracy', 'Clutch'] };
+const rb3 = () => [0, 1, 2].map(() => Math.floor(Math.random() * 13) - 6);
+function makeCand(k, nextLv) { return { nm: nextLv >= 6 ? OPNAME[k] : newName(), bias: rb3() }; }
+roster.bias = roster.bias || {}; roster.tr = roster.tr || {}; roster.cand = roster.cand || {};
+POS.forEach(q => {
+  if (!roster.bias[q.k]) roster.bias[q.k] = rb3();
+  roster.tr[q.k] = Math.min(4, roster.tr[q.k] | 0);
+  if (roster.lv[q.k] < 6 && !(roster.cand[q.k] && roster.cand[q.k].bias)) roster.cand[q.k] = makeCand(q.k, roster.lv[q.k] + 1);
+});
+const L = k => (roster.lv[k] >= 6 ? 7 : roster.lv[k]) + (roster.tr[k] || 0) * .25;   // OP counts as level 7, each training session adds a quarter star
 try { if (!localStorage.getItem('papaBowlGift10M')) { coins += 10000000; localStorage.setItem('papaBowlGift10M', '1'); localStorage.setItem('papaBowlCoins', coins); } } catch (e) {}
 function saveAll() { try { localStorage.setItem('papaBowlRoster', JSON.stringify(roster)); localStorage.setItem('papaBowlCoins', coins); } catch (e) {} }
 let g = null, P = null, phase = 'idle', paused = false, timer = 0, banner = '', sub = '', camX = 0, tick = 0, kick = null, toast = '', toastT = 0;
@@ -1324,22 +1337,51 @@ function endRef() {
 // ---------- recruiting 🎓 ----------
 function updCoins() {
   $('fbCoins').textContent = 'Coins: ' + coins.toLocaleString() + ' 🪙';
-  $('rcCoins').textContent = 'You have ' + coins.toLocaleString() + ' 🪙. You earn coins win or lose. Better players cost MORE!';
+  $('rcCoins').textContent = 'You have ' + coins.toLocaleString() + ' 🪙. Look at your players, recruit better ones, or train them!';
 }
+let rcTab = 'team';
+const attrsOf = (k, lv, tr, bias) => { const eff = (lv >= 6 ? 7 : lv) + tr * .25; return ATTR[k].map((n, i) => ({ n, v: clamp(Math.round(28 + eff * 10 + bias[i]), 1, 99) })); };
+const ovrOf = a => Math.round(a.reduce((t, x) => t + x.v, 0) / a.length);
+const barsHtml = a => a.map(x => '<div class="at"><span>' + x.n + '</span><i><u style="width:' + x.v + '%"></u></i><b>' + x.v + '</b></div>').join('');
+const starsOf = lv => lv >= 6 ? '★★★★★ OP 🔥' : '★'.repeat(lv) + '☆'.repeat(5 - lv);
+const trainCost = k => { const lv = roster.lv[k]; return Math.round(Math.max(60, price(k, Math.min(6, lv + 1)) * .12) * (roster.tr[k] + 1) / 10) * 10; };
 function renderRecruit() {
+  $('tabTeam').classList.toggle('sel', rcTab === 'team'); $('tabShop').classList.toggle('sel', rcTab === 'shop'); $('tabTrain').classList.toggle('sel', rcTab === 'train');
   $('rcList').innerHTML = POS.map(q => {
-    const lv = roster.lv[q.k], nxt = lv < 6 ? price(q.k, lv + 1) : 0;
-    return '<div class="rcrow"><div><b>' + q.label + '</b><br><span>' + roster.nm[q.k] + ' ' + (lv >= 6 ? '★★★★★ OP 🔥' : '★'.repeat(lv) + '☆'.repeat(5 - lv)) + '</span><br><small>' + q.txt + '</small></div>' +
-      (lv < 6 ? '<button class="btn" data-k="' + q.k + '"' + (coins < nxt ? ' disabled' : '') + '>' + (lv === 5 ? '🔥 Recruit OP ' : 'Recruit ') + nxt.toLocaleString() + ' 🪙</button>' : '<b>🔥 OP MAXED</b>') + '</div>';
+    const k = q.k, lv = roster.lv[k], tr = roster.tr[k], a = attrsOf(k, lv, tr, roster.bias[k]);
+    if (rcTab === 'team') {
+      return '<div class="rcrow"><div class="rcl"><b>' + q.label + '</b><br>' + roster.nm[k] + '<br>' + starsOf(lv) + ' <span class="ovr">OVR ' + ovrOf(a) + '</span><br><small>' + q.txt + '</small></div><div class="rcr">' + barsHtml(a) + '</div></div>';
+    }
+    if (rcTab === 'shop') {
+      if (lv >= 6) return '<div class="rcrow"><div class="rcl"><b>' + q.label + '</b><br>' + roster.nm[k] + '</div><div class="rcr"><b>🔥 OP MAXED</b></div></div>';
+      const c = roster.cand[k], ca = attrsOf(k, lv + 1, 0, c.bias), diff = ovrOf(ca) - ovrOf(a), cost = price(k, lv + 1);
+      return '<div class="rcrow"><div class="rcl"><b>' + q.label + '</b><br><small>Now: ' + roster.nm[k] + ' · OVR ' + ovrOf(a) + '</small><br>Recruit: <b>' + c.nm + '</b><br>' + starsOf(lv + 1) + ' <span class="ovr">OVR ' + ovrOf(ca) + '</span> <span class="good">(+' + diff + ')</span></div><div class="rcr">' + barsHtml(ca) +
+        '<button class="btn" style="margin-top:6px" data-act="buy" data-k="' + k + '"' + (coins < cost ? ' disabled' : '') + '>' + (lv === 5 ? '🔥 Recruit OP ' : 'Recruit ') + cost.toLocaleString() + ' 🪙</button></div></div>';
+    }
+    const cost = trainCost(k);
+    return '<div class="rcrow"><div class="rcl"><b>' + q.label + '</b><br>' + roster.nm[k] + ' <span class="ovr">OVR ' + ovrOf(a) + '</span><br>Training: ' + '●'.repeat(tr) + '○'.repeat(4 - tr) + '<br><small>Each session = +¼ star of power</small></div><div class="rcr">' + barsHtml(a) +
+      (tr >= 4 ? '<b>💪 Fully trained!</b>' : '<button class="btn" style="margin-top:6px" data-act="train" data-k="' + k + '"' + (coins < cost ? ' disabled' : '') + '>🏋️ Train ' + cost.toLocaleString() + ' 🪙</button>') + '</div></div>';
   }).join('');
 }
-function openRecruit() { updCoins(); renderRecruit(); $('fbRecruit').classList.add('show'); }
+function openRecruit() { rcTab = 'team'; updCoins(); renderRecruit(); $('fbRecruit').classList.add('show'); }
 $('rcList').onclick = e => {
-  const b = e.target.closest('[data-k]'); if (!b) return;
-  const k = b.dataset.k, lv = roster.lv[k]; if (lv >= 6) return;
-  const c = price(k, lv + 1); if (coins < c) return;
-  coins -= c; roster.lv[k] = lv + 1; roster.nm[k] = lv + 1 >= 6 ? OPNAME[k] : newName(); saveAll(); sfx.fanfare(); updCoins(); renderRecruit();
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const k = b.dataset.k, lv = roster.lv[k];
+  if (b.dataset.act === 'buy') {
+    if (lv >= 6) return;
+    const c = price(k, lv + 1); if (coins < c) return;
+    coins -= c; roster.lv[k] = lv + 1; roster.nm[k] = roster.cand[k].nm; roster.bias[k] = roster.cand[k].bias; roster.tr[k] = 0;
+    roster.cand[k] = roster.lv[k] < 6 ? makeCand(k, roster.lv[k] + 1) : null;
+    saveAll(); sfx.fanfare(); updCoins(); renderRecruit();
+  } else if (b.dataset.act === 'train') {
+    if (roster.tr[k] >= 4) return;
+    const c = trainCost(k); if (coins < c) return;
+    coins -= c; roster.tr[k]++; saveAll(); sfx.catchB(); updCoins(); renderRecruit();
+  }
 };
+$('tabTeam').onclick = () => { rcTab = 'team'; renderRecruit(); };
+$('tabShop').onclick = () => { rcTab = 'shop'; renderRecruit(); };
+$('tabTrain').onclick = () => { rcTab = 'train'; renderRecruit(); };
 $('rcBack').onclick = () => $('fbRecruit').classList.remove('show');
 $('fbRecBtn').onclick = $('fbRecBtn2').onclick = openRecruit;
 $('fbRefGo').onclick = newRefGame;
