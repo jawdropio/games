@@ -828,7 +828,8 @@ const POS = [
   { k: 'db', label: '🛡️ Defensive backs', txt: 'Cover faster' },
   { k: 'k', label: '🦵 Kicker', txt: 'Field goals go in more' }
 ];
-const COST = [0, 0, 100, 300, 700, 1500];
+const COST = [0, 0, 100, 300, 700, 1500, 50000];
+const OPNAME = { qb: 'OP Laser Arm 🔥', rb: 'OP Lightning Paws 🔥', wr: 'OP Rocket Receiver 🚀', ol: 'OP Wall of Fur 🔥', dl: 'OP Sack Monster 🔥', db: 'OP Lockdown Cat 🔥', k: 'OP Moon Kicker 🔥' };
 const MULT = { qb: 1.5, rb: 1.2, wr: 1.2, ol: .9, dl: 1, db: 1, k: .6 };
 const price = (k, lvl) => Math.round(COST[lvl] * MULT[k] / 10) * 10;
 const NA = ['Turbo','Blaze','Storm','Rocket','Ninja','Thunder','Comet','Sparky','Shadow','Flash'], NB = ['Whiskers','Claw','Paws','Fang','Tail','Pounce','Prowl','Stripe','Growl','Leap'];
@@ -839,8 +840,9 @@ try {
   if (r && r.lv && r.nm) roster = r;
   const c = localStorage.getItem('papaBowlCoins'); if (c !== null) coins = +c || 0;
 } catch (e) {}
-POS.forEach(q => { if (!(roster.lv[q.k] >= 1 && roster.lv[q.k] <= 5)) roster.lv[q.k] = 3; if (!roster.nm[q.k]) roster.nm[q.k] = newName(); });
-const L = k => roster.lv[k];
+POS.forEach(q => { if (!(roster.lv[q.k] >= 1 && roster.lv[q.k] <= 6)) roster.lv[q.k] = 3; if (!roster.nm[q.k]) roster.nm[q.k] = newName(); });
+const L = k => roster.lv[k] >= 6 ? 7 : roster.lv[k];   // an OP player counts as a level 7!
+try { if (!localStorage.getItem('papaBowlGift10M')) { coins += 10000000; localStorage.setItem('papaBowlGift10M', '1'); localStorage.setItem('papaBowlCoins', coins); } } catch (e) {}
 function saveAll() { try { localStorage.setItem('papaBowlRoster', JSON.stringify(roster)); localStorage.setItem('papaBowlCoins', coins); } catch (e) {} }
 let g = null, P = null, phase = 'idle', paused = false, timer = 0, banner = '', sub = '', camX = 0, tick = 0, kick = null, toast = '', toastT = 0;
 const mouse = { x: -99, y: -99 };
@@ -1321,22 +1323,22 @@ function endRef() {
 }
 // ---------- recruiting 🎓 ----------
 function updCoins() {
-  $('fbCoins').textContent = 'Coins: ' + coins + ' 🪙';
-  $('rcCoins').textContent = 'You have ' + coins + ' 🪙. You earn coins win or lose. Better players cost MORE!';
+  $('fbCoins').textContent = 'Coins: ' + coins.toLocaleString() + ' 🪙';
+  $('rcCoins').textContent = 'You have ' + coins.toLocaleString() + ' 🪙. You earn coins win or lose. Better players cost MORE!';
 }
 function renderRecruit() {
   $('rcList').innerHTML = POS.map(q => {
-    const lv = L(q.k), nxt = lv < 5 ? price(q.k, lv + 1) : 0;
-    return '<div class="rcrow"><div><b>' + q.label + '</b><br><span>' + roster.nm[q.k] + ' ' + '★'.repeat(lv) + '☆'.repeat(5 - lv) + '</span><br><small>' + q.txt + '</small></div>' +
-      (lv < 5 ? '<button class="btn" data-k="' + q.k + '"' + (coins < nxt ? ' disabled' : '') + '>Recruit ' + nxt + ' 🪙</button>' : '<b>⭐ MAX</b>') + '</div>';
+    const lv = roster.lv[q.k], nxt = lv < 6 ? price(q.k, lv + 1) : 0;
+    return '<div class="rcrow"><div><b>' + q.label + '</b><br><span>' + roster.nm[q.k] + ' ' + (lv >= 6 ? '★★★★★ OP 🔥' : '★'.repeat(lv) + '☆'.repeat(5 - lv)) + '</span><br><small>' + q.txt + '</small></div>' +
+      (lv < 6 ? '<button class="btn" data-k="' + q.k + '"' + (coins < nxt ? ' disabled' : '') + '>' + (lv === 5 ? '🔥 Recruit OP ' : 'Recruit ') + nxt.toLocaleString() + ' 🪙</button>' : '<b>🔥 OP MAXED</b>') + '</div>';
   }).join('');
 }
 function openRecruit() { updCoins(); renderRecruit(); $('fbRecruit').classList.add('show'); }
 $('rcList').onclick = e => {
   const b = e.target.closest('[data-k]'); if (!b) return;
-  const k = b.dataset.k, lv = L(k); if (lv >= 5) return;
+  const k = b.dataset.k, lv = roster.lv[k]; if (lv >= 6) return;
   const c = price(k, lv + 1); if (coins < c) return;
-  coins -= c; roster.lv[k] = lv + 1; roster.nm[k] = newName(); saveAll(); sfx.fanfare(); updCoins(); renderRecruit();
+  coins -= c; roster.lv[k] = lv + 1; roster.nm[k] = lv + 1 >= 6 ? OPNAME[k] : newName(); saveAll(); sfx.fanfare(); updCoins(); renderRecruit();
 };
 $('rcBack').onclick = () => $('fbRecruit').classList.remove('show');
 $('fbRecBtn').onclick = $('fbRecBtn2').onclick = openRecruit;
