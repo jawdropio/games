@@ -40,5 +40,11 @@
     "description": "Rule seven isles! Pick islands, roll dice, craft boats, trade by sea, rob rival boats, make alliances, train knights, and blow up islands to capture Duneshade. Press Test run to play with bots.",
     "comingSoon": true,
     "earlyBird": "54a7e66d1dadd4a37fedb52c48528f066dd0e1a7c7dfc22ef204af37f7f144c9"
+  },
+  {
+    "slug": "music",
+    "title": "music",
+    "emoji": "🎮",
+    "description": "Brand new and under construction!"
   }
 ]
