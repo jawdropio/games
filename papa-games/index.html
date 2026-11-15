@@ -31,7 +31,7 @@
     <p>Pick a game!</p>
     <button class="btn" id="playTetris">🧱 Blocks (Tetris)</button>
     <button class="btn off">🔒 More games soon</button>
-    <p style="font-size:14px">← → move · ↑ spin · ↓ fall faster · Space drop · P pause</p>
+    <p style="font-size:14px">← → move · ↑ or Space spin · ↓ fall faster · Enter drop · P pause</p>
   </div>
 </div>
 <div id="pause" class="overlay">
@@ -191,7 +191,8 @@ addEventListener('keydown', e => {
   if (k) { press(k); return; }
   if (e.key === 'ArrowUp' || e.key === 'x' || e.key === 'X' || e.key === 'w' || e.key === 'W') rotate();
   else if (e.key === 'z' || e.key === 'Z') { rotate(); rotate(); rotate(); }
-  else if (e.key === ' ') hardDrop();
+  else if (e.key === ' ') rotate();
+  else if (e.key === 'Enter') hardDrop();
 });
 addEventListener('keyup', e => { const k = KEYMAP[e.key]; if (k) held[k] = 0; });
 function press(k) {
