@@ -1049,12 +1049,17 @@ function update() {
 // ---------- drawing ----------
 const sx = x => (x - camX) * scale, sy = y => fieldTop + y * scale;
 function sprite(x, y, jersey, helmet, run) {
-  const u = scale, px = sx(x), py = sy(y), l = run ? Math.sin(tick * .5) * .18 * u : 0;
-  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(px, py + .1 * u, .7 * u, .22 * u, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = '#eee'; ctx.fillRect(px - .4 * u, py - .7 * u + l, .3 * u, .7 * u); ctx.fillRect(px + .1 * u, py - .7 * u - l, .3 * u, .7 * u);
-  ctx.fillStyle = jersey; ctx.fillRect(px - .55 * u, py - 1.5 * u, 1.1 * u, .9 * u);
-  ctx.fillStyle = helmet; ctx.fillRect(px - .4 * u, py - 2.2 * u, .8 * u, .7 * u);
-  ctx.fillStyle = '#ddd'; ctx.fillRect(px + .15 * u, py - 1.95 * u, .35 * u, .2 * u);
+  const u = scale, px = sx(x), py = sy(y) - .9 * u, r = 1.05 * u;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(px, py + r * .9, r * .8, r * .3, 0, 0, 7); ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.clip();
+  ctx.fillStyle = jersey === NAVY ? '#e8e2d0' : jersey; ctx.fillRect(px - r, py - r, r * 2, r * 2);
+  if (jersey === NAVY && IMG.complete && IMG.naturalWidth) {
+    const w = r * 2.3, h = w * IMG.naturalHeight / IMG.naturalWidth;
+    ctx.drawImage(IMG, px - w / 2, py - h / 2, w, h);   // a tiny bobcat on every Bobcat dot
+  }
+  ctx.restore();
+  ctx.lineWidth = Math.max(2, u * .22); ctx.strokeStyle = jersey === NAVY ? NAVY : '#fff';
+  ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
 }
 function ballAt(px, py, ang) {
   const u = scale;
