@@ -38,8 +38,9 @@
   /* ---- 7 Isles game screens ---- */
   /* The game is switched OFF for now: only the islands show. To bring it back, delete the next line and set PLAY = true in the game script. */
   body:not(.play) .ui, body:not(.play) #banner, body:not(.play) #frame { display:none !important; }
-  body.play #shopOpen, body.play #testBtn { display:none; }
-  body:not(.test) #cheatBtn, body:not(.test) #exitTest, body:not(.test) #spawnBtn { display:none; }
+  body.play #shopOpen, body.play #testBtn, body.play #playBtn { display:none; }
+  body:not(.play) #howBtn { display:none; }
+  body:not(.play) #exitTest, body:not(.test) #cheatBtn, body:not(.test) #spawnBtn { display:none; }
   .ui { position:fixed; z-index:6; background:rgba(18,11,46,.9); color:#fff; border:2px solid rgba(255,255,255,.25); border-radius:14px; padding:10px 12px; font:600 14px system-ui, sans-serif; }
   #hud { top:58px; left:12px; width:200px; font-size:13px; max-height:calc(100vh - 150px); overflow:auto; display:none; }
   #hud h4 { margin:8px 0 4px; font-size:13px; color:#c9bfff; text-transform:uppercase; letter-spacing:.5px; }
@@ -185,10 +186,11 @@
 </head>
 <body>
 <div id="zoom"><div id="board"></div></div>
-<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="hudBtn" title="Hide or show the side panel">📋</button><button class="btn" id="coachBtn" title="Show or hide the tips">🎓</button><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
+<div class="bar" id="left"><a href="../">← Arcade</a><button class="btn" id="hudBtn" title="Hide or show the side panel">📋</button><button class="btn" id="coachBtn" title="Show or hide the tips">🎓</button><button class="btn" id="howBtn" title="How to play">❓</button><button class="btn" id="zin" title="Zoom in">＋</button><button class="btn" id="zout" title="Zoom out">－</button><button class="btn" id="zfit" title="Show everything">⌂</button></div>
 <div class="bar" id="right">
   <span id="tools"><input type="range" id="size" min="10" max="150" value="40" title="Eraser size"><button class="btn" id="confirm" disabled>✔ Confirm</button><button class="btn" id="cancel" disabled>✖ Cancel</button><button class="btn" id="undo">↩ Undo</button><button class="btn" id="reset">🗑 Reset</button></span>
   <button class="btn" id="eraser" title="Erase a spot and show water">🧽 Eraser</button>
+  <button class="btn go" id="playBtn">▶ Play</button>
   <button class="btn" id="testBtn">🧪 Test run</button>
   <button class="btn" id="shopOpen">🛒 Shop</button>
   <button class="btn" id="pauseBtn" title="Pause (P or Esc)">⏸ Pause</button></div>
@@ -197,6 +199,30 @@
 <div class="ui" id="dock"></div>
 <div class="ui" id="dockMsg"></div>
 <div class="ui" id="coach"></div>
+<div class="ui modal" id="howM"><div class="mbox"><button class="btn mclose" data-close="howM">✖</button>
+<h2>❓ How to play 7 Isles</h2>
+<div class="grp">🏆 The goal</div>
+<div>Capture <b>🏜️ Duneshade</b> (it has 50 ❤️). The first ruler to capture it wins!</div>
+<div class="grp">🏁 Starting</div>
+<div>Everyone rolls two dice. The <b>highest roll picks an island first</b>, then everyone picks until all six islands are taken. Turns go <b>clockwise, island by island</b>, so if your islands are side by side you roll <b>twice in a row</b>!</div>
+<div class="grp">🎲 Your turn</div>
+<div>1. Press <b>🎲 Roll</b>. <b>Every island</b> makes a resource, and lucky numbers give a bonus. (Press an island to see its numbers.)<br>
+2. Then do what you like: <b>🛒 Shop</b> (craft), <b>🔁 Trade</b>, <b>🤝 Alliances</b>, build, or attack.<br>
+3. Press <b>End turn ➜</b>.</div>
+<div class="grp">🛠️ Crafting and people</div>
+<div>Craft in the 🛒 Shop. Place a ⛺ <b>Tent</b> (1 person) or 🏠 <b>Cabin</b> (5 people) on an island and people move in. Each person gives <b>+1 resource</b> every turn.</div>
+<div class="grp">⛵ Boats</div>
+<div>• <b>Trade Boat</b> carries 10 things. You <b>need a boat to trade</b>. It sails and arrives on your next turn. Whoever gets the trade keeps the boat.<br>
+• <b>🏴‍☠️ Robber Boat</b> steals 5 things from a boat sailing on the sea. Press the boat, then Rob. It breaks after 3 uses. You can rob <b>any time</b>!<br>
+• <b>🎈 Flying Boat</b> can't be robbed.</div>
+<div class="grp">⚔️ Attacking</div>
+<div>A person in a tent or cabin can become a <b>⚔️ Knight</b> (2⚙️ + 1🐴). Press an island that isn't yours, then <b>Attack</b>. <b>💥 Exploding Boats do 3 damage</b> and <b>⚔️ Knights do 1</b> (they ride on Trade Boats). Beat the island's ❤️ <b>in one turn</b> to capture it. Damage doesn't carry over!</div>
+<div class="grp">🤝 Alliances</div>
+<div>Team up for more income (×2, ×3…). The leader owns all the islands. If it ends, the leader keeps them and the others <b>die ☠️ or must join someone else</b>.</div>
+<div class="grp">☠️ Losing</div>
+<div>If you lose your last island you die or have to join someone else.</div>
+<div class="tip" style="margin-top:10px">💡 The 🎓 tips at the top tell you what to do next. Press 🎓 to hide them.</div>
+</div></div>
 <div class="ui modal" id="atkM"><div class="mbox"><div id="atkBody"></div></div></div>
 <div class="ui modal" id="overM"><div class="mbox" style="text-align:center"><div id="overBody"></div></div></div>
 <div class="ui" id="boatPop"></div>
@@ -218,7 +244,7 @@
     <button class="btn" id="alliBtn">🤝 Alliances</button>
     <button class="btn" id="spawnBtn">🧪 Send a bot boat</button>
     <button class="btn" id="cheatBtn">🧪 +10 of everything</button>
-    <button class="btn" id="exitTest">Exit test ✖</button>
+    <button class="btn" id="exitTest">Quit ✖</button>
     <button class="btn" id="minBtn" title="Hide or show this bar">▾</button>
   </div>
 </div>
@@ -234,6 +260,8 @@
   <button class="btn" data-players="2">2 players · 3 islands each</button>
   <button class="btn" data-players="3">3 players · 2 islands each</button>
   <button class="btn" data-players="6">6 players · 1 island each</button>
+  <button class="btn" id="howStart">❓ How to play</button>
+  <button class="btn" id="startBack">← Back to the map</button>
 </div></div>
 <script>
 (function () {
@@ -1334,7 +1362,7 @@
   $('shopBtn').onclick = function () { $('shopM').classList.add('on'); renderShop(); };
   $('alliBtn').onclick = function () { $('alliM').classList.add('on'); renderAlli(); };
   document.querySelectorAll('[data-close]').forEach(function (b) { b.onclick = function () { $(b.dataset.close).classList.remove('on'); pendingUse = null; }; });
-  ['shopM', 'alliM', 'tradeM', 'invM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
+  ['shopM', 'alliM', 'tradeM', 'invM', 'howM'].forEach(function (id) { $(id).addEventListener('pointerdown', function (e) { if (e.target === $(id)) { $(id).classList.remove('on'); pendingUse = null; } }); });
   $('shopBody').addEventListener('click', function (e) {
     var t = e.target; if (!t.dataset) return;
     if (t.dataset.craft && G.turn === 0) { var r = recipe(t.dataset.craft); if (craft(0, r)) { say('🔨 You made ' + r.icon + ' ' + r.name); G.tut.crafted = true; } refresh(); }
@@ -1391,6 +1419,13 @@
     G.players.forEach(function (p, i) { Object.keys(RES).forEach(function (k) { p.res[k] = i === 0 ? 30 : 15; }); p.items['Trade Boat'] = 1; });
     hudOpen.l = true; say('🧪 Test run! You have 30 of everything and a ⛵ Trade Boat. The bots have 15 and a boat.'); refresh();
   };
+  $('playBtn').onclick = function () {                      // ▶ a real game: no extra resources
+    document.body.classList.add('play'); $('isleCard').classList.remove('on');
+    document.querySelectorAll('.spot').forEach(function (sp) { sp.classList.remove('sel'); });
+    $('start').classList.add('on');
+  };
+  $('startBack').onclick = function () { $('start').classList.remove('on'); document.body.classList.remove('play'); };
+  $('howStart').onclick = $('howBtn').onclick = function () { $('howM').classList.add('on'); };
   $('cheatBtn').onclick = function () { if (!G) return; Object.keys(RES).forEach(function (k) { G.players[0].res[k] += 10; }); say('🧪 +10 of everything!'); refresh(); };
   $('exitTest').onclick = function () { location.reload(); };
   // click (not drag) on an island to see its info
