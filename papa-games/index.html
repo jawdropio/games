@@ -584,10 +584,11 @@ function newRound() {
   const deck = [];
   for (const s of SU) RK.forEach((r, i) => deck.push({ r, s, v: i + 2 }));
   for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-  // give YOU a pretty good hand: top spades + aces + a king
-  const goodIds = ['A♠','K♠','Q♠','J♠','A♥','A♣','A♦','K♥'];
-  const good = deck.filter(c => goodIds.includes(c.r + c.s)), rest = deck.filter(c => !goodIds.includes(c.r + c.s));
-  deck.length = 0; deck.push(...good, ...rest);
+  // give YOU a horrible hand (perfect for a Nil bid): lots of low cards, only two tiny spades
+  const lowIds = c => (c.s === '♠' && c.v <= 3) ? 'sp' : (c.s !== '♠' && c.v <= 8) ? 'low' : '';
+  const sp = deck.filter(c => lowIds(c) === 'sp'), low = deck.filter(c => lowIds(c) === 'low').slice(0, 11);
+  const mine = sp.concat(low), rest = deck.filter(c => !mine.includes(c));
+  deck.length = 0; deck.push(...mine, ...rest);
   hands = [0,1,2,3].map(k => deck.slice(k * 13, k * 13 + 13).sort((a, b) => SU.indexOf(a.s) - SU.indexOf(b.s) || b.v - a.v));
   bids = [null,null,null,null]; won = [0,0,0,0]; trick = []; broken = false; warn = ''; summary = '';
   roundNo++; starter = (roundNo - 1) % 4; turn = starter; leader = starter; bidCount = 0; timer = 0; phase = 'bid';
@@ -639,10 +640,14 @@ function advanceBid() {
 function endRound() {
   const lines = [];
   [[0,2],[1,3]].forEach((pair, t) => {
-    const bid = bids[pair[0]] + bids[pair[1]], got = won[pair[0]] + won[pair[1]];
-    const d = got >= bid ? 10 * bid + (got - bid) : -10 * bid;
+    let bid = 0, got = 0, d = 0, nils = '';
+    pair.forEach(q => {
+      if (bids[q] === 0) { const ok = won[q] === 0; d += ok ? 100 : -100; nils += ' ' + NAMES[q].split(' ')[0] + ' Nil ' + (ok ? '✅' : '❌'); }
+      else { bid += bids[q]; got += won[q]; }
+    });
+    if (bid > 0) d += got >= bid ? 10 * bid + (got - bid) : -10 * bid;
     scores[t] += d;
-    lines.push((t ? 'Them' : 'Your team') + ': bid ' + bid + ', won ' + got + ' → ' + (d >= 0 ? '+' : '') + d);
+    lines.push((t ? 'Them' : 'Your team') + ': ' + (bid ? 'bid ' + bid + ', won ' + got : '') + nils + ' → ' + (d >= 0 ? '+' : '') + d);
   });
   summary = lines.join('   |   ');
   const over = Math.max(scores[0], scores[1]) >= TARGET && scores[0] !== scores[1];
@@ -674,7 +679,7 @@ function cardHtml(c, extra, attr) {
   return '<span class="card' + (c.s === '♥' || c.s === '♦' ? ' red' : '') + (extra || '') + '" ' + (attr || '') + '><i>' + c.r + '<br>' + c.s + '</i><em>' + c.s + '</em></span>';
 }
 function seatHtml(p, cls) {
-  const bid = bids[p] === null ? '' : 'bid ' + bids[p] + ' · won ' + won[p];
+  const bid = bids[p] === null ? '' : 'bid ' + (bids[p] === 0 ? 'Nil' : bids[p]) + ' · won ' + won[p];
   const backs = hands[p].map(() => '<span class="card back mini"></span>').join('');
   const isTurn = (phase === 'bid' || phase === 'play') && turn === p;
   return '<div class="sseat ' + cls + (isTurn ? ' turn' : '') + '"><b>' + NAMES[p] + (p === 2 ? ' (partner)' : '') + '</b><small>' + bid + '</small><div>' + backs + '</div></div>';
@@ -689,10 +694,10 @@ function render() {
   const myTurn = phase === 'play' && turn === 0;
   const L = myTurn ? legal(0) : [];
   $('spHand').innerHTML = hands[0].map((c, i) => cardHtml(c, myTurn && !L.includes(c) ? ' dim' : '', 'data-i="' + i + '"')).join('');
-  $('spBids').innerHTML = (phase === 'bid' && turn === 0) ? [1,2,3,4,5,6,7,8,9,10,11,12,13].map(b => '<button data-b="' + b + '">' + b + '</button>').join('') : '';
+  $('spBids').innerHTML = (phase === 'bid' && turn === 0) ? [0,1,2,3,4,5,6,7,8,9,10,11,12,13].map(b => '<button data-b="' + b + '"' + (b === 0 ? ' style="width:70px;border-radius:22px;background:#d6283c"' : '') + '>' + (b === 0 ? 'Nil' : b) + '</button>').join('') : '';
   let m = '';
   if (warn) m = warn;
-  else if (phase === 'bid') m = turn === 0 ? 'How many tricks will you win? (Your bid + partner bid = team goal)' : NAMES[turn] + ' is bidding...';
+  else if (phase === 'bid') m = turn === 0 ? 'How many tricks will you win? Or go NIL: win zero tricks for +100!' : NAMES[turn] + ' is bidding...';
   else if (phase === 'play') m = turn === 0 ? 'Your turn — pick a card!' : NAMES[turn] + ' is thinking... 🤔';
   else if (phase === 'trickEnd') m = NAMES[currentBest().p] + ' wins the trick!';
   else m = summary;
