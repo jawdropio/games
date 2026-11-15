@@ -39,7 +39,7 @@
   /* The game is switched OFF for now: only the islands show. To bring it back, delete the next line and set PLAY = true in the game script. */
   body:not(.play) .ui, body:not(.play) #banner, body:not(.play) #frame { display:none !important; }
   body.play #shopOpen, body.play #testBtn { display:none; }
-  body:not(.test) #cheatBtn, body:not(.test) #exitTest { display:none; }
+  body:not(.test) #cheatBtn, body:not(.test) #exitTest, body:not(.test) #spawnBtn { display:none; }
   .ui { position:fixed; z-index:6; background:rgba(18,11,46,.9); color:#fff; border:2px solid rgba(255,255,255,.25); border-radius:14px; padding:10px 12px; font:600 14px system-ui, sans-serif; }
   #hud { top:58px; left:12px; width:200px; font-size:13px; max-height:calc(100vh - 150px); overflow:auto; display:none; }
   #hud h4 { margin:8px 0 4px; font-size:13px; color:#c9bfff; text-transform:uppercase; letter-spacing:.5px; }
@@ -101,6 +101,13 @@
   .sail.mine { filter:drop-shadow(0 0 .8vmin #fff) drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
   .sail:hover { font-size:max(28px,4.4vmin); }
   @keyframes sailAcross { from { left:var(--x0); top:var(--y0); } to { left:var(--x1); top:var(--y1); } }
+  #dock { right:12px; bottom:12px; width:auto; max-height:none; overflow:visible; background:none; border:0; padding:0; display:none; gap:8px; }
+  #dock .slot { position:relative; width:56px; height:56px; border-radius:14px; border:3px solid #ffd23f; background:#1e1450; color:#f4f1ff; font-size:26px; cursor:pointer; padding:0; }
+  #dock .slot:hover { border-color:#3ee6c1; }
+  #dock .slot .key { position:absolute; top:1px; left:5px; font:800 11px system-ui; color:#a99ee0; }
+  #dock .slot .count { position:absolute; bottom:0; right:4px; font:800 14px system-ui; color:#ffd23f; }
+  #dock .slot .uses { position:absolute; bottom:0; left:4px; font:800 10px system-ui; color:#ff9a9a; }
+  #dockMsg { right:12px; bottom:80px; background:none; border:0; padding:0; display:none; color:#ffd23f; font:800 14px system-ui; text-shadow:0 2px 4px #000; }
   #boatPop { width:210px; display:none; z-index:7; font-size:13px; }
   .spot.pickme canvas { filter:drop-shadow(0 0 1.4vmin #ffd84a) drop-shadow(0 0 .6vmin #fff); }
   .spot.pickme:not(.pic) { border-color:#ffd84a; border-style:solid; }
@@ -184,6 +191,7 @@
 <div id="pause"><div><h1>⏸ Paused</h1><button class="btn" id="resume">▶ Keep playing</button></div></div>
 <div class="ui" id="hud"></div>
 <div class="ui" id="dock"></div>
+<div class="ui" id="dockMsg"></div>
 <div class="ui" id="boatPop"></div>
 <div class="ui modal" id="robM"><div class="mbox"><div id="robBody"></div></div></div>
 <div class="ui" id="resbar" title="Open your inventory"></div>
@@ -201,6 +209,7 @@
     <button class="btn" id="shopBtn">🛒 Shop</button>
     <button class="btn" id="tradeBtn">🔁 Trade</button>
     <button class="btn" id="alliBtn">🤝 Alliances</button>
+    <button class="btn" id="spawnBtn">🧪 Send a bot boat</button>
     <button class="btn" id="cheatBtn">🧪 +10 of everything</button>
     <button class="btn" id="exitTest">Exit test ✖</button>
     <button class="btn" id="minBtn" title="Hide or show this bar">▾</button>
@@ -676,6 +685,7 @@
   function beginPlay() {
     G.phase = 'play'; G.choosing = false; G.seat = SEATS.indexOf(G.startIsland); G.turn = G.isl[SEATS[G.seat]].seat; G.rolled = false;
     say('▶️ ' + (G.turn === 0 ? 'You start' : G.players[G.turn].name + ' starts') + ' on ' + SEATS[G.seat] + '. Turns go clockwise, island by island!');
+    if (document.body.classList.contains('test')) { testBoat(); testBoat(); say('🧪 Two bot boats are sailing and you have a Robber Boat. Press a boat on the sea to rob it, any time!'); }
     refresh(); if (G.players[G.turn].bot) later(botTurn, 900);
   }
   function nextSeat() {
@@ -943,7 +953,7 @@
   }
   function robTake(pi, id, take) {
     var P = G.players[pi], v = G.voyages.filter(function (x) { return x.id === id; })[0];
-    if (!v || v.boat === 'Flying Boat' || v.from === pi || v.to === pi || (P.items['Robber Boat'] || 0) < 1 || G.turn !== pi) return;
+    if (!v || v.boat === 'Flying Boat' || v.from === pi || v.to === pi || (P.items['Robber Boat'] || 0) < 1) return;      // you can rob any time, even on someone else's turn
     var got = {}, total = 0;
     Object.keys(take).forEach(function (key) {
       var p = key.split('|'), w = p[0], k = p[1], n = Math.min(take[key], v[w][k] || 0, 5 - total);
@@ -985,13 +995,17 @@
     if (v.from === 0 || v.to === 0) h += tip('This is your trade.');
     else if (v.boat === 'Flying Boat') h += tip('🎈 Flying Boats can\'t be robbed.');
     else if (!(me.items['Robber Boat'] > 0)) h += tip('You need a 🏴‍☠️ Robber Boat to rob.');
-    else if (G.turn !== 0) h += tip('Wait for your turn to rob.');
     else h += '<button class="btn go" data-robopen="' + id + '" style="margin-top:6px">🏴‍☠️ Rob</button>';
+    if (v.from !== 0 && v.to !== 0 && v.boat !== 'Flying Boat' && me.items['Exploding Boat'] > 0 && G.turn === 0) h += ' <button class="btn" data-boomopen="' + id + '" style="margin-top:6px">💥 Blow up</button>';
     pop.innerHTML = h; pop.style.left = Math.max(8, Math.min(x, innerWidth - 230)) + 'px'; pop.style.top = Math.max(8, Math.min(y + 12, innerHeight - 190)) + 'px'; pop.style.display = 'block';
   }
   $('board').addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('.sail'); if (t) openBoatPop(+t.dataset.vid, e.clientX, e.clientY); });
   addEventListener('click', function (e) { if (!(e.target.closest && e.target.closest('.sail, #boatPop'))) $('boatPop').style.display = 'none'; });
-  $('boatPop').addEventListener('click', function (e) { var id = e.target.dataset && e.target.dataset.robopen; if (id) { $('boatPop').style.display = 'none'; openRob(+id); } });
+  $('boatPop').addEventListener('click', function (e) {
+    var d = e.target.dataset || {};
+    if (d.robopen) { $('boatPop').style.display = 'none'; openRob(+d.robopen); }
+    if (d.boomopen) { $('boatPop').style.display = 'none'; blowUp(0, +d.boomopen); refresh(); }
+  });
 
   var rob = { id: 0, take: {} };
   function robTotal() { return Object.keys(rob.take).reduce(function (a, k) { return a + rob.take[k]; }, 0); }
@@ -1024,33 +1038,43 @@
   });
 
   var DOCK_BOATS = ['Trade Boat', 'Flying Boat', 'Robber Boat', 'Exploding Boat'];
-  function renderDock() {
-    var d = $('dock'), me = G.players[0], boats = DOCK_BOATS.filter(function (b) { return (me.items[b] || 0) > 0; }), vs = visibleVoyages();
-    if (!boats.length && !vs.length) { d.style.display = 'none'; return; }
-    var h = '<b>⛵ Your boats</b>';
-    if (!boats.length) h += '<div style="opacity:.7">No boats at home.</div>';
-    boats.forEach(function (b) {
-      h += '<div class="prow"><span>' + recipe(b).icon + ' ' + b + ' ×' + me.items[b] + (b === 'Robber Boat' ? ' <small>(' + (3 - me.robberUses) + ' uses left)</small>' : '') + '</span>' +
-           (b === 'Trade Boat' || b === 'Flying Boat' ? '<button class="btn" data-dk="' + b + '" style="margin-left:auto;padding:2px 8px">Trade</button>' : '') + '</div>';
-    });
-    if (vs.length) {
-      h += '<b style="display:block;margin-top:8px">🌊 At sea</b>';
-      var canRob = G.turn === 0 && (me.items['Robber Boat'] || 0) > 0, canBoom = G.turn === 0 && (me.items['Exploding Boat'] || 0) > 0;
-      vs.forEach(function (v) {
-        var A = G.players[v.from], B = G.players[v.to], other = v.from !== 0 && v.to !== 0, safe = v.boat === 'Flying Boat';
-        h += '<div class="seav">' + recipe(v.boat).icon + ' ' + A.dot + '→' + B.dot + ' ' + cargoText(v) + '<div style="opacity:.7;font-size:11px">arrives when ' + A.name + ' plays next' + (safe ? ' · can\'t be robbed' : '') + '</div>' +
-             (other && !safe && canRob ? '<button class="btn" data-rob="' + v.id + '" style="padding:2px 8px;margin-top:3px">🏴‍☠️ Rob…</button> ' : '') +
-             (other && !safe && canBoom ? '<button class="btn" data-boom="' + v.id + '" style="padding:2px 8px;margin-top:3px">💥 Blow up</button>' : '') + '</div>';
-      });
-    }
-    d.innerHTML = h; d.style.display = 'block';
+  var dockMsgTimer = 0;
+  function dockSay(t) { var m = $('dockMsg'); m.textContent = t; m.style.display = 'block'; clearTimeout(dockMsgTimer); dockMsgTimer = setTimeout(function () { m.style.display = 'none'; }, 2600); }
+  function dockBoats() { var me = G.players[0]; return DOCK_BOATS.filter(function (b) { return (me.items[b] || 0) > 0; }); }
+  function renderDock() {                                  // your boats, saved in the corner (like Jaw Breaker's power-ups)
+    var d = $('dock'), me = G.players[0], boats = dockBoats();
+    if (!boats.length) { d.style.display = 'none'; return; }
+    d.innerHTML = boats.map(function (b, i) {
+      return '<button class="slot" data-dk="' + b + '" title="' + b + ' (press ' + (i + 1) + ')"><span class="key">' + (i + 1) + '</span>' + recipe(b).icon + '<span class="count">' + me.items[b] + '</span>' +
+             (b === 'Robber Boat' ? '<span class="uses">' + (3 - me.robberUses) + ' left</span>' : '') + '</button>';
+    }).join('');
+    d.style.display = 'flex';
+  }
+  function useSlot(b) {
+    if (b === 'Trade Boat' || b === 'Flying Boat') { trade.boat = b; $('tradeM').classList.add('on'); renderTrade(); }
+    else if (b === 'Robber Boat') dockSay('🏴‍☠️ Press a boat sailing on the sea to rob it!');
+    else dockSay('💥 Press a boat sailing on the sea, then Blow up! (on your turn)');
   }
   $('dock').addEventListener('click', function (e) {
-    var t = e.target.dataset || {};
-    if (t.dk) { trade.boat = t.dk; $('tradeM').classList.add('on'); renderTrade(); }
-    if (t.rob) openRob(+t.rob);
-    if (t.boom) { blowUp(0, +t.boom); refresh(); }
+    var t = e.target, k = (t.dataset && t.dataset.dk) || (t.closest && t.closest('[data-dk]') && t.closest('[data-dk]').dataset.dk);
+    if (k) useSlot(k);
   });
+  addEventListener('keydown', function (e) {                // keys 1 2 3 4 use the boat slots
+    if (!G || !document.body.classList.contains('play') || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName || '')) return;
+    var n = parseInt(e.key, 10), boats = dockBoats();
+    if (n >= 1 && n <= 4 && boats[n - 1]) useSlot(boats[n - 1]);
+  });
+  // 🧪 test helper: make sure you own a Robber Boat and a bot boat is sailing that you can rob (any time, even on a bot's turn)
+  function testBoat() {
+    var me = G.players[0]; if (!(me.items['Robber Boat'] > 0)) me.items['Robber Boat'] = 1;
+    var bots = G.players.map(function (p, i) { return i; }).filter(function (i) { return i > 0; });
+    if (bots.length < 2) return;
+    var a = pick(bots), b = pick(bots.filter(function (i) { return i !== a; })), P = G.players[a], keys = Object.keys(RES), g = pick(keys), r = pick(keys.filter(function (k) { return k !== g; })), l = {}, rt = {};
+    l[g] = 2 + Math.floor(Math.random() * 3); rt[r] = 2 + Math.floor(Math.random() * 3);
+    P.items['Trade Boat'] = (P.items['Trade Boat'] || 0) + 1; P.res[g] = Math.max(P.res[g] || 0, l[g]); G.players[b].res[r] = Math.max(G.players[b].res[r] || 0, rt[r]);
+    sendVoyage(a, b, 'Trade Boat', l, rt);
+  }
+  $('spawnBtn').onclick = function () { if (!G) return; testBoat(); say('🧪 A bot boat is sailing! Press it on the sea to rob it.'); refresh(); };
 
   var trade = { partner: 1, boat: 'Trade Boat', load: {}, get: 'Wood', getN: 1, msg: '' };
   var BOATS = ['Trade Boat', 'Flying Boat', 'Robber Boat'];
