@@ -1236,7 +1236,11 @@ function updatePlay(dt) {
       if (o.stun > 0 || dist(o, who) >= .85) continue;
       if (c && P.juke > 0) { o.stun = .7; continue; }
       sfx.hit();
-      if (c && Math.random() < (meOff ? .02 : .035)) return endPlay('fumble', who.x);
+      if (Math.random() < fumbleChance(o, who, meOff, kBoost)) {
+        if (!meOff) g.st.ff = (g.st.ff || 0) + 1;
+        if (Math.random() < .6) { fumbleLoose(who); return; }   // the defense gets the ball!
+        toast = '💥 FUMBLE! ...but the offense jumped on it!'; toastT = 100;
+      }
       return endPlay(c ? 'tackle' : 'sack', who.x);
     }
   }
@@ -1244,14 +1248,17 @@ function updatePlay(dt) {
   if (c && (c.y < 0 || c.y > 30)) return endPlay('oob', c.x);
   if (P.t > 20) endPlay(c ? 'tackle' : 'sack', (c || P.qb).x);
 }
-function intercept(r) {
-  if (g.ref || g.twoPt) return endPlay('int', r.x);
+function intercept(r, kind) {
+  kind = kind || 'int';
+  if (g.ref || g.twoPt) return endPlay(kind === 'fumble' ? 'fumble' : 'int', r.x);
   const me = g.poss === 'me';
   const icp = P.defs.slice().sort((a, b) => dist(a, r) - dist(b, r))[0];
   icp.x = r.x; icp.y = r.y; icp.stun = 0;
-  if (!me) g.st.ints++;
-  beginReturn('int', me ? 'cpu' : 'me', icp, [P.qb, P.rb, ...P.recs, ...P.ol], 0, r.x, r.x);
-  toast = me ? 'INTERCEPTED! They run it back... 😱' : '🎉 YOU PICKED IT OFF! RUN IT BACK!'; toastT = 130;
+  if (!me && kind === 'int') g.st.ints++;
+  beginReturn(kind, me ? 'cpu' : 'me', icp, [P.qb, P.rb, ...P.recs, ...P.ol], 0, r.x, r.x);
+  if (kind === 'fumble') toast = me ? '💥 FUMBLE! They got the ball... 😱' : '💥 BIG HIT! FUMBLE! You got it - RUN IT BACK!';
+  else toast = me ? 'INTERCEPTED! They run it back... 😱' : '🎉 YOU PICKED IT OFF! RUN IT BACK!';
+  toastT = 130;
   if (me) sfx.bad(); else sfx.fanfare();
 }
 function beginReturn(kind, team, carrier, chasers, hang, fromX, landX) {
@@ -1302,17 +1309,32 @@ function updateReturn(dt) {
   if (P.t > 25) endReturn('tackle', c.x);
 }
 function endReturn(kind, x) {
-  const R = P.ret, me = R.team === 'me', yards = Math.round((x - R.landX) * R.dir), what = R.kind === 'int' ? 'interception' : 'punt', spot = clamp(Math.round(x), 1, 99);
+  const R = P.ret, me = R.team === 'me', yards = Math.round((x - R.landX) * R.dir), spot = clamp(Math.round(x), 1, 99);
+  const what = { int: 'interception', fumble: 'fumble', punt: 'punt' }[R.kind], title = { int: 'INTERCEPTION RETURN: ', fumble: 'FUMBLE RETURN: ', punt: 'PUNT RETURN: ' }[R.kind];
   if (kind === 'td') {
-    if (me) { g.my += 6; g.tds++; banner = R.kind === 'int' ? '🎉 PICK SIX! TOUCHDOWN!' : '🎉 PUNT RETURN TOUCHDOWN!'; sub = '+6 · now pick your extra point!'; g.pend = { poss: 'cpu', los: 75, kickoff: true, pat: true }; sfx.fanfare(); }
+    if (me) { g.my += 6; g.tds++; banner = { int: '🎉 PICK SIX! TOUCHDOWN!', fumble: '🎉 SCOOP AND SCORE! TOUCHDOWN!', punt: '🎉 PUNT RETURN TOUCHDOWN!' }[R.kind]; sub = '+6 · now pick your extra point!'; g.pend = { poss: 'cpu', los: 75, kickoff: true, pat: true }; sfx.fanfare(); }
     else { const xp = Math.random() < .94; g.cpu += xp ? 7 : 6; banner = '😱 THEY RETURNED IT FOR A TOUCHDOWN!'; sub = xp ? '+7' : '+6 (they missed the extra point!)'; g.pend = { poss: 'me', los: 25 }; sfx.bad(); }
   } else {
-    banner = me ? (R.kind === 'int' ? 'INTERCEPTION RETURN: ' : 'PUNT RETURN: ') + Math.max(0, yards) + ' yards!' : 'They returned the ' + what + ' ' + Math.max(0, yards) + ' yards';
+    banner = me ? title + Math.max(0, yards) + ' yards!' : 'They returned the ' + what + ' ' + Math.max(0, yards) + ' yards';
     sub = me ? 'Nice running!' : '';
     g.pend = { poss: me ? 'me' : 'cpu', los: spot };
     if (me && yards >= 15) sfx.fanfare(); else sfx.whistle();
   }
   g.running = false; setPhase('result');
+}
+function fumbleChance(o, who, meOff, boosting) {
+  if (meOff) {   // your ball carrier gets hit by the other team
+    const secure = who === P.rb ? L('rb') : who === P.qb ? L('qb') : L('wr');
+    return clamp(.045 * (g.om || 1) - .004 * (secure - 3), .012, .09);
+  }
+  const defL = o.role === 'db' ? L('db') : o.role === 'lb' ? (L('dl') + L('db')) / 2 : L('dl');
+  let fp = .045 + .018 * (defL - 3);
+  if (o === P.ctl) fp += .03 + (boosting ? .05 : 0);   // you made the hit yourself: a BIG HIT
+  return clamp(fp, .02, .35);
+}
+function fumbleLoose(who) {
+  if (g.ref || g.twoPt) return endPlay('fumble', who.x);
+  intercept(who, 'fumble');
 }
 function resolveCatch() {
   const r = P.target, meOff = g.poss === 'me';
@@ -1449,7 +1471,7 @@ function endSeasonGame() {
   let m = '';
   try { m = (window.FR && window.FR.onGameEnd(o, { my: g.my, cpu: g.cpu, tds: g.tds, st: g.st })) || ''; } catch (e) { m = 'Game over'; }
   $('fbOverTitle').textContent = g.my === g.cpu ? "It's a tie! 🤝" : win ? 'BOBCATS WIN! 🏆' : g.oppName + ' win... 😢';
-  $('fbOverText').textContent = 'Final: Bobcats ' + g.my + ' – ' + g.oppName + ' ' + g.cpu + '  ·  Pass ' + g.st.comp + '/' + g.st.att + ' for ' + g.st.py + ' yds  ·  Rush ' + g.st.ry + ' yds  ·  Sacks ' + g.st.sacks + '  ·  INTs ' + g.st.ints + '   ' + m;
+  $('fbOverText').textContent = 'Final: Bobcats ' + g.my + ' – ' + g.oppName + ' ' + g.cpu + '  ·  Pass ' + g.st.comp + '/' + g.st.att + ' for ' + g.st.py + ' yds  ·  Rush ' + g.st.ry + ' yds  ·  Sacks ' + g.st.sacks + '  ·  INTs ' + g.st.ints + '  ·  Fumbles forced ' + (g.st.ff || 0) + '   ' + m;
   if (win) sfx.fanfare(); else sfx.bad();
   setPhase('over');
 }
@@ -1473,7 +1495,7 @@ function endGame() {
   if (!tie) { if (win) rec.w++; else rec.l++; try { localStorage.setItem('papaBowlW', rec.w); localStorage.setItem('papaBowlL', rec.l); } catch (e) {} }
   const earn = (win ? 150 : tie ? 100 : 60) + 15 * g.tds; coins += earn; saveAll(); updCoins();
   $('fbOverTitle').textContent = tie ? "It's a tie! 🤝" : win ? 'BOBCATS WIN! 🏆' : 'Coyotes win... 😢';
-  $('fbOverText').textContent = 'Final: Bobcats ' + g.my + ' – Coyotes ' + g.cpu + '  ·  Pass ' + g.st.comp + '/' + g.st.att + ' for ' + g.st.py + ' yds  ·  Rush ' + g.st.ry + ' yds  ·  Sacks ' + g.st.sacks + '  ·  INTs ' + g.st.ints + '  ·  Coins earned: +' + earn + ' 🪙 (you have ' + coins + ')';
+  $('fbOverText').textContent = 'Final: Bobcats ' + g.my + ' – Coyotes ' + g.cpu + '  ·  Pass ' + g.st.comp + '/' + g.st.att + ' for ' + g.st.py + ' yds  ·  Rush ' + g.st.ry + ' yds  ·  Sacks ' + g.st.sacks + '  ·  INTs ' + g.st.ints + '  ·  Fumbles forced ' + (g.st.ff || 0) + '  ·  Coins earned: +' + earn + ' 🪙 (you have ' + coins + ')';
   if (win) sfx.fanfare(); else sfx.bad();
   setPhase('over');
 }
@@ -1828,7 +1850,7 @@ function hintText() {
     if (P.ret) return P.ret.team === 'me' ? (P.carrier ? 'RUN IT BACK!  ↑ ↓ steer · → boost · Space juke' : 'The ball is in the air... get ready to run!') : 'They are running it back...';
     if (me && P.type === 'pass' && P.ball.mode === 'held' && !P.carrier) return 'Click a receiver (or press 1 2 3) to THROW!';
     if (me && P.carrier) return P.manual ? '↑ ↓ steer · → boost · Space juke' : 'Press SPACE to take control of the runner!';
-    if (!me) { const f = P.carrier || (P.ball.mode === 'flying' ? P.target : null); if (f && P.ctl && dist(P.ctl, f) > 4) return 'Press SPACE to switch to the player near the ball!'; return 'Arrows move your yellow dot · Shift boost · Space switch player · TACKLE the ball!'; }
+    if (!me) { const f = P.carrier || (P.ball.mode === 'flying' ? P.target : null); if (f && P.ctl && dist(P.ctl, f) > 4) return 'Press SPACE to switch to the player near the ball!'; return 'Arrows move your yellow dot · Shift = boost (a boosted hit can cause a FUMBLE!) · Space = switch player'; }
   }
   return '';
 }
