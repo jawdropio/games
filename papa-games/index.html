@@ -92,6 +92,32 @@
   @keyframes march { from { transform:translateX(100%); } to { transform:translateX(-100%); } }
   .badge { display:inline-block; background:#e6a100; color:#222; border-radius:8px; padding:2px 8px; font-weight:800; font-size:12px; margin:2px; }
   #fr select { font-size:15px; padding:4px; border-radius:6px; }
+  #cc { position:fixed; inset:0; background:radial-gradient(ellipse at top,#3a2680,#120b2e); z-index:4; display:none; overflow:auto; padding:46px 10px 30px; box-sizing:border-box; text-align:center; }
+  #cc.show { display:block; }
+  #ccWrap { max-width:760px; margin:0 auto; position:relative; }
+  #ccPauseBtn { position:fixed; top:8px; right:12px; z-index:6; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
+  #cc h1 { font-size:34px; } #cc h3 { margin:12px 0 4px; }
+  .ccGift { font-size:130px; cursor:pointer; animation:giftbounce 1s infinite; display:inline-block; } @keyframes giftbounce { 50% { transform:translateY(-14px) rotate(6deg) scale(1.06); } }
+  .ccStats { background:rgba(0,0,0,.4); border-radius:12px; padding:6px 10px; margin:8px 0; font-size:14px; }
+  .ccToast { background:#c0262d; border-radius:10px; padding:6px; margin:6px 0; font-weight:800; }
+  .ccCard { width:104px; display:inline-block; vertical-align:top; margin:5px; border-radius:12px; padding:6px 4px; border:3px solid #888; background:#1b1245; font-size:12px; position:relative; cursor:pointer; transition:transform .15s; box-sizing:border-box; }
+  .ccCard:hover { transform:translateY(-4px); } .ccCard.sel { outline:3px solid #ffe14d; } .ccCard.tired { opacity:.55; }
+  .ccCard .nm { font-weight:800; font-size:12px; min-height:30px; } .ccCard .ov { font-size:28px; font-weight:900; color:#ffe14d; } .ccCard .st { font-size:11px; text-align:left; padding-left:14px; } .ccCard .tag { font-size:11px; color:#5df07a; font-weight:800; }
+  .r0 { border-color:#aaa; } .r1 { border-color:#4da3ff; } .r2 { border-color:#b36bff; box-shadow:0 0 8px #b36bff; } .r3 { border-color:#ffd23f; box-shadow:0 0 12px #ffd23f; }
+  .r4 { border-color:#fff; background:linear-gradient(135deg,#7a5a00,#ffd23f) !important; color:#222; animation:goat 1.1s infinite; } .r4 .ov { color:#222; } @keyframes goat { 50% { box-shadow:0 0 24px #fff, 0 0 44px #ffd23f; } }
+  .ccCard.back { height:132px; font-size:44px; line-height:132px; background:repeating-linear-gradient(45deg,#2a4bd6 0 8px,#1b2f9a 8px 16px); border-color:#fff; color:#fff; }
+  .flip { animation:flipin .6s; } @keyframes flipin { from { transform:rotateY(90deg) scale(.6); opacity:0; } to { transform:none; opacity:1; } }
+  .confetti { position:absolute; inset:0; pointer-events:none; overflow:hidden; height:100vh; } .confetti span { position:absolute; top:-40px; animation:fall 3.2s linear infinite; } @keyframes fall { to { transform:translateY(110vh) rotate(360deg); } }
+  .ccBox { background:rgba(0,0,0,.4); border-radius:12px; padding:10px 14px; margin:8px auto; text-align:left; max-width:560px; line-height:1.5; font-size:15px; }
+  .ccScore { display:flex; justify-content:space-around; background:rgba(0,0,0,.45); border-radius:12px; padding:8px; font-size:14px; } .ccScore .big { font-size:34px; font-weight:900; color:#ffe14d; }
+  .ccEvent { background:#2a1d5e; border:2px solid #ffb23d; border-radius:10px; padding:5px 8px; margin:6px 0; font-size:14px; }
+  .ccField { margin:6px 0; font-size:14px; } .ccBar { position:relative; height:30px; background:linear-gradient(90deg,#14307a 0 6%,#2a7d34 6% 94%,#a02028 94%); border-radius:8px; margin:6px auto; max-width:540px; }
+  .ccBar i { position:absolute; top:3px; font-style:normal; font-size:20px; } .ccBar u { position:absolute; top:0; bottom:0; width:4px; background:#ffe14d; }
+  .ccBig { font-size:40px; font-weight:900; color:#ffe14d; text-shadow:0 3px 0 #0a1f5c; margin:6px 0; animation:flipin .6s; }
+  .ccLog { background:rgba(0,0,0,.35); border-radius:12px; padding:8px 12px; margin:8px auto; max-width:620px; text-align:left; line-height:1.45; font-size:15px; }
+  .ccRow { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+  .ccP { background:#16308a; color:#fff; border:3px solid #c8a465; border-radius:12px; padding:8px; cursor:pointer; font-size:14px; } .ccP small { color:#cfc8f5; } .ccP.sel { background:#c8a465; color:#0a1f5c; } .ccP.sel small { color:#3a2a00; }
+  .btn.go { background:#1f9d55; font-size:26px; padding:12px 30px; } .fb { background:#6a4cff; color:#fff; border:0; border-radius:8px; padding:5px 10px; font-size:14px; font-weight:700; cursor:pointer; margin:3px; }
   canvas { position:fixed; inset:0; width:100%; height:100%; }
   .overlay { overflow:auto; position:fixed; inset:0; display:none; place-items:center; text-align:center; background:rgba(18,11,46,.85); z-index:4; }
   .overlay.show { display:grid; }
@@ -118,7 +144,7 @@
     <button class="btn" id="playBJ">🃏 21 (vs bots)</button>
     <button class="btn" id="playSP">♠️ Spades (you + partner)</button>
     <button class="btn" id="playFB">🏈 Bobcat Bowl (football)</button>
-    <button class="btn off">🔒 More games soon</button>
+    <button class="btn" id="playCC" style="background:linear-gradient(135deg,#ff5db1,#ffb23d)">🎁 SURPRISE GAME!</button>
     <p style="font-size:14px">B = robot helper 🤖 · ← → move · ↑ or Space spin · ↓ fall faster · Enter drop · P pause</p>
   </div>
 </div>
@@ -188,6 +214,10 @@
     <div class="row" id="rcPos"></div>
     <div id="rcList"></div><button class="btn" id="rcBack">Back</button></div></div>
   <div id="fbPause" class="overlay"><div><h1>⏸ Paused</h1><button class="btn" id="fbResume">Resume</button><button class="btn" id="fbMenu3">Menu</button></div></div>
+</div>
+<button id="ccPauseBtn">⏸ Pause</button>
+<div id="cc"><div id="ccWrap"></div>
+  <div id="ccPause" class="overlay"><div><h1>⏸ Paused</h1><button class="btn" id="ccResume">Resume</button><button class="btn" id="ccMenu2">Menu</button></div></div>
 </div>
 <div id="fr"><div id="frTop"><b>🐐 BOBCATS FRANCHISE</b><span id="frCoins"></span><button class="btn" id="frClose">✕ Close</button></div><div id="frTabs"></div><div id="frBody"></div></div>
 <div id="pause" class="overlay">
@@ -2672,6 +2702,370 @@ window.FR = {
     return finishGame(res.my, res.cpu, true, res.tds);
   }
 };
+})();
+</script>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const KEY = 'papaCardClash';
+const RAR = [{ n: 'Common', e: '⚪', lo: 50, hi: 64 }, { n: 'Rare', e: '🔵', lo: 62, hi: 74 }, { n: 'Epic', e: '🟣', lo: 72, hi: 84 }, { n: 'Legendary', e: '🟡', lo: 84, hi: 94 }, { n: 'GOAT', e: '🐐', lo: 95, hi: 99 }];
+const PE = { QB: '🎯', RB: '🏃', WR: '🙌', OL: '🧱', DL: '💪', DB: '🛡️', K: '🦵' };
+const POS = ['QB', 'RB', 'WR', 'OL', 'DL', 'DB', 'K'];
+const BIAS = { QB: [-8, -6, 8], RB: [4, 8, -8], WR: [-8, 8, 4], OL: [10, -14, -4], DL: [9, -4, -8], DB: [-8, 6, 6], K: [-10, -12, 12] };   // power, speed, skill
+const NA = ['Turbo', 'Blaze', 'Storm', 'Rocket', 'Ninja', 'Thunder', 'Comet', 'Sparky', 'Shadow', 'Flash', 'Mega', 'Zippy', 'Captain', 'Mighty', 'Lucky'];
+const NB = ['Whiskers', 'Claw', 'Paws', 'Fang', 'Tail', 'Pounce', 'Prowl', 'Stripe', 'Growl', 'Leap', 'Hoof', 'Wing', 'Tusk', 'Scale', 'Fur'];
+const BOTS = [['Coyotes', '🐺'], ['Ice Wolves', '🥶'], ['Gold Tigers', '🐯'], ['Cosmic Cows', '🐮'], ['Neon Owls', '🦉'], ['Jungle Cobras', '🐍'], ['Sea Sharks', '🦈'], ['Fire Dragons', '🐉'], ['Giant Pandas', '🐼'], ['Sky Falcons', '🦅']];
+const PLAYS = { run: '🏃 Run', short: '🎯 Short pass', deep: '🚀 Deep pass', trick: '🎭 Trick play' };
+const DEFS_N = { box: '🧱 Stack the box', cover: '🛡️ Coverage', blitz: '💥 Blitz', prevent: '🧩 Prevent deep' };
+const PLAY_TIP = { run: 'Great vs Coverage & Prevent. Bad vs Stack the box.', short: 'Great vs Stack the box & Prevent. Bad vs Coverage.', deep: 'Great vs Stack & Blitz. Terrible vs Prevent.', trick: 'Great vs Blitz. Bad vs Stack the box.' };
+const DEF_TIP = { box: 'Stops RUNS. Weak vs deep passes.', cover: 'Stops SHORT passes. Weak vs runs.', blitz: 'Can sack the QB. Weak vs deep passes & tricks.', prevent: 'Stops DEEP passes. Weak vs runs.' };
+const MAT = { run: { box: .35, cover: 1.3, blitz: 1, prevent: 1.4 }, short: { box: 1.2, cover: .45, blitz: .8, prevent: 1.3 }, deep: { box: 1.6, cover: .8, blitz: 1.5, prevent: .3 }, trick: { box: .5, cover: 1.1, blitz: 1.8, prevent: 1 } };
+const BASE = { run: 7, short: 10, deep: 26, trick: 15 };
+const OFFS = { run: c => (c.spd + c.pwr) / 2, short: c => c.skl, deep: c => (c.skl + c.spd) / 2, trick: c => (c.skl + c.spd) / 2 };
+const DEFS = { box: c => c.pwr, cover: c => (c.skl + c.spd) / 2, blitz: c => (c.pwr + c.spd) / 2, prevent: c => c.skl };
+const BO = { run: { RB: 8 }, short: { QB: 6, WR: 6 }, deep: { QB: 8, WR: 8 }, trick: { RB: 4, WR: 4 } };
+const BD = { box: { DL: 8 }, cover: { DB: 8 }, blitz: { DL: 8, DB: 4 }, prevent: { DB: 8 } };
+const COUNTER_OF_DEF = { box: 'deep', cover: 'run', blitz: 'trick', prevent: 'run' };   // best play against each defense
+const COUNTER_OF_OFF = { run: 'box', short: 'cover', deep: 'prevent', trick: 'blitz' };  // best defense against each play
+const EVENTS = [
+  { id: 'wind', t: '🌬️ WINDY DAY! Deep passes are 35% weaker (for both teams).' }, { id: 'rain', t: '🌧️ RAINY FIELD! Runs gain less and fumbles are more likely.' },
+  { id: 'sun', t: '☀️ Perfect weather. Nothing special today.' }, { id: 'crowd', t: '📣 The Bobcat crowd is LOUD! All your cards get +6.' },
+  { id: 'hot', t: '🔥 HOT STREAK! One random card of yours gets +15 today.' }, { id: 'mystery', t: '🎁 MYSTERY GIFT! You found 50 coins on the field.' },
+  { id: 'goatday', t: '🐐 GOAT DAY! Your best card plays at +10 today.' }
+];
+
+let S, view = 'intro', paused = false, reveal = null, B = null, toast = '', tick = 0;
+function blank() { return { cards: [], deck: [], nextId: 1, wins: 0, losses: 0, streak: 0, free: 0, started: false }; }
+function load() { try { const r = JSON.parse(localStorage.getItem(KEY)); if (r && Array.isArray(r.cards)) return r; } catch (e) {} return blank(); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+S = load();
+const API = () => window.BowlAPI;
+const coins = () => API() ? API().coins() : 0;
+const addCoins = n => { if (API()) API().add(n); };
+const level = () => clamp(1 + Math.floor(S.wins / 2), 1, 10);
+
+// ---------- sound ----------
+let ac = null;
+function beep(f, d, type, v, slide) {
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'square'; o.frequency.value = f;
+    if (slide) o.frequency.linearRampToValueAtTime(f + slide, ac.currentTime + d);
+    g.gain.setValueAtTime(v || .05, ac.currentTime); g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + d);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + d);
+  } catch (e) {}
+}
+function cheer() {
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const n = Math.floor(ac.sampleRate * 1.4), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800;
+    const g = ac.createGain(); g.gain.setValueAtTime(.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(.12, ac.currentTime + .35); g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + 1.4);
+    src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+  } catch (e) {}
+}
+const sfx = {
+  flip: r => { beep(300 + r * 120, .12, 'triangle', .07); if (r >= 3) { [523, 659, 784, 1046].forEach((f, k) => setTimeout(() => beep(f, .2, 'square', .06), k * 110)); cheer(); } else if (r === 2) beep(900, .25, 'triangle', .06); },
+  snap: () => beep(160, .1, 'square', .07), good: () => { [523, 659, 784].forEach((f, k) => setTimeout(() => beep(f, .15, 'square', .06), k * 90)); cheer(); },
+  bad: () => beep(220, .45, 'sawtooth', .07, -150), whistle: () => beep(1800, .25, 'sine', .04), click: () => beep(500, .05, 'triangle', .05)
+};
+
+// ---------- cards ----------
+function rarityRoll() { const r = Math.random() * 100; return r < .5 ? 4 : r < 4 ? 3 : r < 15 ? 2 : r < 40 ? 1 : 0; }
+function genCard(r, pos) {
+  pos = pos || pick(POS); const R = RAR[r], ovr = ri(R.lo, R.hi), b = BIAS[pos];
+  const st = i => clamp(ovr + b[i] + ri(-3, 3), 30, 99);
+  const c = { id: S.nextId++, nm: r === 4 ? 'The Bobcat GOAT' : pick(NA) + ' ' + pick(NB), pos, r, ovr, pwr: st(0), spd: st(1), skl: st(2) };
+  return c;
+}
+function openPack(n) {
+  const out = []; for (let i = 0; i < n; i++) out.push(genCard(rarityRoll()));
+  if (n >= 3 && out.every(c => c.r === 0)) out[0] = genCard(1);
+  return out;
+}
+const cardById = id => S.cards.find(c => c.id === id);
+const bestFive = () => S.cards.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 5).map(c => c.id);
+function cardHtml(c, o) {
+  o = o || {};
+  const tired = c.tired > 0, boost = c.boost || 0;
+  return '<div class="ccCard r' + c.r + (o.sel ? ' sel' : '') + (tired ? ' tired' : '') + (o.cls ? ' ' + o.cls : '') + '" ' + (o.attr || '') + '><div class="nm">' + c.nm + '</div><div>' + PE[c.pos] + ' ' + c.pos + ' ' + RAR[c.r].e + '</div><div class="ov">' + (c.ovr + boost) + '</div><div class="st">PWR ' + c.pwr + '<br>SPD ' + c.spd + '<br>SKL ' + c.skl + '</div>' + (tired ? '<div>😴 tired</div>' : '') + (o.tag ? '<div class="tag">' + o.tag + '</div>' : '') + '</div>';
+}
+
+// ---------- screens ----------
+function confetti() {
+  let h = '<div class="confetti">';
+  for (let i = 0; i < 26; i++) h += '<span style="left:' + ri(2, 96) + '%;animation-delay:' + (Math.random() * 2).toFixed(2) + 's;font-size:' + ri(18, 34) + 'px">' + pick(['🎉', '⭐', '🏈', '🐱', '🪙', '✨', '🐐']) + '</span>';
+  return h + '</div>';
+}
+function introHtml() {
+  return '<div class="ccGift" data-act="surprise">🎁</div><h1>SURPRISE!</h1><p>I made you a brand new game, built from the stuff you love:<br>🏈 football · 🃏 cards · 🪙 coins · 🤖 bots · 🚩 flags · 🐱 Bobcats</p><button class="btn" data-act="surprise">🎁 Open your surprise!</button>';
+}
+function homeHtml() {
+  return (toast ? '<div class="ccToast">' + toast + '</div>' : '') + confetti() + '<h1>🐱🏈 BOBCAT CARD CLASH</h1>' +
+    '<p>Collect football cards, build your dream team, and beat the bots!</p>' +
+    '<div class="ccStats">🪙 <b>' + coins().toLocaleString() + '</b> · 🃏 ' + S.cards.length + ' cards · ✅ ' + S.wins + ' W · ❌ ' + S.losses + ' L · 🔥 streak ' + S.streak + ' · 🤖 bot level ' + level() + '</div>' +
+    '<button class="btn" data-act="play">⚔️ PLAY A GAME</button>' +
+    '<button class="btn" data-act="pack"' + (S.free > 0 || coins() >= 100 ? '' : ' disabled') + '>🎁 Open a pack ' + (S.free > 0 ? '(FREE × ' + S.free + ')' : '(100 🪙)') + '</button>' +
+    '<button class="btn" data-act="deck">🃏 My cards &amp; deck</button><button class="btn" data-act="how">❓ How to play</button><button class="btn" data-act="menu">Menu</button>';
+}
+function howHtml() {
+  return '<h1>❓ How to play</h1><div class="ccBox">🃏 <b>Your deck</b> is 5 football cards. Better cards = bigger plays.<br><br>' +
+    '🏈 <b>On offense:</b> pick a play AND a star player card, then press GO. The bot picks a defense at the same time!<br>' +
+    '🛡️ <b>On defense:</b> pick a defense AND a star player card. The bot picks a play!<br><br>' +
+    '✊✋✌️ It is like rock-paper-scissors: some plays beat some defenses. Read the tips on the buttons!<br><br>' +
+    '😴 A card you just used is <b>tired</b> for 2 plays, so rotate your stars.<br>🚩 Sometimes a flag flies. If it is on the other team you can accept or decline it.<br>' +
+    '🌦️ Every game has a surprise event (wind, rain, GOAT Day...).<br>🎁 Win games for coins. Every 3rd win gives a FREE pack. A pack can hold a legendary or even a 🐐 GOAT card!</div><button class="btn" data-act="home">Back</button>';
+}
+function revealHtml() {
+  const R = reveal, all = R.flipped.every(x => x), top = R.cards.filter((c, i) => R.flipped[i]).some(c => c.r >= 3);
+  return (top ? confetti() : '') + '<h1>🎁 ' + (R.title || 'Pack') + '</h1><p>' + (all ? 'Nice pull!' : 'Click each card to flip it!') + '</p><div>' +
+    R.cards.map((c, i) => R.flipped[i] ? cardHtml(c, { cls: 'flip' }) : '<div class="ccCard back" data-act="flip" data-i="' + i + '">?</div>').join('') + '</div>' +
+    (all ? '<button class="btn" data-act="home">✅ Awesome!</button>' + (S.free > 0 || coins() >= 100 ? '<button class="btn" data-act="pack">🎁 Open another</button>' : '') : '');
+}
+function deckHtml() {
+  const sorted = S.cards.slice().sort((a, b) => b.ovr - a.ovr);
+  return '<h1>🃏 My cards</h1><p>Your deck: <b>' + S.deck.length + '/5</b> (click cards to add or remove). <button class="fb" data-act="auto">⚡ Auto-pick best 5</button> <button class="fb" data-act="home">⬅ Back</button></p><div>' +
+    sorted.map(c => cardHtml(c, { sel: S.deck.includes(c.id), attr: 'data-act="toggle" data-id="' + c.id + '"', tag: S.deck.includes(c.id) ? '✅ IN DECK' : '' })).join('') + '</div>';
+}
+
+// ---------- battle ----------
+const ord = n => ['', '1st', '2nd', '3rd', '4th'][n];
+const nm = who => who === 'me' ? 'Bobcats' : B.bot.nm;
+const spotText = () => { const p = B.pos; return p <= 50 ? 'own ' + p : 'opp ' + (100 - p); };
+function genBotHand() {
+  const lv = level(), out = [];
+  for (let i = 0; i < 5; i++) {
+    const pos = pick(['QB', 'RB', 'WR', 'DL', 'DB', 'WR', 'DB']), ovr = clamp(48 + lv * 4 + ri(-8, 8), 40, 94), b = BIAS[pos];
+    out.push({ id: -(i + 1), nm: pick(NA) + ' ' + pick(NB), pos, r: ovr >= 84 ? 3 : ovr >= 72 ? 2 : ovr >= 62 ? 1 : 0, ovr, pwr: clamp(ovr + b[0] + ri(-3, 3), 30, 99), spd: clamp(ovr + b[1] + ri(-3, 3), 30, 99), skl: clamp(ovr + b[2] + ri(-3, 3), 30, 99), tired: 0 });
+  }
+  return out;
+}
+function startBattle() {
+  if (S.deck.length < 5) S.deck = bestFive();
+  const ev = pick(EVENTS), bot = pick(BOTS);
+  B = { me: 0, total: 28, ot: false, bot: { sc: 0, nm: bot[0], em: bot[1], hand: genBotHand() }, plays: 28, poss: Math.random() < .5 ? 'me' : 'bot', pos: 25, down: 1, togo: 10, hand: S.deck.map(id => Object.assign({ tired: 0 }, cardById(id))), event: ev, lines: [], phase: 'pick', sel: { play: null, card: null }, timer: 0, pending: null, flag: null, lastMyOff: null, lastMyDef: null, over: false, big: '' };
+  B.bot.sc = 0;
+  if (ev.id === 'crowd') B.hand.forEach(c => { c.boost = 6; });
+  if (ev.id === 'hot') pick(B.hand).boost = 15;
+  if (ev.id === 'goatday') B.hand.slice().sort((a, b) => b.ovr - a.ovr)[0].boost = 10;
+  if (ev.id === 'mystery') addCoins(50);
+  B.lines = ['🏟️ Kickoff! ' + (B.poss === 'me' ? 'You get the ball first!' : B.bot.nm + ' get the ball first.')];
+  view = 'battle'; nextTurn();
+}
+function nextTurn() {
+  if (B.plays <= 0) { B.phase = 'end'; return; }
+  B.sel = { play: null, card: null };
+  if (B.poss === 'bot' && B.down === 4) {
+    const fgd = (100 - B.pos) + 17;
+    if (fgd <= 50) { B.pending = { special: 'fg' }; B.phase = 'wait'; B.timer = 70; return; }
+    if (!(B.togo <= 2 && B.pos > 45)) { B.pending = { special: 'punt' }; B.phase = 'wait'; B.timer = 70; return; }
+  }
+  B.phase = 'pick';
+}
+function power(c, T, key, BT) { let v = T[key](c) + (BT[key][c.pos] || 0); if (c.tired > 0) v *= .85; return v + (c.boost || 0); }
+function botPickCard(hand, T, key, BT) { return hand.slice().sort((a, b) => power(b, T, key, BT) - power(a, T, key, BT)).slice(0, 2)[ri(0, 1)]; }
+function go() {   // the player pressed GO
+  if (B.phase !== 'pick' || !B.sel.play || !B.sel.card) return;
+  const card = B.hand.find(c => c.id === B.sel.card); sfx.snap();
+  if (B.poss === 'me') {
+    const def = (B.lastMyOff && Math.random() < .4) ? COUNTER_OF_OFF[B.lastMyOff] : pick(['box', 'cover', 'blitz', 'prevent']);
+    B.pending = { offPlay: B.sel.play, offCard: card, defCall: def, defCard: botPickCard(B.bot.hand, DEFS, def, BD) }; B.lastMyOff = B.sel.play;
+  } else {
+    const op = (B.lastMyDef && Math.random() < .35) ? COUNTER_OF_DEF[B.lastMyDef] : pick(['run', 'short', 'deep', 'trick', 'run', 'short']);
+    B.pending = { offPlay: op, offCard: botPickCard(B.bot.hand, OFFS, op, BO), defCall: B.sel.play, defCard: card }; B.lastMyDef = B.sel.play;
+  }
+  B.phase = 'wait'; B.timer = 55;
+}
+function special(kind) {   // 4th down choices for the player
+  if (B.phase !== 'pick' || B.poss !== 'me' || B.down !== 4) return;
+  B.pending = { special: kind }; B.phase = 'wait'; B.timer = 50; sfx.snap();
+}
+function score(who, pts) { if (who === 'me') B.me += pts; else B.bot.sc += pts; }
+function switchPoss(pos) { B.poss = B.poss === 'me' ? 'bot' : 'me'; B.pos = clamp(pos, 1, 99); B.down = 1; B.togo = 10; }
+function tireCards(usedMe) { B.hand.forEach(c => { if (c.tired > 0) c.tired--; }); B.bot.hand.forEach(c => { if (c.tired > 0) c.tired--; }); if (usedMe) usedMe.tired = 2; }
+function resolveNow() {
+  const p = B.pending; B.pending = null; B.plays--; const L = []; let used = null;
+  const off = B.poss, offN = nm(off);
+  if (p.special === 'punt') {
+    const len = 36 + ri(-4, 8); L.push('👢 ' + offN + ' punt it away.'); sfx.whistle();
+    if (B.pos + len >= 100) { L.push('Touchback.'); switchPoss(20); } else { switchPoss(100 - (B.pos + len)); L.push('The other team starts at their ' + (B.pos <= 50 ? 'own ' + B.pos : 'opp ' + (100 - B.pos)) + '.'); }
+    tireCards(null); return finish(L);
+  }
+  if (p.special === 'fg') {
+    const kBest = B.hand.filter(c => c.pos === 'K').map(c => c.skl)[0], kSkill = off === 'me' ? (kBest || 60) : 62 + level() * 2, d = (100 - B.pos) + 17;
+    const made = Math.random() < clamp(.95 - (d - 20) * .018 + (kSkill - 60) * .003, .05, .96);
+    L.push('🥅 ' + offN + ' try a ' + d + '-yard field goal...');
+    if (made) { score(off, 3); L.push('✅ IT IS GOOD! +3'); B.big = off === 'me' ? 'FIELD GOAL! 🥅' : ''; if (off === 'me') sfx.good(); else sfx.bad(); switchPoss(25); }
+    else { L.push('❌ No good!'); sfx.bad(); switchPoss(Math.max(20, 100 - B.pos)); }
+    tireCards(null); return finish(L);
+  }
+  const { offPlay, offCard, defCall, defCard } = p, mat = MAT[offPlay][defCall];
+  const rain = B.event.id === 'rain', wind = B.event.id === 'wind';
+  let m = mat; if (wind && offPlay === 'deep') m *= .65; if (rain && offPlay === 'run') m *= .85;
+  const oS = power(offCard, OFFS, offPlay, BO), dS = power(defCard, DEFS, defCall, BD), factor = 1 + (oS - dS) / 150;
+  let yards = Math.round(BASE[offPlay] * m * factor * (.6 + Math.random() * .8));
+  L.push((off === 'me' ? '🏈 You called ' : '🏈 ' + offN + ' called ') + PLAYS[offPlay] + ' with ' + offCard.nm + '. ' + (off === 'me' ? B.bot.nm : 'You') + ' called ' + DEFS_N[defCall] + ' (' + defCard.nm + ').');
+  L.push(mat >= 1.3 ? '✅ Great matchup for the offense!' : mat <= .5 ? '🛑 The defense had the perfect counter!' : '↔️ An even matchup.');
+  if ((offPlay === 'short' || offPlay === 'deep') && defCall === 'blitz' && Math.random() < .22 + Math.max(0, dS - oS) / 300) { yards = -ri(4, 9); L.push('💥 SACK!'); }
+  else if (m < .5 && Math.random() < .35) { yards = Math.min(yards, ri(-3, 1)); L.push('🛑 Stuffed at the line!'); }
+  const toChance = .03 + (m < .5 ? .07 : 0) + (rain ? .05 : 0) + Math.max(0, dS - oS) / 400;
+  used = off === 'me' ? offCard : defCard;
+  tireCards(used.id > 0 ? used : null);
+  // flags
+  if (Math.random() < .08) {
+    const onDef = Math.random() < .6, y = ri(5, 15);
+    if (!onDef) {
+      const nmF = pick(['Holding', 'False start']), loss = nmF === 'Holding' ? 10 : 5; B.pos = Math.max(1, B.pos - loss); B.togo += loss; sfx.whistle();
+      L.push('🚩 FLAG! ' + nmF + ' on ' + offN + '. The play does not count. −' + loss + ' yards, replay the down.'); return finish(L);
+    }
+    const nmF = offPlay === 'run' ? pick(['Face mask', 'Offsides']) : pick(['Pass interference', 'Face mask']);
+    const turn = Math.random() < toChance, play = { yards, turn };
+    B.flag = { nm: nmF, y, play, L, offPlay, offCard };
+    sfx.whistle(); L.push('🚩 FLAG on the defense: ' + nmF + '!');
+    if (off === 'me') { B.phase = 'flag'; B.lines = L; return; }
+    // the bot decides
+    const take = y > yards || (turn && true);
+    L.push(take ? '🚩 The bot accepts the penalty: +' + y + ' yards and a first down for them.' : '🚩 The bot declines the penalty and keeps the play.');
+    B.flag = null; if (take) applyYards(y, true, L); else applyPlay(yards, turn ? (offPlay === 'run' || offPlay === 'trick' ? 'fumble' : 'int') : null, L);
+    return finish(L);
+  }
+  applyPlay(yards, Math.random() < toChance ? (offPlay === 'run' || offPlay === 'trick' ? 'fumble' : 'int') : null, L);
+  return finish(L);
+}
+function applyYards(y, auto, L) {
+  B.pos += y; if (B.pos >= 100) { tdScore(L); return; }
+  B.down = 1; B.togo = Math.min(10, 100 - B.pos); L.push('➡️ New spot: ' + (B.pos <= 50 ? 'own ' + B.pos : 'opp ' + (100 - B.pos)) + '. First down!');
+}
+function tdScore(L) { const off = B.poss; score(off, 7); L.push('🏈 TOUCHDOWN ' + nm(off).toUpperCase() + '! +7'); B.big = off === 'me' ? 'TOUCHDOWN! 🎉' : ''; if (off === 'me') sfx.good(); else sfx.bad(); switchPoss(25); }
+function applyPlay(yards, turnover, L) {
+  const off = B.poss;
+  if (turnover) {
+    L.push(turnover === 'fumble' ? '💥 FUMBLE! The defense recovers it!' : '😱 INTERCEPTED!'); if (off === 'me') sfx.bad(); else sfx.good();
+    switchPoss(100 - B.pos); return;
+  }
+  B.pos = Math.max(1, B.pos + yards);
+  L.push(yards >= 0 ? 'Gain of ' + yards + ' yard' + (yards === 1 ? '' : 's') + '.' : 'Loss of ' + (-yards) + ' yards.');
+  if (B.pos >= 100) { tdScore(L); return; }
+  if (yards >= B.togo) { B.down = 1; B.togo = Math.min(10, 100 - B.pos); L.push('🎉 FIRST DOWN!'); }
+  else { B.togo -= yards; B.down++; if (B.down > 4) { L.push('Turnover on downs! The other team takes over.'); switchPoss(100 - B.pos); } }
+}
+function flagChoose(accept) {
+  const F = B.flag; if (!F) return; B.flag = null;
+  const L = F.L; L.push(accept ? '✅ You ACCEPT the penalty: +' + F.y + ' yards and a first down.' : '❌ You DECLINE the penalty and keep the play.');
+  if (accept) applyYards(F.y, true, L); else applyPlay(F.play.yards, F.play.turn ? (F.offPlay === 'run' || F.offPlay === 'trick' ? 'fumble' : 'int') : null, L);
+  finish(L);
+}
+function finish(L) { B.lines = L; B.phase = 'result'; }
+function nextPlay() {
+  if (B.phase !== 'result') return; B.big = '';
+  if (B.plays <= 0) {
+    if (B.me === B.bot.sc && !B.ot) { B.ot = true; B.plays = 6; B.lines = ['⏱️ TIED! OVERTIME: 6 more plays. First to lead at the end wins!']; sfx.whistle(); return nextTurn(); }
+    return endBattle();
+  }
+  nextTurn();
+}
+function endBattle() {
+  const win = B.me > B.bot.sc, tie = B.me === B.bot.sc; let earn, msg = '';
+  if (win) { S.wins++; S.streak++; earn = 120 + 15 * level(); if (S.wins % 3 === 0) { S.free++; msg = '🎁 Every 3rd win gives a FREE pack! You got one!'; } }
+  else if (tie) earn = 60; else { S.losses++; S.streak = 0; earn = 40; }
+  addCoins(earn); save();
+  B.over = { win, tie, earn, msg }; B.phase = 'over'; if (win) sfx.good(); else if (!tie) sfx.bad();
+}
+function battleHtml() {
+  const hand = B.hand, me = B.poss === 'me', q = B.ot ? 'OT' : 'Q' + Math.min(4, Math.floor((B.total - B.plays) / (B.total / 4)) + 1);
+  let h = '<div class="ccScore"><div>🐱 <b>BOBCATS</b><br><span class="big">' + B.me + '</span></div><div>' + q + '<br>' + B.plays + ' plays left</div><div>' + B.bot.em + ' <b>' + B.bot.nm.toUpperCase() + '</b><br><span class="big">' + B.bot.sc + '</span></div></div>';
+  h += '<div class="ccEvent">' + B.event.t + '</div>';
+  if (B.phase === 'over') {
+    const o = B.over;
+    return h + confetti() + '<h1>' + (o.tie ? '🤝 It\'s a tie!' : o.win ? '🏆 YOU WIN!' : '😢 The bot wins...') + '</h1><p>' + B.me + ' – ' + B.bot.sc + ' · +' + o.earn + ' 🪙 ' + (o.win ? '(win streak ' + S.streak + ')' : '') + '</p>' + (o.msg ? '<p><b>' + o.msg + '</b></p>' : '') +
+      '<button class="btn" data-act="play">⚔️ Play again</button>' + (S.free > 0 || coins() >= 100 ? '<button class="btn" data-act="pack">🎁 Open a pack' + (S.free > 0 ? ' (FREE)' : '') + '</button>' : '') + '<button class="btn" data-act="home">🏠 Home</button>';
+  }
+  h += '<div class="ccField"><div class="ccBar"><i style="' + (me ? 'left' : 'right') + ':' + clamp(B.pos, 0, 100) + '%;transform:translateX(' + (me ? '-50%' : '50%') + ')">🏈</i><u style="' + (me ? 'left' : 'right') + ':' + clamp(B.pos + B.togo, 0, 100) + '%"></u></div><div>' + (me ? '🐱 Your ball' : B.bot.em + ' ' + B.bot.nm + ' have the ball') + ' · <b>' + ord(Math.min(4, B.down)) + ' &amp; ' + B.togo + '</b> · on ' + (B.pos <= 50 ? 'their own ' + B.pos : 'the ' + (100 - B.pos) + ' (close to the end zone)') + '</div></div>';
+  if (B.big) h += '<div class="ccBig">' + B.big + '</div>';
+  if (B.phase === 'wait') return h + '<div class="ccLog"><b>' + (B.pending && B.pending.special ? '⏳ Here we go...' : '⏳ The ball is snapped...') + '</b></div>';
+  if (B.phase === 'flag') {
+    const F = B.flag;
+    return h + '<div class="ccLog">' + B.lines.map(x => '<div>' + x + '</div>').join('') + '</div><div class="ccBox"><b>🚩 ' + F.nm + ' on the defense!</b><br>✅ ACCEPT: +' + F.y + ' yards and a first down<br>❌ DECLINE: ' + (F.play.turn ? 'the play is a TURNOVER (bad!)' : F.play.yards >= 0 ? 'keep your play: gain of ' + F.play.yards + ' yards' : 'keep the play: loss of ' + (-F.play.yards) + ' yards') + '</div>' +
+      '<button class="btn" data-act="accept">✅ Accept the penalty</button><button class="btn" data-act="decline">❌ Decline</button>';
+  }
+  if (B.phase === 'result') return h + '<div class="ccLog">' + B.lines.map(x => '<div>' + x + '</div>').join('') + '</div><button class="btn" data-act="next">' + (B.plays <= 0 ? (B.me === B.bot.sc && !B.ot ? '⏱️ OVERTIME!' : '🏁 Final score') : '▶ Next play') + '</button>' + (B.lines.length ? '' : '');
+  // pick phase
+  const names = me ? PLAYS : DEFS_N, tips = me ? PLAY_TIP : DEF_TIP;
+  h += '<div class="ccLog">' + B.lines.slice(0, 3).map(x => '<div>' + x + '</div>').join('') + '</div>';
+  h += '<h3>' + (me ? '1️⃣ Pick a play' : '1️⃣ Pick a defense') + '</h3><div class="ccRow">' + Object.keys(names).map((k, i) => '<button class="ccP' + (B.sel.play === k ? ' sel' : '') + '" data-act="selplay" data-k="' + k + '"><b>' + (i + 1) + '. ' + names[k] + '</b><br><small>' + tips[k] + '</small></button>').join('') + '</div>';
+  h += '<h3>2️⃣ Pick your star player</h3><div>' + hand.map(c => cardHtml(c, { sel: B.sel.card === c.id, attr: 'data-act="selcard" data-id="' + c.id + '"' })).join('') + '</div>';
+  h += '<button class="btn go" data-act="go"' + (B.sel.play && B.sel.card ? '' : ' disabled') + '>' + (me ? '🏈 GO!' : '🛡️ CALL IT!') + '</button>';
+  if (me && B.down === 4) h += '<div class="ccBox">4th down! ' + '<button class="fb" data-act="punt">👢 Punt it away</button> ' + (((100 - B.pos) + 17) <= 55 ? '<button class="fb" data-act="fg">🥅 Kick a field goal</button>' : '') + ' Or just pick a play to GO FOR IT!</div>';
+  return h;
+}
+function render() {
+  const w = $('ccWrap');
+  w.innerHTML = view === 'intro' ? introHtml() : view === 'home' ? homeHtml() : view === 'how' ? howHtml() : view === 'pack' ? revealHtml() : view === 'deck' ? deckHtml() : battleHtml();
+}
+
+// ---------- actions ----------
+function act(a, d) {
+  d = d || {}; toast = '';
+  if (a === 'surprise') {
+    if (!S.started) { S.started = true; S.cards = [...Array(5)].map(() => genCard(0)).concat([genCard(1)]); S.deck = bestFive(); S.free = 1; save(); reveal = { cards: S.cards.slice(), flipped: S.cards.map(() => false), title: 'Your starter cards!' }; view = 'pack'; }
+    else { view = 'home'; }
+    sfx.good();
+  }
+  else if (a === 'home') { view = 'home'; reveal = null; }
+  else if (a === 'menu') return closeCC();
+  else if (a === 'how') view = 'how';
+  else if (a === 'deck') view = 'deck';
+  else if (a === 'auto') S.deck = bestFive();
+  else if (a === 'toggle') { const id = +d.id; if (S.deck.includes(id)) S.deck = S.deck.filter(x => x !== id); else if (S.deck.length < 5) S.deck.push(id); else toast = 'Your deck is full (5). Remove a card first.'; sfx.click(); }
+  else if (a === 'pack') {
+    if (S.free > 0) S.free--; else if (coins() >= 100) addCoins(-100); else { toast = 'You need 100 coins!'; render(); return; }
+    const cards = openPack(3); S.cards.push(...cards); if (S.deck.length < 5) S.deck = bestFive(); save(); reveal = { cards, flipped: cards.map(() => false), title: 'Pack opened!' }; view = 'pack'; sfx.click();
+  }
+  else if (a === 'flip') { const i = +d.i; if (reveal && !reveal.flipped[i]) { reveal.flipped[i] = true; sfx.flip(reveal.cards[i].r); } }
+  else if (a === 'play') startBattle();
+  else if (a === 'selplay') { if (B.phase === 'pick') { B.sel.play = d.k; sfx.click(); } }
+  else if (a === 'selcard') { if (B.phase === 'pick') { B.sel.card = +d.id; sfx.click(); } }
+  else if (a === 'go') go();
+  else if (a === 'punt' || a === 'fg') special(a);
+  else if (a === 'accept') flagChoose(true);
+  else if (a === 'decline') flagChoose(false);
+  else if (a === 'next') nextPlay();
+  save(); render();
+}
+function openCC() {
+  $('menu').classList.remove('show'); $('cc').classList.add('show'); $('ccPauseBtn').style.display = 'block';
+  paused = false; $('ccPause').classList.remove('show'); view = S.started ? 'home' : 'intro'; render();
+}
+function closeCC() { $('cc').classList.remove('show'); $('ccPauseBtn').style.display = 'none'; $('ccPause').classList.remove('show'); $('menu').classList.add('show'); }
+const isOpen = () => $('cc').classList.contains('show');
+function togglePause() { paused = !paused; $('ccPause').classList.toggle('show', paused); }
+$('playCC').onclick = openCC;
+$('ccWrap').onclick = e => { const b = e.target.closest('[data-act]'); if (!b || b.disabled || paused) return; act(b.dataset.act, b.dataset); };
+$('ccPauseBtn').onclick = togglePause; $('ccResume').onclick = togglePause; $('ccMenu2').onclick = closeCC;
+addEventListener('keydown', e => {
+  if (!isOpen()) return;
+  const k = e.key.toLowerCase();
+  if (k === 'p' || k === 'escape') { togglePause(); return; }
+  if (paused || view !== 'battle' || !B) return;
+  if (B.phase === 'pick' && ['1', '2', '3', '4'].includes(k)) { act('selplay', { k: Object.keys(B.poss === 'me' ? PLAYS : DEFS_N)[+k - 1] }); }
+  else if (k === ' ' || k === 'enter') { e.preventDefault(); if (B.phase === 'pick') act('go'); else if (B.phase === 'result') act('next'); }
+  else if (B.phase === 'flag') { if (k === 'a') act('accept'); else if (k === 'd') act('decline'); }
+});
+addEventListener('blur', () => { if (isOpen() && !paused && view === 'battle') togglePause(); });
+
+// ---------- fixed 60-per-second clock for the little pauses ----------
+const STEP = 1000 / 60; let last = performance.now(), acc = 0;
+function update() { tick++; if (paused || !isOpen() || !B || view !== 'battle' || B.phase !== 'wait') return; if (--B.timer <= 0) { resolveNow(); render(); } }
+function frame(now) { acc += Math.min(now - last, 250); last = now; while (acc >= STEP) { update(); acc -= STEP; } requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+window.CC = { act, state: () => S, battle: () => B, open: openCC };
 })();
 </script>
 
