@@ -69,6 +69,8 @@
   .rcrow { background:linear-gradient(135deg,#0a1f5c,#16308a) !important; border:3px solid #c8a465; box-shadow:0 4px 10px rgba(0,0,0,.5); }
   .jersey { width:44px; height:44px; border-radius:10px; background:#c8a465; color:#0a1f5c; font-weight:900; font-size:22px; display:inline-grid; place-items:center; margin-right:8px; vertical-align:middle; border:3px solid #fff; }
   #rcPos .tab { padding:6px 10px !important; font-size:14px !important; }
+  #fbLab { position:absolute; top:46px; left:8px; z-index:3; display:none; flex-direction:column; gap:4px; background:rgba(0,0,0,.6); padding:6px; border-radius:10px; width:178px; max-height:calc(100% - 200px); overflow:auto; font-size:12px; text-align:left; }
+  #fbLab button { background:#2a1d5e; color:#fff; border:1px solid #a99ee0; border-radius:8px; padding:4px 6px; font-size:12px; font-weight:700; cursor:pointer; text-align:left; } #fbLab button:hover { background:#6a4cff; }
   #fbPauseBtn { position:fixed; top:8px; right:12px; z-index:6; background:#2a1d5e; color:#f4f1ff; border:2px solid #a99ee0; border-radius:10px; font-size:16px; padding:4px 12px; cursor:pointer; display:none; }
   #fr { position:fixed; inset:0; z-index:8; background:#0b1636; color:#f4f1ff; display:none; overflow:auto; padding:10px 10px 40px; box-sizing:border-box; }
   #fr.show { display:block; }
@@ -154,12 +156,24 @@
     <button class="btn" id="callTO">⏱ Timeout</button>
     <button class="btn" id="callDeepKick">🏈 Kick deep</button><button class="btn" id="callOnside">🎯 Onside kick!</button><button class="btn" id="callXP">🦵 Extra point (+1)</button><button class="btn" id="callTwo">✌️ Go for 2 (+2)</button><button class="btn" id="callKickNow">🦵 KICK!</button><button class="btn" id="callFlag" style="background:#e6a100">🚩 THROW FLAG (Space)</button>
   </div>
+  <div id="fbLab">
+    <b>🧪 TEST LAB</b><small>Press HIKE, then try these:</small>
+    <button data-lab="int">🎯 Force an interception</button>
+    <button data-lab="fumble">💥 Force a fumble</button>
+    <small>🚩 Throw a flag (any time):</small>
+    <button data-lab="hold">Offensive holding</button><button data-lab="offs">Offsides</button><button data-lab="fs">False start</button>
+    <button data-lab="dpi">Pass interference</button><button data-lab="opi">Offensive pass interference</button><button data-lab="rough">Roughing the passer</button>
+    <button data-lab="face">Face mask</button><button data-lab="delay">Delay of game</button>
+    <small>Setup:</small>
+    <button data-lab="switch">🔁 Switch offense / defense</button><button data-lab="reset">📍 Reset ball to midfield</button>
+  </div>
   <div id="fbTouch"><div><button id="tLeft">◀</button><button id="tUp">▲</button><button id="tDown">▼</button><button id="tRight">▶</button></div><div><button id="tBoost">⚡</button><button id="tJuke">💨</button></div></div>
   <div id="fbStart" class="overlay show"><div>
     <img id="fbLogo" src="assets/screenshot-2026-11-14-at-7.21.36-pm.png" alt="Bobcats logo" style="width:200px;border-radius:16px">
     <h1>Bobcat Bowl</h1><p>You are the Bobcats! Beat the Coyotes. 🏈</p><p id="fbRec"></p>
     <p id="fbCoins"></p><button class="btn" id="fbGo">🏈 Play a game</button><button class="btn" id="fbRefGo">🚩 Ref mode</button><button class="btn" id="fbSeasonBtn">🏆 Season mode</button><button class="btn" id="fbRecBtn">🎓 Team &amp; recruiting</button><button class="btn" id="fbMenu1">Menu</button>
     <button class="btn" id="fbHow" style="background:#2a1d5e">❓ How to play</button>
+    <button class="btn" id="fbLabBtn" style="background:#2a1d5e">🧪 Test lab (try picks, fumbles &amp; flags)</button>
     <div id="fbHowBox" style="display:none;text-align:left;max-width:430px;margin:8px auto;background:#1b1245;border-radius:12px;padding:10px 14px;font-size:15px;line-height:1.5">
       🏈 <b>On offense</b><br>1. Pick a play (Quick pass, Deep pass, Run or QB run).<br>2. Press the green <b>HIKE!</b> button (or Space).<br>3. Pass: click a player with a green ring (or press 1 2 3). Run: steer with ↑ ↓.<br><br>
       🛡️ <b>On defense</b><br>Pick Man, Zone or Blitz. Move your yellow dot with the arrow keys. Space = switch players. Tackle the ball carrier!<br><br>
@@ -937,6 +951,7 @@ function setPhase(ph) {
     ['callQuick','callDeep','callRun','callQB','callHike','callFG','callPunt','callMan','callZone','callBlitz','callTO','callDeepKick','callOnside','callKickNow','callXP','callTwo'].forEach(id => { $(id).style.display = 'none'; });
     $('callFlag').style.display = on ? '' : 'none';
   } else $('callFlag').style.display = 'none';
+  $('fbLab').style.display = (g && g.lab && (ph === 'presnap' || ph === 'play' || ph === 'result')) ? 'flex' : 'none';
 }
 
 // ---------- setting up a play ----------
@@ -1356,7 +1371,7 @@ function resolveCatch() {
 }
 const ord = n => ['', '1st', '2nd', '3rd', '4th'][n];
 function rollInjury() {
-  if (Math.random() >= .05) return;
+  if (g.lab || Math.random() >= .05) return;
   if (window.FR && window.FR.ready) { const m = window.FR.injure(g.poss === 'me' ? ['qb', 'rb', 'wr', 'ol'] : ['dl', 'db']); if (m) { sub = (sub ? sub + ' · ' : '') + m; sfx.bad(); } return; }
   const pool = (g.poss === 'me' ? ['qb', 'rb', 'wr', 'ol'] : ['dl', 'db']).filter(k => !(roster.inj[k] > 0));
   if (!pool.length) return;
@@ -1502,6 +1517,27 @@ function endGame() {
 
 // ---------- REF MODE 🚩 ----------
 const FOUL = { offsides: 'Offsides', falsestart: 'False start', holding: 'Holding', dpi: 'Pass interference', roughing: 'Roughing the passer' };
+const LABFLAGS = {
+  hold: { name: 'Offensive holding', off: true, yards: -10 }, offs: { name: 'Offsides', off: false, yards: 5 }, fs: { name: 'False start', off: true, yards: -5 },
+  dpi: { name: 'Pass interference', off: false, yards: 25, auto: true }, opi: { name: 'Offensive pass interference', off: true, yards: -10 },
+  rough: { name: 'Roughing the passer', off: false, yards: 15, auto: true }, face: { name: 'Face mask', off: false, yards: 15, auto: true }, delay: { name: 'Delay of game', off: true, yards: -5 }
+};
+function newLab() {
+  g = { my: 0, cpu: 0, clock: 99999, total: 99999, practice: null, season: null, om: 1, oppName: 'TEST TEAM', theme: 0, crowd: .5, stadName: '', los: 50, down: 1, fd: 60, poss: 'me', pend: null, running: false, runLeft: 0, to: 3, half: true, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0, ff: 0 }, lab: true };
+  $('fbFRBack').style.display = 'none'; $('fbAgain').style.display = 'none'; $('fbRecBtn2').style.display = 'none';
+  camX = 40; presnap(); toast = '🧪 TEST LAB: use the buttons on the left to try picks, fumbles and flags!'; toastT = 240;
+}
+function labAct(name) {
+  if (!g || !g.lab || paused) return;
+  if (phase !== 'presnap' && phase !== 'play') { toast = 'Wait for the next snap!'; toastT = 80; return; }
+  if (name === 'switch') { g.poss = g.poss === 'me' ? 'cpu' : 'me'; g.los = 50; g.down = 1; g.fd = ftarget(50, g.poss); presnap(); toast = g.poss === 'me' ? 'You are on OFFENSE' : 'You are on DEFENSE (pick Man, Zone or Blitz)'; toastT = 120; return; }
+  if (name === 'reset') { g.los = 50; g.down = 1; g.fd = ftarget(50, g.poss); presnap(); return; }
+  if (LABFLAGS[name]) { if (P) applyPenalty(Object.assign({}, LABFLAGS[name])); return; }
+  if (phase === 'presnap') { toast = 'Press HIKE (or pick a defense) first, then try this button!'; toastT = 120; return; }
+  if (P.ret) { toast = 'Already running it back!'; toastT = 80; return; }
+  if (name === 'int') intercept(P.recs[0]);
+  else if (name === 'fumble') fumbleLoose(P.carrier || P.qb);
+}
 function newRefGame() {
   g = { ref: true, my: 0, cpu: 0, clock: 99999, los: 50, down: 1, fd: 40, poss: 'cpu', pend: null, running: false, runLeft: 0, to: 3, half: true, tds: 0, st: { att: 0, comp: 0, py: 0, ry: 0, sacks: 0, ints: 0 }, refScore: 0, refPlays: 0, refCorrect: 0 };
   $('fbFRBack').style.display = 'none'; $('fbAgain').style.display = ''; $('fbRecBtn2').style.display = 'none';
@@ -1813,8 +1849,8 @@ function drawHUD() {
   ctx.textAlign = 'right'; ctx.fillStyle = '#ff9aa0'; ctx.font = 'bold 13px system-ui'; ctx.fillText((me ? '' : '🏈 ') + (g.oppName || 'COYOTES'), x + w - 12, 28);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 26px system-ui'; ctx.fillText(g.cpu, x + w - 12, 55);
   const tt = g.total || TOTAL, ql = tt / 4, el = tt - g.clock, q = Math.min(4, Math.floor(el / ql) + 1), left = g.clock <= 0 ? 0 : Math.ceil(ql - (el - (q - 1) * ql));
-  ctx.textAlign = 'center'; ctx.fillStyle = '#ffe14d'; ctx.font = 'bold 15px system-ui'; ctx.fillText('Q' + q, x + w / 2 + 20, 28);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 20px system-ui'; ctx.fillText(Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'), x + w / 2 + 20, 54);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#ffe14d'; ctx.font = 'bold 15px system-ui'; ctx.fillText(g.lab ? 'TEST' : 'Q' + q, x + w / 2 + 20, 28);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 20px system-ui'; ctx.fillText(g.lab ? '🧪 LAB' : Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'), x + w / 2 + 20, 54);
   const togo = (me ? g.fd >= 100 : g.fd <= 0) ? 'Goal' : Math.max(1, Math.round((g.fd - g.los) * d));
   const spot = me ? (g.los <= 50 ? 'own ' + g.los : 'opp ' + (100 - g.los)) : (g.los >= 50 ? 'their ' + (100 - g.los) : 'your ' + g.los);
   const txt = ord(Math.min(4, g.down)) + ' & ' + togo + '  ·  ' + spot;
@@ -1959,6 +1995,8 @@ function startFromFR(o) {
   $('menu').classList.remove('show'); $('fb').classList.add('show'); paused = false; $('fbPause').classList.remove('show'); $('fbRecruit').classList.remove('show');
   g = null; P = null; newGame(o);
 }
+$('fbLabBtn').onclick = newLab;
+$('fbLab').onclick = e => { const b = e.target.closest('[data-lab]'); if (b) labAct(b.dataset.lab); };
 $('fbHow').onclick = () => { const b = $('fbHowBox'); b.style.display = b.style.display === 'none' ? 'block' : 'none'; };
 window.BowlAPI = { coins: () => coins, add(n) { coins += n; saveAll(); updCoins(); }, start: startFromFR };
 function frame(now) { acc += Math.min(now - last, 250); last = now; while (acc >= STEP) { update(); acc -= STEP; } draw(); requestAnimationFrame(frame); }
