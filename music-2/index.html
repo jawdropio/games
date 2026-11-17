@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Song Maker Pro</title>
+<style>
+  * { box-sizing:border-box; }
+  html, body { margin:0; min-height:100%; background:#120b2e; color:#f4f1ff; font-family:system-ui, sans-serif; user-select:none; -webkit-user-select:none; }
+  body { display:flex; flex-direction:column; align-items:center; padding:8px; gap:8px; }
+  .row { width:100%; max-width:1100px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; }
+  #top a { color:#a99ee0; text-decoration:none; font-weight:700; }
+  h1 { font-size:22px; margin:0; flex:1; text-align:center; }
+  button, select { font:inherit; font-weight:700; border:0; border-radius:10px; padding:7px 11px; background:#3b2d86; color:#fff; cursor:pointer; }
+  button:hover { background:#5441b8; }
+  button.big { background:#22c55e; font-size:18px; padding:8px 18px; }
+  button.big.on { background:#ef4444; }
+  button.demo { background:#d946ef; }
+  button.active { background:#22c55e; }
+  label { font-weight:700; font-size:13px; display:flex; align-items:center; gap:6px; }
+  input[type=range] { width:90px; }
+  .card { background:#1d1450; border:3px solid #1d1450; border-radius:12px; padding:6px 8px; display:flex; flex-direction:column; gap:4px; cursor:pointer; min-width:150px; }
+  .card.sel { border-color:var(--c); box-shadow:0 0 10px var(--c); }
+  .card b { color:var(--c); font-size:14px; }
+  .card .line { display:flex; gap:6px; align-items:center; }
+  .card select { padding:3px 6px; font-size:13px; }
+  .card button { padding:3px 8px; font-size:13px; }
+  .card button.muted { background:#ef4444; }
+  .wrap { width:100%; max-width:1100px; overflow:auto; background:#0e0826; border-radius:10px; position:relative; }
+  #rollWrap { height:min(46vh, 420px); }
+  #drumWrap { overflow-x:auto; overflow-y:hidden; }
+  .wrap > div { display:flex; width:max-content; }
+  .side { position:sticky; left:0; z-index:2; flex:none; }
+  canvas { display:block; }
+  #roll, #drums { touch-action:none; cursor:crosshair; }
+  .part { width:64px; height:64px; font-size:28px; border-radius:14px; background:#251a5c; border:3px solid var(--c); color:var(--c); }
+  .part.active { background:var(--c); color:#120b2e; box-shadow:0 0 12px var(--c); }
+  .part.has::after { content:" •"; }
+  #msg { height:20px; font-size:14px; color:#ffd86b; text-align:center; }
+  #pause { position:fixed; inset:0; background:rgba(10,5,30,.82); display:none; place-items:center; font-size:36px; font-weight:800; z-index:10; }
+  #pause.show { display:grid; }
+</style>
+</head>
+<body>
+<div class="row" id="top">
+  <a href="../">← Arcade</a>
+  <h1>🎹 Song Maker Pro</h1>
+  <button id="pauseBtn">⏸ Pause (P)</button>
+</div>
+
+<div class="row">
+  <button class="big" id="play">▶ Play</button>
+  <label>Tempo <input type="range" id="bpm" min="60" max="200" value="120"><span id="bpmV">120</span></label>
+  <label>Bars <select id="bars"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label>
+  <label><input type="checkbox" id="echo"> Echo</label>
+  <label>Master <input type="range" id="master" min="0" max="100" value="80"></label>
+  <label>🥁 <input type="range" id="drumVol" min="0" max="100" value="70"></label>
+</div>
+
+<div class="row" id="cards"></div>
+
+<div class="row" id="partsRow">
+  <b>Song parts:</b>
+  <button class="part" data-i="0" style="--c:#ff6b9d">A</button><button class="part" data-i="1" style="--c:#4db8ff">B</button><button class="part" data-i="2" style="--c:#9be564">C</button><button class="part" data-i="3" style="--c:#ffc94d">D</button>
+  <button id="mode">🔁 Loop this part</button>
+</div>
+
+<div class="row">
+  <button class="demo" id="dark">🖤 Demo: Dark Crown</button>
+  <button class="demo" id="royal">👑 Demo: Royal Anthem</button>
+  <button class="demo" id="hero">🌟 Demo: Hero Song</button>
+  <button class="demo" id="storm">⚡ Demo: Storm Rock</button>
+  <button id="clearTrack">🧽 Clear this track</button>
+  <button id="copyLow">⬇ Copy lower</button>
+  <button id="copyHigh">⬆ Copy higher</button>
+  <button id="clearAll">🗑 Clear this part</button>
+  <button class="demo" id="demo">🎮 Demo: Megalovania riff</button>
+  Slot:
+  <button class="slot" data-s="1">1</button><button class="slot" data-s="2">2</button><button class="slot" data-s="3">3</button>
+  <button id="save">💾 Save</button>
+  <button id="load">📂 Load</button>
+</div>
+<div id="msg">Click the roll to add a note. Drag right to make it longer. Click a note to remove it.</div>
+
+<div class="wrap" id="rollWrap"><div>
+  <canvas class="side" id="keys"></canvas><canvas id="roll"></canvas>
+</div></div>
+<div class="wrap" id="drumWrap"><div>
+  <canvas class="side" id="dlabels"></canvas><canvas id="drums"></canvas>
+</div></div>
+<div id="pause">⏸ Paused — press P</div>
+
+<script>
+(() => {
+  const LOW = 36, HIGH = 84, ROWS = HIGH - LOW + 1, RH = 14, CW = 22, MAXSTEPS = 128, KEYW = 56, DRH = 24;
+  const NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const isBlack = m => [1,3,6,8,10].includes(m % 12);
+  const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+  const INSTS = {piano:"🎹 Piano", chip:"👾 Chiptune", lead:"🎸 Saw lead", bell:"🔔 Bells", bass:"🔊 Bass", flute:"🪈 Soft flute", guitar:"🎸 Electric guitar"};
+  const TCOL = ["#ff6b9d", "#4db8ff", "#9be564", "#ffc94d"];
+  const DR = ["Hat", "Clap", "Snare", "Kick"];
+  const $ = id => document.getElementById(id);
+
+  const tracks = [
+    {inst:"chip", vol:0.8, mute:false, notes:[]},
+    {inst:"bass", vol:0.8, mute:false, notes:[]},
+    {inst:"guitar", vol:0.8, mute:false, notes:[]},
+    {inst:"bell", vol:0.8, mute:false, notes:[]}
+  ];
+  const drums = DR.map(() => Array(MAXSTEPS).fill(false));
+  let bars = 4, sel = 0, dirty = true;
+  const steps = () => bars * 16;
+  const say = t => $("msg").textContent = t;
+
+  // ---------- sound ----------
+  let ac = null, bus, drumBus, master, delay, echoSend, noiseBuf;
+  function audio() {
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain(); master.gain.value = $("master").value / 100;
+      const comp = ac.createDynamicsCompressor();
+      master.connect(comp); comp.connect(ac.destination);
+      bus = ac.createGain(); bus.connect(master);
+      drumBus = ac.createGain(); drumBus.gain.value = $("drumVol").value / 100; drumBus.connect(master);
+      delay = ac.createDelay(2); delay.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.38;
+      echoSend = ac.createGain(); echoSend.gain.value = $("echo").checked ? 0.45 : 0;
+      bus.connect(echoSend); echoSend.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(master);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state === "suspended") ac.resume();
+    return ac;
+  }
+  function playNote(inst, midi, dur, vol) {
+    const a = audio(), t = a.currentTime, f = mf(midi);
+    const g = a.createGain(); g.connect(bus);
+    let dest = g;
+    if (inst === "guitar") {
+      const sh = a.createWaveShaper(), curve = new Float32Array(256);
+      for (let i = 0; i < 256; i++) curve[i] = Math.tanh((i / 127.5 - 1) * 3);
+      sh.curve = curve;
+      const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2800;
+      sh.connect(lp); lp.connect(g); dest = sh;
+    } else if (inst === "lead" || inst === "bass") {
+      const lp = a.createBiquadFilter(); lp.type = "lowpass";
+      lp.frequency.value = inst === "bass" ? 250 : Math.min(f * 3, 2500);
+      lp.connect(g); dest = lp;
+    }
+    const oscs = [];
+    const osc = (type, fr, gain) => {
+      const o = a.createOscillator(), y = a.createGain();
+      o.type = type; o.frequency.value = fr; y.gain.value = gain;
+      o.connect(y); y.connect(dest); oscs.push(o);
+    };
+    let peak = vol * 0.22, end;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.006);
+    if (inst === "piano") {
+      osc("triangle", f, 1); osc("sine", f * 2, 0.35);
+      g.gain.exponentialRampToValueAtTime(peak * 0.35, t + Math.max(dur, 0.15));
+      g.gain.exponentialRampToValueAtTime(0.0005, t + Math.max(dur, 0.15) + 0.5);
+      end = t + Math.max(dur, 0.15) + 0.55;
+    } else if (inst === "bell") {
+      osc("sine", f, 1); osc("sine", f * 2.76, 0.35);
+      g.gain.exponentialRampToValueAtTime(0.0005, t + Math.max(dur * 1.5, 0.9));
+      end = t + Math.max(dur * 1.5, 0.9) + 0.05;
+    } else {
+      if (inst === "chip") { osc("square", f, 0.5); peak *= 0.6; }
+      else if (inst === "lead") { osc("sawtooth", f, 0.35); osc("triangle", f, 0.6); }
+      else if (inst === "bass") { osc("triangle", f, 0.8); osc("sine", f / 2, 0.9); }
+      else if (inst === "guitar") { osc("sawtooth", f, 0.45); osc("sawtooth", f * 1.004, 0.3); osc("triangle", f, 0.4); peak *= 0.6; }
+      else if (inst === "flute") { osc("sine", f, 1); osc("triangle", f * 2, 0.15); }
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(peak, t + 0.012);
+      g.gain.setValueAtTime(peak, t + Math.max(dur - 0.02, 0.02));
+      g.gain.linearRampToValueAtTime(0.0001, t + Math.max(dur, 0.05) + 0.08);
+      end = t + Math.max(dur, 0.05) + 0.1;
+    }
+    oscs.forEach(o => { o.start(t); o.stop(end); });
+  }
+  function playDrum(kind) {
+    const a = audio(), t = a.currentTime, g = a.createGain();
+    g.connect(drumBus);
+    if (kind === "Kick") {
+      const o = a.createOscillator();
+      o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.15);
+      g.gain.setValueAtTime(0.8, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      o.connect(g); o.start(t); o.stop(t + 0.3);
+      return;
+    }
+    const n = a.createBufferSource(), f = a.createBiquadFilter();
+    n.buffer = noiseBuf;
+    f.type = kind === "Clap" ? "bandpass" : "highpass";
+    f.frequency.value = kind === "Hat" ? 7000 : kind === "Clap" ? 1500 : 1800;
+    const len = kind === "Hat" ? 0.05 : kind === "Clap" ? 0.12 : 0.18;
+    const vol = kind === "Hat" ? 0.25 : 0.5;
+    g.gain.setValueAtTime(vol, t);
+    if (kind === "Clap") { g.gain.setValueAtTime(0.1, t + 0.015); g.gain.setValueAtTime(vol, t + 0.03); }
+    g.gain.exponentialRampToValueAtTime(0.001, t + len);
+    n.connect(f); f.connect(g); n.start(t); n.stop(t + len + 0.02);
+  }
+
+  // ---------- drawing ----------
+  const keysC = $("keys"), rollC = $("roll"), drumsC = $("drums"), dlabC = $("dlabels");
+  keysC.width = KEYW; keysC.height = ROWS * RH;
+  rollC.width = MAXSTEPS * CW; rollC.height = ROWS * RH;
+  dlabC.width = KEYW; dlabC.height = DR.length * DRH;
+  drumsC.width = MAXSTEPS * CW; drumsC.height = DR.length * DRH;
+  const rk = keysC.getContext("2d"), rc = rollC.getContext("2d"), dk = dlabC.getContext("2d"), dc = drumsC.getContext("2d");
+  let step = -1;
+
+  function drawKeys() {
+    for (let m = HIGH; m >= LOW; m--) {
+      const y = (HIGH - m) * RH;
+      rk.fillStyle = isBlack(m) ? "#222" : "#f4f1ff"; rk.fillRect(0, y, KEYW, RH);
+      rk.fillStyle = "#888"; rk.fillRect(0, y + RH - 1, KEYW, 1);
+      if (m % 12 === 0 || m % 12 === 7 || m % 12 === 2) {
+        rk.fillStyle = isBlack(m) ? "#fff" : "#333"; rk.font = "bold 10px system-ui";
+        rk.fillText(NAMES[m % 12] + (Math.floor(m / 12) - 1), 6, y + RH - 3);
+      }
+    }
+  }
+  function drawLabels() {
+    dk.fillStyle = "#1d1450"; dk.fillRect(0, 0, KEYW, DR.length * DRH);
+    dk.fillStyle = "#cfc8ff"; dk.font = "bold 11px system-ui";
+    DR.forEach((n, i) => dk.fillText("🥁 " + n, 4, i * DRH + 16));
+  }
+  function grid(ctx, rowsN, rh, w) {
+    for (let s = 0; s <= MAXSTEPS; s++) {
+      ctx.fillStyle = s % 16 === 0 ? "#8a7dff" : s % 4 === 0 ? "#4a3b9a" : "#2a1f66";
+      ctx.fillRect(s * CW, 0, 1, rowsN * rh);
+    }
+  }
+  function draw() {
+    // roll
+    for (let m = HIGH; m >= LOW; m--) {
+      const y = (HIGH - m) * RH;
+      rc.fillStyle = "#1e1550"; rc.fillRect(0, y, rollC.width, RH);
+      if (m % 12 === 0) { rc.fillStyle = "#3a2d86"; rc.fillRect(0, y + RH - 1, rollC.width, 1); }
+    }
+    grid(rc, ROWS, RH);
+    tracks.forEach((t, ti) => {
+      return;
+      rc.globalAlpha = 0.3; rc.fillStyle = TCOL[ti];
+      t.notes.forEach(n => rc.fillRect(n.s * CW + 1, (HIGH - n.p) * RH + 1, n.l * CW - 2, RH - 2));
+    });
+    rc.globalAlpha = 1;
+    rc.fillStyle = TCOL[sel]; rc.strokeStyle = "#fff"; rc.lineWidth = 1;
+    tracks[sel].notes.forEach(n => {
+      rc.fillRect(n.s * CW + 1, (HIGH - n.p) * RH + 1, n.l * CW - 2, RH - 2);
+      rc.strokeRect(n.s * CW + 1.5, (HIGH - n.p) * RH + 1.5, n.l * CW - 3, RH - 3);
+    });
+    rc.fillStyle = "#ff6b6b"; rc.fillRect(steps() * CW - 1, 0, 3, rollC.height);
+    if (step >= 0) { rc.fillStyle = "#fff"; rc.fillRect(step * CW, 0, 2, rollC.height); }
+    // drums
+    dc.fillStyle = "#1e1550"; dc.fillRect(0, 0, drumsC.width, drumsC.height);
+    grid(dc, DR.length, DRH);
+    for (let r = 0; r < DR.length; r++) {
+      dc.fillStyle = "#2a1f66"; dc.fillRect(0, (r + 1) * DRH - 1, drumsC.width, 1);
+      for (let s = 0; s < MAXSTEPS; s++) if (drums[r][s]) {
+        dc.fillStyle = "#e5e7eb"; dc.fillRect(s * CW + 2, r * DRH + 3, CW - 4, DRH - 6);
+      }
+    }
+    dc.fillStyle = "#ff6b6b"; dc.fillRect(steps() * CW - 1, 0, 3, drumsC.height);
+    if (step >= 0) { dc.fillStyle = "#fff"; dc.fillRect(step * CW, 0, 2, drumsC.height); }
+    dirty = false;
+  }
+  drawKeys(); drawLabels();
+
+  // ---------- editing ----------
+  let drag = null, dpaint = null;
+  const pos = (e, c) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  rollC.addEventListener("pointerdown", e => {
+    const [x, y] = pos(e, rollC);
+    const s = Math.floor(x / CW), m = HIGH - Math.floor(y / RH);
+    if (s < 0 || s >= steps() || m < LOW || m > HIGH) return;
+    const list = tracks[sel].notes;
+    const i = list.findIndex(n => n.p === m && s >= n.s && s < n.s + n.l);
+    if (i >= 0) list.splice(i, 1);
+    else {
+      drag = {s, l: 1, p: m}; list.push(drag);
+      playNote(tracks[sel].inst, m, 0.25, tracks[sel].vol);
+      rollC.setPointerCapture(e.pointerId);
+    }
+    dirty = true; e.preventDefault();
+  });
+  rollC.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const s = Math.floor(pos(e, rollC)[0] / CW);
+    const nl = Math.max(1, Math.min(s - drag.s + 1, steps() - drag.s));
+    if (nl !== drag.l) { drag.l = nl; dirty = true; }
+  });
+  const endDrag = () => { drag = null; dpaint = null; };
+  addEventListener("pointerup", endDrag); addEventListener("pointercancel", endDrag);
+
+  keysC.addEventListener("pointerdown", e => {
+    const m = HIGH - Math.floor(pos(e, keysC)[1] / RH);
+    if (m >= LOW && m <= HIGH) playNote(tracks[sel].inst, m, 0.4, tracks[sel].vol);
+  });
+
+  function drumCell(e, first) {
+    const [x, y] = pos(e, drumsC);
+    const s = Math.floor(x / CW), r = Math.floor(y / DRH);
+    if (s < 0 || s >= steps() || r < 0 || r >= DR.length) return;
+    if (first) { dpaint = !drums[r][s]; }
+    if (dpaint === null || drums[r][s] === dpaint) return;
+    drums[r][s] = dpaint; dirty = true;
+    if (dpaint && first) playDrum(DR[r]);
+  }
+  drumsC.addEventListener("pointerdown", e => { drumCell(e, true); drumsC.setPointerCapture(e.pointerId); e.preventDefault(); });
+  drumsC.addEventListener("pointermove", e => { if (dpaint !== null && (e.buttons & 1 || e.pointerType === "touch")) drumCell(e, false); });
+
+  // keep the two scroll boxes lined up
+  const rw = $("rollWrap"), dw = $("drumWrap");
+  rw.addEventListener("scroll", () => { if (dw.scrollLeft !== rw.scrollLeft) dw.scrollLeft = rw.scrollLeft; });
+  dw.addEventListener("scroll", () => { if (rw.scrollLeft !== dw.scrollLeft) rw.scrollLeft = dw.scrollLeft; });
+  rw.scrollTop = (HIGH - 78) * RH;
+
+  // ---------- track cards ----------
+  const cardsEl = $("cards");
+  tracks.forEach((t, i) => {
+    const c = document.createElement("div");
+    c.className = "card"; c.style.setProperty("--c", TCOL[i]);
+    const opts = Object.entries(INSTS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+    c.innerHTML = `<b>Track ${i + 1}</b><div class="line"><select>${opts}</select></div>
+      <div class="line"><input type="range" min="0" max="100" value="80"><button>🔊</button></div>`;
+    const selEl = c.querySelector("select"), vol = c.querySelector("input"), mu = c.querySelector("button");
+    selEl.value = t.inst;
+    selEl.onchange = () => { t.inst = selEl.value; playNote(t.inst, 69, 0.3, t.vol); };
+    vol.oninput = () => t.vol = vol.value / 100;
+    mu.onclick = ev => { ev.stopPropagation(); t.mute = !t.mute; mu.textContent = t.mute ? "🔇" : "🔊"; mu.classList.toggle("muted", t.mute); };
+    [selEl, vol].forEach(x => x.addEventListener("click", ev => ev.stopPropagation()));
+    c.onclick = () => selectTrack(i);
+    cardsEl.appendChild(c); t.el = c; t.selEl = selEl; t.volEl = vol;
+  });
+  function selectTrack(i) { sel = i; tracks.forEach((t, k) => t.el.classList.toggle("sel", k === i)); dirty = true; }
+  selectTrack(0);
+
+  // ---------- buttons ----------
+  $("bpm").oninput = () => { $("bpmV").textContent = $("bpm").value; if (delay) delay.delayTime.value = 60 / $("bpm").value * 0.75; };
+  $("bars").onchange = () => { bars = +$("bars").value; dirty = true; };
+  $("echo").onchange = () => { audio(); echoSend.gain.value = $("echo").checked ? 0.45 : 0; };
+  $("master").oninput = () => { if (master) master.gain.value = $("master").value / 100; };
+  $("drumVol").oninput = () => { if (drumBus) drumBus.gain.value = $("drumVol").value / 100; };
+  $("clearTrack").onclick = () => { tracks[sel].notes.length = 0; dirty = true; say("Track " + (sel + 1) + " is empty ✨"); };
+  function copyShift(d) {
+    const list = tracks[sel].notes, add = [];
+    list.forEach(n => {
+      const p = n.p + d;
+      if (p < LOW || p > HIGH || list.some(x => x.s === n.s && x.p === p)) return;
+      add.push({s: n.s, l: n.l, p});
+    });
+    list.push(...add); dirty = true;
+    say(add.length ? "Added " + add.length + " notes " + (d < 0 ? "lower" : "higher") + "! 📋" : "Nothing to copy 🤔 (add notes first)");
+  }
+  $("copyLow").onclick = () => copyShift(-12);
+  $("copyHigh").onclick = () => copyShift(12);
+  $("clearAll").onclick = () => { tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false)); dirty = true; say("This part is empty! ✨"); };
+
+  function syncUI() {
+    $("bpmV").textContent = $("bpm").value; $("bars").value = bars;
+    tracks.forEach(t => { t.selEl.value = t.inst; t.volEl.value = t.vol * 100; });
+    dirty = true;
+  }
+  $("demo").onclick = () => {
+    tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false));
+    const pair = [62, 62, 60, 59, 62, 62, 60, 58], bass = [50, 50, 48, 47, 50, 50, 48, 46];
+    const mel = [[0,0,1],[1,0,1],[2,74,2],[4,69,3],[7,68,2],[9,67,2],[11,65,2],[13,62,1],[14,65,1],[15,67,1]];
+    for (let b = 0; b < 8; b++) {
+      const o = b * 16;
+      mel.forEach(([s, p, l]) => tracks[0].notes.push({s: o + s, l, p: p === 0 ? pair[b] : p}));
+      if (b < 4) continue; // bars 1-4: melody only, like the sheet music
+      for (let s = 0; s < 16; s += 2) tracks[1].notes.push({s: o + s, l: 1, p: bass[b]});
+      for (let s = 0; s < 16; s += 2) drums[0][o + s] = true;
+      drums[3][o] = drums[3][o + 8] = drums[3][o + 3] = true;
+      drums[2][o + 4] = drums[2][o + 12] = true;
+    }
+    tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "guitar";
+    bars = 8; $("bpm").value = 120; syncUI(); selectTrack(0); say("Megalovania riff loaded! Press Play 🎮");
+  };
+
+  $("storm").onclick = () => {
+    tracks.forEach(t => t.notes.length = 0); drums.forEach(r => r.fill(false));
+    const roots = [52, 55, 50, 57], scale = [64, 67, 69, 71, 74, 76, 74, 71];
+    for (let b = 0; b < 4; b++) {
+      const o = b * 16;
+      for (let s = 0; s < 16; s++) tracks[0].notes.push({s: o + s, l: 1, p: s % 2 === 0 ? 71 : scale[(b * 4 + (s >> 1)) % scale.length]});
+      for (let s = 0; s < 16; s += 2) tracks[1].notes.push({s: o + s, l: 1, p: roots[b] - 12});
+      for (let s = 0; s < 16; s += 2) drums[0][o + s] = true;
+      for (let s = 0; s < 16; s += 4) drums[3][o + s] = true;
+      drums[2][o + 4] = drums[2][o + 12] = true;
+    }
+    tracks[0].inst = "lead"; tracks[1].inst = "bass"; tracks[2].inst = "guitar";
+    bars = 4; $("bpm").value = 130; syncUI(); selectTrack(0); say("Storm Rock loaded! Press Play ⚡");
+  };
+
+  // ---------- song parts A B C D ----------
+  const emptyPat = () => ({n: [[], [], [], []], d: DR.map(() => Array(MAXSTEPS).fill(false)), bars: 4});
+  const pats = [0, 1, 2, 3].map(emptyPat);
+  let cur = 0, songMode = false;
+  const fixRow = r => { const x = Array(MAXSTEPS).fill(false); (r || []).slice(0, MAXSTEPS).forEach((v, i) => x[i] = !!v); return x; };
+  const cleanPat = p => ({
+    n: [0, 1, 2, 3].map(k => ((p.n && p.n[k]) || []).filter(n => n && n.p >= LOW && n.p <= HIGH).map(n => ({s: +n.s, l: +n.l, p: +n.p}))),
+    d: DR.map((_, k) => fixRow(p.d && p.d[k])),
+    bars: Math.min(8, Math.max(1, +p.bars || 4))});
+  const isEmpty = p => p.n.every(a => !a.length) && p.d.every(r => !r.some(Boolean));
+  const commit = () => { pats[cur] = {n: tracks.map(t => t.notes), d: drums.map(r => r), bars}; };
+  function applyPat(i) {
+    cur = i; const p = pats[i];
+    tracks.forEach((t, k) => t.notes = p.n[k]);
+    p.d.forEach((r, k) => drums[k] = r);
+    bars = p.bars; $("bars").value = bars; dirty = true; partButtons();
+  }
+  function showPat(i) { commit(); applyPat(i); }
+  function partButtons() {
+    const live = {n: tracks.map(t => t.notes), d: drums};
+    document.querySelectorAll(".part").forEach(b => {
+      const i = +b.dataset.i;
+      b.classList.toggle("active", i === cur);
+      b.classList.toggle("has", !isEmpty(i === cur ? live : pats[i]));
+    });
+  }
+  document.querySelectorAll(".part").forEach(b => b.onclick = () => { showPat(+b.dataset.i); say("Editing part " + "ABCD"[cur] + " 🟦"); });
+  $("mode").onclick = () => {
+    songMode = !songMode;
+    $("mode").textContent = songMode ? "▶▶ Play A → D" : "🔁 Loop this part";
+    $("mode").classList.toggle("active", songMode);
+    say(songMode ? "Play will go through all your parts in order!" : "Play will loop just this part");
+  };
+  function nextPart() {
+    commit();
+    for (let k = 1; k <= 4; k++) { const j = (cur + k) % 4; if (!isEmpty(pats[j])) { applyPat(j); return; } }
+  }
+  setInterval(partButtons, 400);
+
+  // ---------- original anthem: Hero Song ----------
+  $("hero").onclick = () => {
+    const A = emptyPat(), B = emptyPat(), C = emptyPat(), D = emptyPat();
+    const add = (p, t, s, l, n) => p.n[t].push({s, l, p: n});
+    const dr = (p, r, list, off = 0) => list.forEach(s => p.d[r][off + s] = true);
+    const evens = [0,2,4,6,8,10,12,14];
+    const CGAF = [[48,[60,64,67]], [43,[59,62,67]], [45,[57,60,64]], [41,[57,60,65]]];
+    const CGFC = [[48,[60,64,67]], [43,[59,62,67]], [41,[57,60,65]], [48,[60,64,67]]];
+    const melB = [
+      [[0,76,3],[4,79,2],[6,76,2],[8,72,4],[12,74,2],[14,76,2]],
+      [[0,74,3],[4,71,2],[6,74,2],[8,79,4],[12,77,2],[14,74,2]],
+      [[0,72,3],[4,76,2],[6,81,2],[8,79,4],[12,76,2],[14,72,2]],
+      [[0,77,3],[4,76,2],[6,74,2],[8,74,2],[10,76,2],[12,79,4]]];
+    const melC = [
+      [[0,79,4],[4,79,2],[6,81,2],[8,84,4],[12,81,2],[14,79,2]],
+      [[0,79,4],[4,74,2],[6,79,2],[8,83,4],[12,79,2],[14,74,2]],
+      [[0,81,4],[4,81,2],[6,84,2],[8,81,4],[12,79,2],[14,76,2]],
+      [[0,77,4],[4,81,2],[6,77,2],[8,79,8]]];
+    const melD = [melC[0], melC[1],
+      [[0,77,4],[4,81,2],[6,84,2],[8,81,4],[12,77,2],[14,81,2]],
+      [[0,84,16]]];
+    const melody = (p, m) => m.forEach((bar, b) => bar.forEach(([s, n, l]) => add(p, 0, b * 16 + s, l, n - 12)));
+    const bass = (p, prog, eighths) => prog.forEach(([root], b) => {
+      if (eighths) evens.forEach(s => add(p, 1, b * 16 + s, 1, root));
+      else { add(p, 1, b * 16, 8, root); add(p, 1, b * 16 + 8, 8, root); }
+    });
+    const bells = (p, prog, up) => prog.forEach(([, tri], b) => [0,1,2,1,0,1,2,1].forEach((ix, i) => add(p, 3, b * 16 + i * 2, 2, tri[ix] - 12 + (up ? 12 : 0))));
+    const guitar = (p, prog, rhythm) => prog.forEach(([root], b) => {
+      (b === 3 && rhythm === "end" ? [[0, 16]] : rhythm === "big" || rhythm === "end" ? [[0,8],[8,8]] : [[0,6],[6,2],[8,6],[14,2]])
+        .forEach(([s, l]) => { add(p, 2, b * 16 + s, l, root); add(p, 2, b * 16 + s, l, root + 7); });
+    });
+    // A: sparkly build-up
+    bells(A, CGAF, false); bass(A, CGAF, false);
+    for (let b = 0; b < 4; b++) { dr(A, 0, [0,4,8,12], b * 16); if (b > 0) dr(A, 3, [0,8], b * 16); }
+    dr(A, 2, [8,9,10,11,12,13,14,15], 48); dr(A, 3, [0], 48);
+    // B: verse
+    melody(B, melB); bass(B, CGAF, true); bells(B, CGAF, false);
+    for (let b = 0; b < 4; b++) { dr(B, 3, [0,8], b * 16); dr(B, 2, [4,12], b * 16); dr(B, 0, evens, b * 16); }
+    // C: powerful chorus
+    melody(C, melC); bass(C, CGAF, true); bells(C, CGAF, true); guitar(C, CGAF, "chorus");
+    for (let b = 0; b < 4; b++) { dr(C, 3, [0,4,8,12], b * 16); dr(C, 2, [4,12], b * 16); dr(C, 1, [4,12], b * 16); dr(C, 0, evens, b * 16); }
+    // D: triumphant finale
+    melody(D, melD); bass(D, CGFC, true); bells(D, CGFC, true); guitar(D, CGFC, "end");
+    for (let b = 0; b < 3; b++) { dr(D, 3, [0,4,8,12], b * 16); dr(D, 2, [4,12], b * 16); dr(D, 1, [4,12], b * 16); dr(D, 0, evens, b * 16); }
+    dr(D, 2, [12,13,14,15], 32); dr(D, 3, [0], 48); dr(D, 2, [0], 48); dr(D, 1, [0], 48);
+    pats[0] = A; pats[1] = B; pats[2] = C; pats[3] = D;
+    tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "guitar"; tracks[3].inst = "bell";
+    tracks[0].vol = 0.7; tracks[2].vol = 0.6; tracks[3].vol = 0.6;
+    $("bpm").value = 92;
+    if (!songMode) $("mode").click();
+    applyPat(0); syncUI(); selectTrack(0);
+    say("Hero Song loaded! Press Play and feel the power 🌟");
+  };
+
+
+  // ---------- original anthem: Royal Anthem ----------
+  $("royal").onclick = () => {
+    const A = emptyPat(), B = emptyPat(), C = emptyPat(), D = emptyPat();
+    const add = (p, t, s, l, n) => p.n[t].push({s, l, p: n});
+    const dr = (p, r, list, off = 0) => list.forEach(s => p.d[r][off + s] = true);
+    const Cm = [60,63,67], Ab = [56,60,63], Eb = [55,58,63], Bb = [58,62,65], Cmaj = [60,64,67];
+    const prog1 = [[48,Cm], [44,Ab], [51,Eb], [46,Bb]];
+    const prog2 = [[48,Cm], [44,Ab], [46,Bb], [48,Cmaj]];
+    const melB = [
+      [[0,67,4],[4,72,4],[8,75,4],[12,74,2],[14,72,2]],
+      [[0,68,4],[4,72,4],[8,75,6],[14,72,2]],
+      [[0,70,4],[4,74,4],[8,75,4],[12,79,4]],
+      [[0,77,4],[4,74,4],[8,70,4],[12,74,4]]];
+    const melC = [
+      [[0,79,6],[6,77,2],[8,75,8]],
+      [[0,80,6],[6,79,2],[8,75,8]],
+      [[0,82,6],[6,79,2],[8,77,4],[12,75,4]],
+      [[0,74,4],[4,77,4],[8,79,8]]];
+    const melD = [melC[0], melC[1], [[0,77,4],[4,79,4],[8,82,8]], [[0,84,16]]];
+    const melody = (p, m) => m.forEach((bar, b) => bar.forEach(([s, n, l]) => add(p, 0, b * 16 + s, l, n - 12)));
+    const bass = (p, prog) => prog.forEach(([root], b) => { add(p, 1, b * 16, 8, root); add(p, 1, b * 16 + 8, 8, root); });
+    const chords = (p, prog, whole) => prog.forEach(([, tri], b) => (whole ? [[0, 16]] : [[0, 8], [8, 8]]).forEach(([s, l]) => tri.forEach(n => add(p, 2, b * 16 + s, l, n))));
+    const bells = (p, prog) => prog.forEach(([, tri], b) => [0,1,2,1,0,1,2,1].forEach((ix, i) => add(p, 3, b * 16 + i * 2, 2, tri[ix])));
+    // A: slow, grand intro
+    chords(A, prog1, true); bass(A, prog1); bells(A, prog1);
+    for (let b = 0; b < 4; b++) dr(A, 3, [0], b * 16);
+    dr(A, 2, [8,10,12,13,14,15], 48);
+    // B: verse with a marching beat
+    melody(B, melB); chords(B, prog1, false); bass(B, prog1);
+    for (let b = 0; b < 4; b++) { dr(B, 3, [0,8], b * 16); dr(B, 2, [4,12], b * 16); dr(B, 0, [0,4,8,12], b * 16); }
+    // C: grand chorus
+    melody(C, melC); chords(C, prog1, false); bass(C, prog1); bells(C, prog1);
+    for (let b = 0; b < 4; b++) { dr(C, 3, [0,8], b * 16); dr(C, 2, [4,12], b * 16); dr(C, 1, [4,12], b * 16); dr(C, 0, [0,2,4,6,8,10,12,14], b * 16); }
+    // D: glorious finale (ends bright, in C major)
+    melody(D, melD); chords(D, prog2, false); bass(D, prog2); bells(D, prog2);
+    for (let b = 0; b < 3; b++) { dr(D, 3, [0,8], b * 16); dr(D, 2, [4,12], b * 16); dr(D, 1, [4,12], b * 16); dr(D, 0, [0,2,4,6,8,10,12,14], b * 16); }
+    dr(D, 2, [12,13,14,15], 32); dr(D, 3, [0], 48); dr(D, 1, [0], 48);
+    pats[0] = A; pats[1] = B; pats[2] = C; pats[3] = D;
+    tracks[0].inst = "chip"; tracks[1].inst = "bass"; tracks[2].inst = "piano"; tracks[3].inst = "bell";
+    tracks[0].vol = 0.6; tracks[2].vol = 0.7; tracks[3].vol = 0.5;
+    $("bpm").value = 88;
+    if (!songMode) $("mode").click();
+    applyPat(0); syncUI(); selectTrack(0);
+    say("Royal Anthem loaded! Press Play 👑");
+  };
+
+  // ---------- original anthem: Dark Crown ----------
+  $("dark").onclick = () => {
+    const A = emptyPat(), B = emptyPat(), C = emptyPat(), D = emptyPat();
+    const add = (p, t, s, l, n) => p.n[t].push({s, l, p: n});
+    const dr = (p, r, list, off = 0) => list.forEach(s => p.d[r][off + s] = true);
+    const Dm = [62,65,69], Bb = [58,62,65], Gm = [58,62,67], Am = [61,64,69], Dmaj = [62,66,69];
+    const prog1 = [[50,Dm], [46,Bb], [43,Gm], [45,Am]];
+    const prog2 = [[50,Dm], [46,Bb], [43,Gm], [50,Dmaj]];
+    const melB = [
+      [[0,74,6],[6,72,2],[8,69,8]],
+      [[0,70,6],[6,72,2],[8,74,8]],
+      [[0,74,4],[4,77,4],[8,79,6],[14,77,2]],
+      [[0,76,4],[4,73,4],[8,76,8]]];
+    const melC = [
+      [[0,81,4],[4,79,2],[6,77,2],[8,74,8]],
+      [[0,82,4],[4,81,2],[6,77,2],[8,74,8]],
+      [[0,79,4],[4,82,4],[8,81,4],[12,79,4]],
+      [[0,81,6],[6,76,2],[8,73,4],[12,76,4]]];
+    const melD = [melC[0], melC[1], [[0,79,4],[4,82,4],[8,84,8]], [[0,86,16]]];
+    const melody = (p, m) => m.forEach((bar, b) => bar.forEach(([s, n, l]) => add(p, 0, b * 16 + s, l, n - 12)));
+    const bass = (p, prog) => prog.forEach(([root], b) => { add(p, 1, b * 16, 8, root); add(p, 1, b * 16 + 8, 8, root); });
+    const power = (p, prog) => prog.forEach(([root], b) => [0, 8].forEach(s => { add(p, 2, b * 16 + s, 8, root); add(p, 2, b * 16 + s, 8, root + 7); }));
+    const arp = (p, prog) => prog.forEach(([, tri], b) => [0,1,2,1,0,1,2,1].forEach((ix, i) => add(p, 3, b * 16 + i * 2, 2, tri[ix])));
+    // A: creepy slow intro
+    bass(A, prog1); arp(A, prog1);
+    for (let b = 0; b < 4; b++) dr(A, 3, [0], b * 16);
+    dr(A, 2, [8,10,12,13,14,15], 48);
+    // B: haunting verse
+    melody(B, melB); bass(B, prog1); arp(B, prog1);
+    for (let b = 0; b < 4; b++) { dr(B, 3, [0,10], b * 16); dr(B, 2, [8], b * 16); dr(B, 0, [0,4,8,12], b * 16); }
+    // C: heavy epic chorus
+    melody(C, melC); bass(C, prog1); arp(C, prog1); power(C, prog1);
+    for (let b = 0; b < 4; b++) { dr(C, 3, [0,6,8,14], b * 16); dr(C, 2, [4,12], b * 16); dr(C, 1, [4,12], b * 16); dr(C, 0, [0,2,4,6,8,10,12,14], b * 16); }
+    // D: big finale, ends on a bright D major surprise
+    melody(D, melD); bass(D, prog2); arp(D, prog2); power(D, prog2);
+    for (let b = 0; b < 3; b++) { dr(D, 3, [0,6,8,14], b * 16); dr(D, 2, [4,12], b * 16); dr(D, 1, [4,12], b * 16); dr(D, 0, [0,2,4,6,8,10,12,14], b * 16); }
+    dr(D, 2, [12,13,14,15], 32); dr(D, 3, [0], 48); dr(D, 1, [0], 48);
+    pats[0] = A; pats[1] = B; pats[2] = C; pats[3] = D;
+    tracks[0].inst = "lead"; tracks[1].inst = "bass"; tracks[2].inst = "guitar"; tracks[3].inst = "piano";
+    tracks[0].vol = 0.7; tracks[2].vol = 0.5; tracks[3].vol = 0.6;
+    $("bpm").value = 80;
+    if (!songMode) $("mode").click();
+    applyPat(0); syncUI(); selectTrack(0);
+    say("Dark Crown loaded! Press Play 🖤");
+  };
+
+  let slot = 1;
+  document.querySelectorAll(".slot").forEach(b => b.onclick = () => {
+    slot = +b.dataset.s;
+    document.querySelectorAll(".slot").forEach(x => x.classList.toggle("active", x === b)); say("Slot " + slot + " picked");
+  });
+  document.querySelector('.slot[data-s="1"]').classList.add("active");
+  $("save").onclick = () => {
+    try {
+      commit();
+      localStorage.setItem("songmaker-pro-" + slot, JSON.stringify({
+        t: tracks.map(t => ({inst: t.inst, vol: t.vol})), p: pats, bpm: $("bpm").value}));
+      say("Saved all 4 parts to slot " + slot + "! 💾");
+    } catch (e) { say("Couldn't save here 😢"); }
+  };
+  $("load").onclick = () => {
+    try {
+      const s = JSON.parse(localStorage.getItem("songmaker-pro-" + slot));
+      if (!s) { say("Slot " + slot + " is empty"); return; }
+      s.t.forEach((x, i) => { if (tracks[i]) { tracks[i].inst = INSTS[x.inst] ? x.inst : "piano"; tracks[i].vol = +x.vol || 0.8; } });
+      const list = s.p || [{n: s.t.map(x => x.notes), d: s.d, bars: s.bars}];
+      for (let i = 0; i < 4; i++) pats[i] = list[i] ? cleanPat(list[i]) : emptyPat();
+      $("bpm").value = s.bpm; applyPat(0); syncUI(); say("Loaded slot " + slot + "! 📂");
+    } catch (e) { say("Couldn't load that one"); }
+  };
+
+  // ---------- playback: fixed 60 updates per second ----------
+  let playing = false, paused = false, acc = 0, last = 0, ticks = 0, first = true;
+  const DT = 1000 / 60;
+  function setPlaying(v) {
+    playing = v; $("play").textContent = v ? "■ Stop" : "▶ Play"; $("play").classList.toggle("on", v);
+    if (v) { if (songMode && cur !== 0 && !isEmpty(pats[0])) showPat(0); audio(); step = -1; first = true; ticks = 0; }
+    else { step = -1; dirty = true; }
+  }
+  function advance() {
+    let ns = step + 1;
+    if (ns >= steps()) { ns = 0; if (songMode && step >= 0) nextPart(); }
+    step = ns; dirty = true;
+    const stepSec = 60 / $("bpm").value / 4;
+    tracks.forEach(t => { if (!t.mute) t.notes.forEach(n => { if (n.s === step) playNote(t.inst, n.p, n.l * stepSec, t.vol); }); });
+    DR.forEach((n, r) => { if (drums[r][step]) playDrum(n); });
+    // auto-scroll to follow the playhead
+    const x = step * CW;
+    if (x < rw.scrollLeft || x > rw.scrollLeft + rw.clientWidth - KEYW - CW * 2) rw.scrollLeft = Math.max(0, x - CW * 2);
+  }
+  function update() {
+    if (!playing || paused) return;
+    const need = 3600 / ($("bpm").value * 4);
+    if (first) { first = false; advance(); return; }
+    ticks += 1;
+    if (ticks >= need) { ticks -= need; advance(); }
+  }
+  function loop(now) {
+    acc += Math.min(now - last, 250); last = now;
+    while (acc >= DT) { update(); acc -= DT; }
+    if (dirty) draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(t => { last = t; loop(t); });
+
+  $("play").onclick = () => { if (paused) togglePause(); setPlaying(!playing); };
+  function togglePause() {
+    paused = !paused; $("pause").classList.toggle("show", paused);
+    $("pauseBtn").textContent = paused ? "▶ Resume (P)" : "⏸ Pause (P)";
+  }
+  $("pauseBtn").onclick = togglePause;
+  $("pause").onclick = togglePause;
+  addEventListener("keydown", e => {
+    if (e.key === "p" || e.key === "P" || e.key === "Escape") togglePause();
+    else if (e.key === " " && !/SELECT|INPUT/.test(e.target.tagName)) { e.preventDefault(); $("play").click(); }
+  });
+})();
+</script>
+</body>
+</html>

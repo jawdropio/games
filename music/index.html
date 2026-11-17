@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint by Number</title>
+<style>
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#120b2e; color:#f4f1ff; font-family:system-ui, "Segoe UI", sans-serif; user-select:none; -webkit-user-select:none; }
+  body { display:grid; grid-template-rows:auto minmax(0,1fr) auto auto; gap:6px; padding:8px 10px 10px; background:radial-gradient(800px 400px at 50% -10%, #2a1a66, transparent), #120b2e; }
+  #top { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #top a { color:#a99ee0; text-decoration:none; font-weight:700; }
+  #top a:hover { color:#fff; }
+  #top h1 { font-size:20px; margin:0 6px; }
+  .sp { flex:1; }
+  button { font:inherit; font-weight:700; color:#f4f1ff; background:#2b1d6b; border:2px solid #5b46c9; border-radius:10px; padding:6px 12px; cursor:pointer; }
+  button:hover { background:#3b2a8f; }
+  button.on { background:#ffd23f; color:#2b1d6b; border-color:#ffd23f; }
+  #picName { font-weight:700; color:#ffd23f; font-size:14px; }
+  #gal { place-items:stretch; padding:14px; }
+  .galwrap { background:#1b1245; border:2px solid #5b46c9; border-radius:14px; padding:12px; display:flex; flex-direction:column; min-height:0; text-align:left; }
+  .galtop { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  #galBox { overflow:auto; flex:1; min-height:0; }
+  #galBox h3 { margin:10px 0 6px; color:#ffd23f; font-size:15px; }
+  .galgrid { display:flex; flex-wrap:wrap; gap:8px; }
+  .galgrid .pic { display:flex; flex-direction:column; align-items:center; gap:3px; line-height:1.1; font-size:10px; width:84px; padding:4px; }
+  .galgrid .pic canvas { width:72px; height:72px; }
+  .galgrid .pic .nm { max-width:76px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pic.on { background:#ffd23f; border-color:#ffd23f; color:#2b1d6b; }
+  .pic { padding:3px; border-radius:10px; position:relative; line-height:0; }
+  .pic canvas { border-radius:6px; background:#fff; }
+  .pic .star { position:absolute; right:-4px; top:-6px; font-size:14px; line-height:1; }
+  #stage { min-height:0; overflow:auto; position:relative; border-radius:10px; background:rgba(255,255,255,.04); }
+  #stick { position:sticky; top:0; left:0; width:0; height:0; z-index:1; }
+  #spacer { margin:0; }
+  #board { position:absolute; left:0; top:0; display:block; cursor:pointer; }
+  #msg { text-align:center; min-height:22px; font-weight:700; color:#ffd23f; }
+  #bottom { display:flex; flex-direction:column; gap:8px; align-items:center; }
+  #palette { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .sw { display:flex; align-items:center; gap:8px; padding:4px 10px 4px 4px; }
+  .sw .chip { width:32px; height:32px; border-radius:8px; display:grid; place-items:center; font-size:17px; font-weight:900; border:2px solid rgba(0,0,0,.35); }
+  .sw .chip.two { font-size:14px; }
+  .sw .cnt { font-size:12px; opacity:.8; }
+  .sw.sel { background:#ffd23f; color:#2b1d6b; border-color:#ffd23f; transform:translateY(-3px); box-shadow:0 6px 16px rgba(255,210,63,.4); }
+  .sw.done { opacity:.45; }
+  .many .sw { padding:2px 7px 2px 2px; gap:5px; border-radius:8px; }
+  .many .chip { width:26px; height:26px; font-size:14px; }
+  .many .chip.two { font-size:12px; }
+  .many .cnt { font-size:10px; }
+  .many { gap:5px !important; }
+  #bar { width:min(520px,90%); height:14px; border-radius:8px; background:#2b1d6b; border:2px solid #5b46c9; overflow:hidden; position:relative; }
+  #fill { height:100%; width:0; background:linear-gradient(90deg,#ff6b6b,#ffd23f,#69db7c,#4dabf7,#da77f2); transition:width .25s; }
+  #pct { position:absolute; inset:0; text-align:center; font-size:11px; line-height:10px; font-weight:800; }
+  .ov { position:fixed; inset:0; background:rgba(10,5,30,.85); display:none; place-items:center; text-align:center; z-index:30; }
+  .ov.show { display:grid; }
+  .ov h2 { font-size:46px; margin:0 0 8px; }
+  #fx { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:20; }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div id="top">
+  <a href="../">← Arcade</a>
+  <h1>🎨 Paint by Number</h1>
+  <button id="prevBtn" title="Previous picture">◀</button><button id="galBtn">🖼️ Pictures</button><button id="nextPicBtn" title="Next picture">▶</button><span id="picName"></span>
+  <span class="sp"></span>
+  <button id="hoverBtn" class="on" title="Paint just by moving the mouse — no clicking!">🖱️ Hover paint</button>
+  <button id="zoomOut" title="Zoom out (−)">🔍−</button>
+  <button id="zoomIn" title="Zoom in (+)">🔍+</button>
+  <button id="allBtn" title="Color the whole picture for me!">🌈 Color all</button>
+  <button id="hintBtn" title="Show me a spot to paint (H)">💡 Hint</button>
+  <button id="numBtn" class="on" title="Show or hide numbers">🔢</button>
+  <button id="resetBtn" title="Start this picture over">🔄</button>
+  <button id="muteBtn" title="Sound on/off">🔊</button>
+  <button id="pauseBtn">⏸ Pause</button>
+</div>
+<div id="stage"><div id="stick"><canvas id="board"></canvas></div><div id="spacer"></div></div>
+<div id="msg"></div>
+<div id="bottom">
+  <div id="palette"></div>
+  <div id="bar"><div id="fill"></div><div id="pct">0%</div></div>
+</div>
+
+<div class="ov" id="gal"><div class="galwrap">
+  <div class="galtop"><b>🖼️ Pick a picture</b><span class="sp"></span><button id="galClose">✕ Close</button></div>
+  <div id="galBox"></div>
+</div></div>
+<div class="ov" id="win"><div>
+  <h2>🎉 You did it!</h2>
+  <p id="winTxt" style="font-size:18px"></p>
+  <button id="nextBtn">Next picture ➡</button>
+  <button id="closeBtn">Keep looking</button>
+</div></div>
+<div class="ov" id="pauseOv"><div><h2>⏸ Paused</h2><p>Press P or Esc to keep painting</p><button id="resumeBtn">▶ Resume</button></div></div>
+
+<script>
+(() => {
+  // ================= pictures =================
+  // A picture is rows of squares. A number/letter = paint that color. A dot = background (already painted).
+  // We make 100 pictures; each one is only drawn the first time you need it.
+const CH = '123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+let SC = 1, CX = 0, CY = 0;   // SC = how many tiny squares per old big square
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+const make = (w, h, fn) => { const W = w * SC, H = h * SC, rows = []; for (let Y = 0; Y < H; Y++) { let r = ''; CY = Y; for (let X = 0; X < W; X++) { CX = X; r += (fn((X + .5) / SC - .5, (Y + .5) / SC - .5) || '.'); } rows.push(r); } return rows; };
+const hsh = () => ((CX * 374761393 + CY * 668265263) >>> 0) % 97;
+const BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+const dz = () => (BAYER[CY & 3][CX & 3] + .5) / 16 - .5;   // ordered dithering: smooth blends
+const nh = (i, j) => { let n = Math.imul(i, 374761393) + Math.imul(j, 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967295; };
+const vnoise = (x, y) => { const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, sx = fx*fx*(3 - 2*fx), sy = fy*fy*(3 - 2*fy); const a = nh(i, j), b = nh(i+1, j), c = nh(i, j+1), d = nh(i+1, j+1); return a + (b - a)*sx + (c - a)*sy + (a - b - c + d)*sx*sy; };
+const fbm = (x, y, o) => { let v = 0, a = .5, f = 1, t = 0; for (let k = 0; k < (o || 4); k++) { v += a * vnoise(x*f + k*17.3, y*f + k*5.1); t += a; f *= 2; a *= .5; } return v / t; };  // 0..1
+const rot = (u, v, cu, cv, ang) => { const du = u - cu, dv = v - cv, ca = Math.cos(ang), sa = Math.sin(ang); return [du*ca + dv*sa, -du*sa + dv*ca]; };
+const ed = (u, v, cu, cv, rx, ry, ang) => { const [a, b] = rot(u, v, cu, cv, ang || 0); return Math.hypot(a / rx, b / ry); };
+const inTri = (px, py, a, b, c) => { const s = (p, q, r) => (p[0]-r[0])*(q[1]-r[1]) - (q[0]-r[0])*(p[1]-r[1]); const P = [px,py], d1 = s(P,a,b), d2 = s(P,b,c), d3 = s(P,c,a); return !((d1<0||d2<0||d3<0) && (d1>0||d2>0||d3>0)); };
+const hex2 = h => [1,3,5].map(i => parseInt(h.slice(i, i + 2), 16));
+const toHex = a => '#' + a.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+const mixc = (a, b, t) => { const A = hex2(a), B = hex2(b); return toHex(A.map((v, i) => v + (B[i] - v) * t)); };
+const ramp = (cols, n) => Array.from({length: n}, (_, k) => { const t = n === 1 ? 0 : k / (n - 1) * (cols.length - 1), i = Math.min(cols.length - 2, Math.floor(t)); return mixc(cols[i], cols[i + 1], t - i); });
+const palBuilder = () => { const P = [], keep = []; const B = { keep, add: h => { P.push(h); return CH[P.length - 1]; }, addK: h => { P.push(h); keep.push(P.length); return CH[P.length - 1]; }, pal: () => Object.fromEntries(P.map((h, i) => [i + 1, h])) }; return B; };
+const pickR = (r, t) => r[clamp(Math.floor(t * r.length + dz()), 0, r.length - 1)];
+const hueShift = (hex, deg) => {
+  const [r, g, b] = hex2(hex).map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  let h = 0, s = 0;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  h = ((h + deg) % 360 + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [R, G, B] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return toHex([(R + m) * 255, (G + m) * 255, (B + m) * 255]);
+};
+const shiftPal = (pal, deg) => Object.fromEntries(Object.entries(pal).map(([k, v]) => [k, hueShift(v, deg)]));
+
+// ======================= PLANET (gas giant with swirling clouds, glow and dusty rings) =======================
+const planet = (o = {}) => {
+  const w = 44, h = 34, cx = 21, cy = 17.5, R = o.R ?? 10.5, tilt = o.tilt ?? -.38, ringOn = o.ring !== false, wave = o.wave ?? 1.1, B = palBuilder();
+  const surf = ramp(['#1b0f0a','#4a2a14','#8a5326','#c98a45','#ecc07c','#fbe6b8','#fff6e0'], 12).map(B.add);
+  const storm = ramp(['#4a120a','#b3452a','#f08a5a'], 4).map(B.add);
+  const haze = ramp(['#5f9bff','#b9dcff','#ffffff'], 3).map(B.add);
+  const rc = ramp(['#4a3b2e','#9c8a72','#e6d5b8','#fff3dc'], 6).map(B.add);
+  const st = [B.addK('#6e7aa8'), B.addK('#cfd8ff'), B.addK('#ffffff')];
+  const L = [-.5, -.6, .62], ln = Math.hypot(...L); L.forEach((v, i) => L[i] = v / ln);
+  const ca = Math.cos(tilt), sa = Math.sin(tilt);
+  const rows = make(w, h, (x, y) => {
+    const px = x + .5 - cx, py = y + .5 - cy, rx = px * ca - py * sa, ry = px * sa + py * ca, rad = Math.hypot(rx, ry / .3) / R;
+    let ring = null;
+    if (ringOn && rad >= 1.4 && rad <= 2.15) {
+      const t = (rad - 1.4) / .75;
+      if (!(t > .56 && t < .66)) { const v = .5 + .5 * Math.sin(t * 46 + fbm(t * 8, 1.7, 3) * 7); ring = rc[clamp(Math.floor((v * .7 + t * .35) * 6 + dz() - .3), 0, 5)]; }
+    }
+    const front = ry > 0, d = Math.hypot(px, py) / R;
+    if (ring && front) return ring;
+    if (d <= 1) {
+      const nx = px / R, ny = py / R, nz = Math.sqrt(Math.max(0, 1 - nx*nx - ny*ny)), lam = Math.max(0, nx*L[0] + ny*L[1] + nz*L[2]);
+      if (d > .93 && lam > .25) return haze[clamp(Math.floor((d - .93) / .07 * 3 + dz() * .8), 0, 2)];
+      const sd = Math.hypot((nx - .32) / .24, (ny - .36) / .13);
+      if (sd < 1) return storm[clamp(Math.floor((1 - sd) * 3.2 * (.3 + .7 * Math.pow(lam, .7)) + dz()), 0, 3)];
+      const turb = fbm(nx * 2.4 + wave * 3, ny * 5.5, 4), v = .5 + .5 * Math.sin(ny * 11 + turb * 6.5 + wave), a = clamp(.15 + .8 * v, 0, 1);
+      return surf[clamp(Math.floor(a * 12 * (.2 + .8 * Math.pow(lam, .55)) + dz() * 1.1), 0, 11)];
+    }
+    if (ring) return ring;
+    const sv = nh(CX, CY); if (sv < .0035 * 9 / Math.max(1, SC)) return sv < .0006 ? st[2] : sv < .0014 ? st[1] : st[0];
+    return '.';
+  });
+  return { rows, pal: B.pal(), bg: '#070817', keep: B.keep };
+};
+
+// ======================= HIBISCUS (silky petals, veins, dew drops, blurry garden) =======================
+const hibiscus = (o = {}) => {
+  const w = 40, h = 40, cx = 20, cy = 18, n = o.n || 5, len = o.len || 17, B = palBuilder();
+  const bg = ramp(['#f6efe0','#dfe6c8','#a9c79a','#6b9a6a'], 7).map(B.addK);
+  const pet = ramp(['#2b0516','#6b0f2c','#b3153f','#e0245a','#ff5d85','#ff9fb5','#ffd6e0','#fff3f6'], 15).map(B.add);
+  const leaf = ramp(['#0e2a1c','#1f5a3f','#3f9a66','#8fd49a'], 7).map(B.addK);
+  const stem = ramp(['#9a6a10','#ffd166','#fff0b0'], 3).map(B.addK), pollen = ramp(['#c2610a','#ff9f1c','#ffd27a'], 3).map(B.addK), pist = B.add('#c1121f');
+  const drop = ['#ffffff','#ffe0ea','#b3153f'].map(B.add);
+  const ang = o.ang ?? -0.9, ex = Math.cos(ang), ey = Math.sin(ang), tip = [cx + ex * 13.5, cy + ey * 13.5];
+  const drops = [[17.5,9.5],[24.5,23],[13,21],[22.5,13.5]];
+  const rows = make(w, h, (x, y) => {
+    const px = x + .5, py = y + .5, dx = px - cx, dy = py - cy, r = Math.hypot(dx, dy);
+    const tt = clamp(dx * ex + dy * ey, 0, 13), sd = Math.hypot(dx - ex * tt, dy - ey * tt);
+    if (sd < .8 && tt < 12.5) return stem[clamp(Math.floor(1.6 - sd * 1.6 + tt * .02 + dz()), 0, 2)];
+    for (const [ox, oy] of [[0,0],[1.7,1.2],[-1.5,1.5],[.3,-1.9],[1.1,-.9]]) { const q = Math.hypot(px - tip[0] - ox, py - tip[1] - oy); if (q < 1.2) return pollen[clamp(Math.floor((1.2 - q) * 2.2 + dz() * .8), 0, 2)]; }
+    if (Math.hypot(px - tip[0] - .4, py - tip[1] - .2) < 1.35) return pist;
+    const th = Math.atan2(dy, dx) + Math.PI / 2, u = th / (2 * Math.PI) * n, phi = u - Math.floor(u), s = Math.abs(phi - .5) * 2;
+    let Rp = len * (1 - .38 * Math.pow(s, 2.4)); if (s > .93) Rp *= .72;
+    if (r <= Rp) {
+      for (const [dxx, dyy] of drops) { const q = Math.hypot(px - dxx, py - dyy); if (q < 1.0 && r > 6) return q < .35 ? drop[0] : q < .75 ? drop[1] : drop[2]; }
+      let t = r / Rp; t = Math.pow(t, .9);
+      const vein = Math.pow(Math.abs(Math.cos(phi * Math.PI * 9)), 14) * .09 + (s < .07 ? .07 : 0);
+      const silk = (fbm(px * .9, py * .9, 3) - .5) * .22 + Math.sin(th * n * 5 + r * .9) * .02;
+      return pet[clamp(Math.floor((t * .9 + silk - vein + (r < 4 ? -.15 : 0) + .02) * 15 + dz()), 0, 14)];
+    }
+    for (const [lx, ly, a] of [[7, 35, .55], [33, 35, -.55]]) {
+      const [p, q] = rot(px, py, lx, ly, a);
+      if (Math.hypot(p / 8.5, q / 3.2) <= 1) {
+        const vm = Math.abs(q) < .28, vs = ((Math.abs(p) * 1.0 + Math.abs(q) * 2.4) % 2.0) < .22 && Math.abs(q) > .28;
+        return leaf[clamp(Math.floor(4 - q * 1.1 + (vm || vs ? -2.2 : 0) + (fbm(px * 1.3, py * 1.3) - .5) * 1.6 + dz()), 0, 6)];
+      }
+    }
+    let t = (py / 40) * .75 + fbm(px * .11, py * .11, 3) * .55 - .12;
+    for (const [bx, by, br] of [[6,6,5],[33,10,6],[30,30,4.5],[10,28,5],[22,3,3.5]]) if (Math.hypot(px - bx, py - by) < br) t -= .09;
+    return bg[clamp(Math.floor(t * 7 + dz()), 0, 6)];
+  });
+  return { rows, pal: B.pal(), bg: '#f6efe0', keep: B.keep };
+};
+
+// ======================= BALLOON (stitched fabric, puffy clouds, glowing sky) =======================
+const SKIES = [['#1d3a8a','#6ea8f0','#ffd9b0','#ffb8a0'],['#2b1055','#c06c84','#ffb36b','#ffe08a'],['#0b3d91','#4ea8de','#bde0fe','#fff1e6'],['#3a0ca3','#b5179e','#f72585','#ffd6a5'],
+  ['#03045e','#0077b6','#90e0ef','#caf0f8'],['#10002b','#3c096c','#9d4edd','#ffb3c6'],['#134e4a','#2a9d8f','#e9c46a','#f4a261'],['#1b263b','#415a77','#a9bcd0','#ffe5d9']];
+const balloon = (o = {}) => {
+  const w = 40, h = 44, G = o.G || 6, hc = o.hc || 3, W = o.W || 11, B = palBuilder();
+  const sky = ramp(SKIES[(o.sky || 0) % SKIES.length], 10).map(B.addK);
+  const cloud = ['#ffffff','#e6ecf5','#b9c4d9','#ffd0d8'].map(B.addK);
+  const hues = [ramp(['#4a0711','#b3202f','#ff4d5a','#ffb0b0'], 6), ramp(['#6b4200','#e0a400','#ffd940','#fff6b0'], 6), ramp(['#06343f','#12887e','#2ec4b6','#c8fff5'], 6)].map(r => r.map(B.add));
+  const basket = ramp(['#3b2412','#8b5a2b','#d0a060'], 4).map(B.addK), rope = B.addK('#2a1c10'), flame = ['#ff8c1a','#ffd23f'].map(B.addK);
+  const hw = v => v < 2 ? 0 : v <= 17 ? W * Math.sqrt(Math.max(0, 1 - Math.pow((17 - v) / 15, 2))) : v <= 30 ? 3.5 + (W - 3.5) * Math.pow(1 - (v - 17) / 13, .9) : 0;
+  const rows = make(w, h, (x, y) => {
+    const px = x + .5, v = y + .5, u = px - 20, half = hw(v);
+    if (half > 0 && Math.abs(u) <= half) {
+      const q = u / half, gp = (q + 1) / 2 * G, gore = Math.min(G - 1, Math.floor(gp)), nz = Math.sqrt(Math.max(0, 1 - q * q));
+      const seam = Math.abs(gp - Math.round(gp)) < .045 / (1 - q * q * .6) && Math.round(gp) > 0 && Math.round(gp) < G;
+      const lam = -.55 * q + .8 * nz - (v - 17) * .004, fab = (vnoise(px * 2.3, v * 2.3) - .5) * .12;
+      return hues[gore % hc][seam ? 0 : clamp(Math.floor((lam - .08 + fab) * 6.2 + dz() * 1.1), 0, 5)];
+    }
+    if (v > 30 && v <= 34.6 && Math.abs(Math.abs(u) - 3.1) < .5) return rope;
+    if (v > 29.6 && v < 31.8 && Math.abs(u) < 1.5) return flame[Math.abs(u) < .6 ? 1 : 0];
+    if (v > 34.6 && v <= 39.2 && Math.abs(u) <= 3.8) {
+      const weave = (Math.floor(v * 2) + Math.floor(px * 2)) % 2;
+      return basket[clamp(Math.floor(1.8 - u * .32 + (weave ? -.6 : .3) + (v < 35.5 ? -1.2 : 0) + dz()), 0, 3)];
+    }
+    let t = ((v + Math.sin(px * .3) * .9) / 44) * .85 + (fbm(px * .08, v * .08, 3) - .5) * .12;
+    const sg = Math.hypot(px - 30, v - 41) / 40; t += Math.max(0, .3 - sg) * .4;
+    const cd = fbm(px * .16 + 4, v * .30, 5) + (v < 24 ? 0 : -.3) + (Math.abs(v - 11) < 9 ? .04 : -.1);
+    if (cd > .6) return cloud[clamp(Math.floor((cd - .6) / .26 * 3 + (v / 44) * .8 + dz()), 0, 3)];
+    return sky[clamp(Math.floor(t * 10 + dz()), 0, 9)];
+  });
+  return { rows, pal: B.pal(), bg: '#1d3a8a', keep: B.keep };
+};
+
+// ======================= AURORA (glowing curtains, stars, rocky snowy mountains, mirror lake) =======================
+const aurora = (o = {}) => {
+  const w = 48, h = 38, hz = 25, pk = o.peak ?? 30, pH = o.peakH ?? 8, fq = o.freq ?? .17, B = palBuilder();
+  const sky = ramp(['#02030c','#070f2b','#0a2347','#0f3a55'], 9).map(B.addK);
+  const green = ramp(['#154d38','#2fb67f','#5df0b0','#bff7da','#f0fff7'], 8).map(B.add), purple = ramp(['#3a1d7a','#8a4fe0','#e8a6ff'], 5).map(B.add);
+  const far = ramp(['#223b55','#14283d'], 3).map(B.addK), near = ['#0a1422','#05090f'].map(B.addK), snow = ['#f4f9ff','#bcd0e6','#7f97b5'].map(B.addK), stars = ['#8394bf','#dfe8ff','#ffffff'].map(B.addK);
+  const farF = x => 20.5 + (fbm(x * .09, 3.1, 5) - .5) * 7 + 1.2 * Math.sin(x * .5) * .5 - pH * Math.exp(-Math.pow((x - pk) / 5.5, 2));
+  const nearF = x => 23.3 + (fbm(x * .16, 9.7, 4) - .5) * 4.2;
+  const scene = (x, y) => {
+    const px = x + .5, py = y + .5, nf = nearF(px);
+    if (py >= nf) return near[py < nf + .7 + dz() * .6 ? 0 : 1];
+    const f = farF(px);
+    if (py >= f) {
+      const sl = farF(px + .8) - farF(px - .8), lit = sl < 0 ? 1 : 0, depth = py - f;
+      if (f < 17.2 && depth < 3.6 + (fbm(px * .5, py * .5) - .5) * 3 + (px > pk ? 0 : 1)) return snow[clamp(Math.floor(lit ? 0 + depth * .35 + dz() : 1.2 + depth * .3 + dz()), 0, 2)];
+      return far[clamp(Math.floor((depth / 7) * 3 + (lit ? 0 : .8) + dz()), 0, 2)];
+    }
+    const ray = vnoise(x * 2.3, 3.3), yc = 11 + 4 * Math.sin(x * fq) + 2 * Math.sin(x * .4 + 1) + (fbm(x * .1, 1, 3) - .5) * 4, dy = py - yc, wd = dy > 0 ? 2.2 : 4.8;
+    const I = Math.exp(-Math.pow(dy / wd, 2)) * (.45 + .75 * ray) * (.8 + .4 * fbm(x * .22, py * .35, 3)) + dz() * .06;
+    if (I > .2) return green[clamp(Math.floor((I - .2) / .75 * 8), 0, 7)];
+    const Ip = Math.exp(-Math.pow((py - (yc - 5.5)) / 3.2, 2)) * (.5 + .6 * ray) * .95 + dz() * .06;
+    if (Ip > .2) return purple[clamp(Math.floor((Ip - .2) / .6 * 5), 0, 4)];
+    const sv = nh(CX, CY);
+    if (y < 21 && sv < .006) return sv < .0006 ? stars[2] : sv < .002 ? stars[1] : stars[0];
+    const band = Math.max(0, .55 - Math.abs((py - 4 - x * .22) % 40 - 8) / 8) * fbm(x * .3, py * .3, 4) * .5;
+    return sky[clamp(Math.floor((py / hz + band * .6) * 9 + dz()), 0, 8)];
+  };
+  const rows = make(w, h, (x, y) => {
+    if (y < hz - .0001 && y + .5 < hz) return scene(x, y);
+    const yy = 2 * hz - 1 - y, xs = clamp(x + Math.sin(y * 2.3) * .5 + (fbm(y * .6, x * .12) - .5) * 1.4, 0, w - 1);
+    return scene(xs, yy);
+  });
+  return { rows, pal: B.pal(), bg: '#02030c', keep: B.keep };
+};
+
+// ======================= SUNSET (glowing sun, lit clouds, misty ridges, shimmering water) =======================
+const sunset = (o = {}) => {
+  const w = 48, h = 32, sx = o.sunx ?? 24, sr = o.sunr ?? 6, ph = o.phase ?? 0, B = palBuilder();
+  const sky = ramp(['#170a33','#3b1a6b','#7a2f8c','#c2467a','#ef6a6a','#ff9a5a','#ffc16b','#ffe49a'], 12).map(B.add);
+  const sun = ramp(['#ffb347','#ffd77a','#fff2b8','#ffffff'], 5).map(B.add);
+  const cloud = ramp(['#5a2a78','#d4577a','#ff9a6a','#ffd9a8'], 5).map(B.add);
+  const mtn = ['#7a4a8c','#4a2c6a','#241540'].map(B.add), tree = B.addK('#0d1424');
+  const water = ramp(['#f2905a','#c55575','#6a3d8a','#2d1d55'], 8).map(B.add), refl = ['#fff2b8','#ffc66e','#ff9a5a'].map(B.add);
+  const m1 = x => 19 + (fbm(x * .07 + ph, 2.2, 5) - .5) * 9, m2 = x => 22 + (fbm(x * .1 + ph * 2, 7.4, 5) - .5) * 6 - Math.max(0, 6 - Math.abs(x - sx)) * .25;
+  const m3 = x => 23.2 + (fbm(x * .15 + ph, 4.4, 4) - .5) * 2.4;
+  const tr = (cx, top, ht, hw, px, py) => { if (py < top || py > top + ht) return false; const t = (py - top) / ht; return Math.abs(px - cx) <= t * hw * (.85 + .3 * Math.abs(Math.sin(py * 3.1 + cx))) + .15; };
+  const trees = [[4.5,18.5,11,3.6],[9,22,8,2.7],[1.5,21,8,2.6],[43.5,17.5,12,3.8],[39,21.5,8,2.8],[46.5,20.5,9,2.6]];
+  const skyT = (px, py) => { const g = Math.max(0, 1 - Math.hypot((px - sx) * .7, py - 17) / 15); return clamp((py / 24) * .85 + g * .55 + (fbm(px * .07, py * .07, 3) - .5) * .1, 0, 1); };
+  const rows = make(w, h, (x, y) => {
+    const px = x + .5, py = y + .5;
+    for (const [cx, top, ht, hw] of trees) if (tr(cx, top, ht, hw, px, py)) return tree;
+    if (py > 27.5 && (px < 7.2 || px > 40.8) && py < 31.7) return tree;
+    if (py >= 24) {
+      const d = py - 24, my = 48 - py, jit = Math.sin(py * 2.9 + px * .35) * .9 + (fbm(px * .5, py * 1.4) - .5) * 1.8;
+      const mm = m3(px), reflM = my < m1(px) ? true : false;
+      const wob = px + jit * .9, sd = Math.abs(wob - sx), streak = fbm(py * 1.2, px * .08);
+      if (sd < (sr - .6) * (.9 - d * .03) && streak > .38 + d * .02) return refl[sd < (sr - .6) / 2.4 ? 0 : sd < (sr - .6) / 1.4 ? 1 : 2];
+      if (my < m3(wob)) return mtn[2];
+      if (my < m2(wob)) return mtn[1];
+      if (my < m1(wob)) return mtn[0];
+      return water[clamp(Math.floor((1 - skyT(wob, my)) * 4 * .8 + d / 8 * 4 * .5 + dz() * 1.1), 0, 7)];
+    }
+    if (py >= m3(px)) return mtn[2];
+    if (py >= m2(px)) return mtn[1];
+    if (py >= m1(px)) return mtn[0];
+    const sd = Math.hypot(px - sx, py - 17);
+    if (sd <= sr) return sun[clamp(Math.floor((1 - sd / sr) * 5 * 1.1 + dz()), 0, 4)];
+    const cd = fbm(px * .1 + 5, py * .24 + ph, 5) + (py < 3 ? -.3 : py > 17 ? -.35 : 0);
+    if (cd > .58) return cloud[clamp(Math.floor((cd - .58) / .25 * 3 + clamp((py - 3) / 14, 0, 1) * 2.2 + dz() * .9), 0, 4)];
+    return sky[clamp(Math.floor(skyT(px, py) * 12 + dz()), 0, 11)];
+  });
+  return { rows, pal: B.pal(), bg: '#170a33', keep: B.keep };
+};
+
+// ======================= BUTTERFLY (veined wings, black border with white dots, fuzzy body) =======================
+const butterfly = () => {
+  const B = palBuilder();
+  const wing = ramp(['#6b1700','#b83a00','#e86a10','#ff9a2e','#ffc24d','#ffe08a'], 9).map(B.add);
+  const blk = ['#0f0708','#2a1810'].map(B.addK), wht = ['#ffffff','#e6dccd'].map(B.addK);
+  const body = ramp(['#1e1008','#4a2a14','#8a5a2e'], 4).map(B.addK);
+  const bg = ramp(['#17362a','#2a6040','#4c9356','#93cf80','#dff3b8'], 9).map(B.addK), fl = ['#ff9fb5','#ffd6e0'].map(B.addK);
+  const rows = make(40, 32, (x, y) => {
+    const px = x + .5, u = Math.abs(px - 20), v = y + .5;
+    if (v > 1 && v < 7.6 && Math.abs(u - (1.8 + (7.5 - v) * .8)) < .32) return blk[0];
+    if (Math.hypot(u - (1.8 + 6.5 * .8), v - 1.4) < 1.0) return blk[0];
+    if (Math.hypot(u - .9, v - 8.1) < .45) return wht[0];
+    if (Math.hypot(u, v - 8.6) < 2.3) return body[clamp(Math.floor(2.4 - u * .5 - (v - 8.6) * .15 + (fbm(px * 2, v * 2) - .5) + dz()), 0, 3)];
+    const bd = ed(u, v, 0, 18, 1.9, 9.5);
+    if (bd <= 1) return body[clamp(Math.floor(2.8 - u * 1.1 + (Math.floor(v / 1.1) % 2 ? -.5 : .3) + (fbm(px * 3, v * 3) - .5) * .8 + dz()), 0, 3)];
+    const wingAt = (cu, cv, rx, ry, ang, ax, ay, scale) => {
+      const d = ed(u, v, cu, cv, rx, ry, ang); if (d > 1) return null;
+      const a = Math.atan2(v - ay, u - ax), rr = Math.hypot(u - ax, v - ay);
+      if (d > .84 + (fbm(a * 3, 1.2) - .5) * .05) {
+        const sp = d > .875 && d < .965 && Math.abs(((a * scale) % 1 + 1) % 1 - .5) < .17 + (d - .9) * .6;
+        return sp ? wht[d < .93 ? 0 : 1] : blk[d > .96 ? 0 : 1];
+      }
+      const vein = Math.abs((((a * scale * .7) % 1) + 1) % 1 - .5) > .455 || (Math.abs(rr - (rr > 3 ? 7.5 : 99)) < .3);
+      if (vein) return blk[1];
+      const tex = (fbm(u * 1.9, v * 1.9, 3) - .5) * .35;
+      return wing[clamp(Math.floor((.55 + (1 - d) * .55 - rr * .012 + tex) * 9 + dz()), 0, 8)];
+    };
+    const w1 = wingAt(10.5, 11, 11.5, 7.2, -.5, 2, 12.5, 9); if (w1) return w1;
+    const w2 = wingAt(8.5, 22.5, 8, 5.6, .55, 2, 17, 8); if (w2) return w2;
+    let t = (v / 32) * .7 + fbm(px * .1, v * .1, 4) * .6 - .1;
+    for (const [bx, by, br] of [[6,26,4],[33,22,5],[9,5,3.5],[31,6,4],[22,29,3]]) if (Math.hypot(px - bx, v - by) < br) t += .12;
+    const f = nh(Math.floor(px * 1.8) , Math.floor(v * 1.8));
+    if (v > 27 && f < .07) return fl[f < .03 ? 1 : 0];
+    return bg[clamp(Math.floor(t * 9 + dz()), 0, 8)];
+  });
+  return { rows, pal: B.pal(), bg: '#17362a', keep: B.keep };
+};
+
+// ======================= OWL (soft feathers, glowing eyes, bark branch, cratered moon) =======================
+const owl = () => {
+  const B = palBuilder();
+  const fe = ramp(['#1a0f08','#3a2312','#5b3a1e','#7c5430','#a07645','#c49a63','#e0c08a','#f6e8c4'], 13).map(B.add);
+  const iris = ramp(['#8a2d00','#ff7a00','#ffc233','#fff0a0'], 5).map(B.add), eyek = [B.addK('#050505'), B.addK('#ffffff')];
+  const beak = ['#a85a10','#e8963a'].map(B.add);
+  const bark = ramp(['#1e120a','#4a2e18','#7a5230','#a37845'], 6).map(B.addK);
+  const moon = ramp(['#b9c0d6','#e6ebf7','#ffffff'], 4).map(B.addK), glow = ramp(['#16264a','#243a6a'], 3).map(B.addK);
+  const sky = ramp(['#070d1f','#0f1d3c','#1a3563'], 8).map(B.addK), stars = ['#9fb0e0','#ffffff'].map(B.addK);
+  const rows = make(36, 36, (x, y) => {
+    const px = x + .5, v = y + .5, u = Math.abs(px - 18), su = px - 18;
+    if (v > 31.5 && v < 34.3) { const t = fbm(px * .9, v * 1.4, 4) * .8 + (v - 31.5) * .08; return bark[clamp(Math.floor(t * 6 + dz()), 0, 5)]; }
+    if (v > 29.4 && v <= 31.6 && u > 2.6 && u < 9.4) { const toe = ((u * 1.6) % 2.2) < .85; if (toe) return fe[1]; }
+    if (v >= 13 && v <= 17.8 && u <= (18 - v) * .55) return beak[v < 14.8 || u < .4 ? 1 : 0];
+    const eye = Math.hypot(u - 4.9, v - 12.2);
+    if (eye <= 5.0) {
+      if (eye < .75 && u > 5.1 && v < 11.9) return eyek[1];
+      if (eye <= 1.75) return eyek[0];
+      if (eye <= 3.3) return iris[clamp(Math.floor(((3.3 - eye) / 1.6) * 4 * 1.0 + (Math.sin(Math.atan2(v - 12.2, u - 4.9) * 16) * .25) + dz() * .7), 0, 4)];
+      if (eye <= 3.9) return fe[1];
+    }
+    const ear = inTri(u, v, [2.5, 7.2], [8.4, 1.6], [8.6, 9.8]);
+    if (ear) return fe[inTri(u, v, [4, 7.4], [7.6, 3.6], [7.8, 8.8]) ? 6 : clamp(Math.floor(2 + (u - 2.5) * .5 + dz()), 1, 4)];
+    const wing = ed(u, v, 11, 22.5, 4.2, 9.5, -0.12);
+    if (wing <= 1) return fe[clamp(Math.floor(2.4 + (wing > .8 ? -2 : (Math.floor(v / 1.7) % 2 ? .9 : -.1)) + (u - 11) * .12 + (fbm(u * 1.6, v * .5) - .5) * 2.4 + dz()), 0, 12)];
+    const head = Math.hypot(u / 9.2, (v - 12) / 8.6), body = ed(u, v, 0, 22.5, 10.2, 10.8);
+    if (head <= 1 || body <= 1) {
+      const dd = Math.min(head, body), nx = su / 10, ny = (v - 18) / 12, lam = clamp(-.45 * nx - .5 * ny + .75, 0, 1.2);
+      let a = .45 + .35 * lam - Math.pow(dd, 6) * .5;
+      const disc = Math.min(Math.hypot((u - 4.7) / 6.2, (v - 12.4) / 5.6), 9) < 1 || (v > 11 && v < 15 && u < 3 && Math.abs(v - 13.5) < 2.4);
+      if (disc) a += .3 + Math.sin(Math.atan2(v - 12.4, u - 4.7) * 22) * .04;
+      else if (v > 14.5) {
+        const chev = ((v * .95 + u * .8) % 2.8) < .6, belly = ed(u, v, 0, 24.5, 6.8, 8.3) <= 1;
+        if (belly) a = chev ? .38 : .72 + (fbm(px * 1.5, v * .5) - .5) * .25; else a += (fbm(px * 2.2, v * .8, 3) - .5) * .35;
+      } else a += (fbm(px * 2.2, v * .8, 3) - .5) * .4;
+      return fe[clamp(Math.floor(a * 13 + dz()), 0, 12)];
+    }
+    const md = Math.hypot(px - 29.2, v - 7);
+    if (md <= 3.5) { const cr = Math.hypot(px - 28, v - 6.2) < .9 || Math.hypot(px - 30.3, v - 8) < .7 || Math.hypot(px - 29.4, v - 5.1) < .55; return moon[clamp(Math.floor((cr ? 1 : 2.2) + (1 - md / 3.5) * .8 + dz() * .6 - (px > 30 ? .5 : 0)), 0, 3)]; }
+    if (md <= 6.5) return glow[clamp(Math.floor((6.5 - md) / 3 * 3 + dz()), 0, 2)];
+    const sv = nh(CX, CY); if (sv < .0045 && v < 29) return sv < .001 ? stars[1] : stars[0];
+    return sky[clamp(Math.floor((v / 36) * 8 + (fbm(px * .1, v * .1) - .5) * .2 + dz()), 0, 7)];
+  });
+  return { rows, pal: B.pal(), bg: '#070d1f', keep: B.keep };
+};
+
+// ======================= MANDALA (layered shaded petals, glowing center) =======================
+const mandala = (o = {}) => {
+  const N = o.N || 16, rw = o.rw || 2.3, B = palBuilder();
+  const R = [ramp(['#2b0a5c','#7a3bd6','#d6a6ff'], 7), ramp(['#0a3b5c','#1fa3c9','#a8f0ff'], 7), ramp(['#5c0a1f','#e0344f','#ffb3a0'], 7), ramp(['#4a3a00','#e6b422','#fff2a8'], 7)].map(r => r.map(B.add));
+  const bgc = ramp(['#10062b','#1f0f4a'], 3).map(B.addK), ln = ['#ffe9a8','#ffc64d'].map(B.addK), core = ramp(['#fff6c9','#ffffff'], 3).map(B.addK);
+  const layers = [[2.6, 6.2, 1], [5.6, 10, 2], [9.4, 13.4, 3], [12.6, 16.6, 0], [16.2, 18.4, 1]];
+  return { rows: make(40, 40, (x, y) => {
+    const dx = x + .5 - 20, dy = y + .5 - 20, r = Math.hypot(dx, dy);
+    if (r > 19.6) return '.';
+    if (r < 2.6) return core[clamp(Math.floor((1 - r / 2.6) * 3 + dz()), 0, 2)];
+    if (r > 18.7) return ln[r > 19.2 ? 1 : 0];
+    const th = Math.atan2(dy, dx) / (2 * Math.PI) + .5;
+    for (let j = layers.length - 1; j >= 0; j--) {
+      const [r0, r1, ci] = layers[j], nj = N * (j % 2 ? 1 : 2) * (j === 4 ? 2 : 1) / (j === 0 ? 2 : 1);
+      if (r < r0 || r > r1) continue;
+      const ph = (th * nj + (j % 2) * .5) % 1, s = Math.abs(ph - .5) * 2, rr = (r - r0) / (r1 - r0), tipw = j % 2 ? Math.pow(1 - rr, .75) : Math.sin((1 - rr) * Math.PI * .5 + .0) ;
+      if (s < tipw * .96) {
+        if (s > tipw * .85 || Math.abs(rr - .08) < .02) return ln[1];
+        return R[(ci + (rr > .5 ? 0 : 0)) % 4][clamp(Math.floor((1 - rr) * .5 * 7 + (1 - s) * .5 * 7 + (fbm(x * .5, y * .5) - .5) * .8 + dz()), 0, 6)];
+      }
+      if (Math.abs(rr) < .02 || Math.abs(rr - 1) < .02) return ln[0];
+    }
+    const dot = nh(Math.floor(CX / 2), Math.floor(CY / 2)) < .03;
+    return dot ? ln[0] : bgc[clamp(Math.floor((r / 19) * 3 + dz()), 0, 2)];
+  }), pal: B.pal(), bg: '#10062b', keep: B.keep };
+};
+
+// ---------- easy pictures (big squares, for warm-ups) ----------
+const EASY = {
+  Heart: { bg:'#fff1ea', pal:{1:'#9d0208',2:'#e63946',3:'#ffc2cf'}, rows:[
+    '................','...1111..1111...','..122221122221..','.12322222222221.','.12332222222221.','.12222222222221.',
+    '..122222222221..','...1222222221...','....12222221....','.....122221.....','......1221......','.......11.......','................' ]},
+  Rocket: { bg:'#1d2b53', pal:{1:'#3a3f5c',2:'#f1f3f9',3:'#e63946',4:'#74c0fc',5:'#ff8c1a',6:'#ffe066'}, rows:[
+    '.......11.......','......1331......','.....133331.....','.....133331.....','.....122221.....','.....124421.....','.....124421.....',
+    '.....122221.....','.....122221.....','...1312222131...','..133122221331..','..131122221131..','..11.111111.11..','......5665......','.......66.......','.......55.......' ]},
+  Cat: { bg:'#cfefff', pal:{1:'#4a2c14',2:'#ff9f43',3:'#fff6e8',4:'#ff8fa3',5:'#52b788'}, rows:[
+    '.11..........11.','.1221......1221.','.12421111112421.','.12222222222221.','.12255222255221.','.12255222255221.',
+    '.12222222222221.','.12222244222221.','.12223333332221.','..122333333221..','...1222222221...','....11111111....' ]},
+  Rainbow: { bg:'#cfefff', pal:{1:'#e63946',2:'#ff9f1c',3:'#ffd60a',4:'#52b788',5:'#4895ef',6:'#9b5de5',7:'#ffffff'}, rows: (() => {
+    const w = 20, h = 11, cx = 10, cy = 11, clouds = [[2.6,9.4,2.3],[4.8,9.9,2.0],[1.0,10.2,1.6],[17.4,9.4,2.3],[15.2,9.9,2.0],[19.0,10.2,1.6]];
+    const keepSC = SC; SC = 1;
+    const r = make(w, h, (x, y) => {
+      const px = x + .5, py = y + .5, d = Math.hypot(px - cx, py - cy);
+      if (clouds.some(([a, b, rad]) => Math.hypot(px - a, py - b) <= rad)) return '7';
+      if (d <= 10 && d > 4) return String(Math.min(6, Math.floor(10 - d) + 1));
+      return '.';
+    }); SC = keepSC; return r; })() }
+};
+
+// ---------- the list of 100 ----------
+const HN = [[0,''],[15,'Tangerine'],[30,'Sunny'],[45,'Lemon'],[60,'Lime'],[75,'Apple'],[90,'Mint'],[105,'Leaf'],[120,'Forest'],[135,'Jade'],[150,'Aqua'],[165,'Teal'],[180,'Ocean'],[195,'Lagoon'],[210,'Sky'],[225,'Cobalt'],[240,'Grape'],[255,'Indigo'],[270,'Violet'],[285,'Orchid'],[300,'Candy'],[315,'Berry'],[330,'Rose'],[345,'Cherry'],[360,'']];
+const hname = d => { d = ((d % 360) + 360) % 360; let best = HN[0]; HN.forEach(e => { if (Math.abs(e[0] - d) < Math.abs(best[0] - d)) best = e; }); return best[1]; };
+const withHue = (g, deg) => () => {
+  const r = g(); if (!deg) return r;
+  const keep = r.keep || [], pal = {};
+  Object.entries(r.pal).forEach(([k, v]) => { pal[k] = keep.includes(+k) ? v : hueShift(v, deg); });
+  return { rows: r.rows, pal, bg: r.bg };
+};
+const genAt = (p, sc) => { SC = sc; try { return p.gen(); } finally { SC = 1; } };
+const PIC_LIST = [];
+const addFamily = (family, base, level, specs, build) => {
+  const used = {};
+  specs.forEach((sp, i) => {
+    let nm = i === 0 ? base : base + ' ' + (hname(sp.h || 0) || ('#' + (i + 1)));
+    if (used[nm]) nm += ' ' + (i + 1); used[nm] = 1;
+    PIC_LIST.push({ name: nm, family, level, gen: withHue(() => build(sp), sp.h || 0) });
+  });
+};
+addFamily('Planets', 'Planet', '⭐⭐⭐⭐⭐', [
+  {h:0},{tilt:.3,h:200},{ring:false,R:12,h:90},{tilt:-.6,h:300},{ring:false,R:11,wave:2,h:160},{tilt:.15,h:40},
+  {tilt:-.2,R:9,h:250},{ring:false,R:12.5,h:330},{tilt:.5,h:120},{tilt:-.45,R:9.5,h:180},{ring:false,R:11,wave:3,h:20}], planet);
+addFamily('Flowers', 'Hibiscus', '⭐⭐⭐⭐⭐', [
+  {n:5,h:0},{n:5,h:35},{n:6,h:75},{n:6,h:140},{n:7,h:190},{n:7,h:230},{n:8,h:260},{n:8,h:290},{n:5,h:320,len:16},{n:6,h:20,len:16.5},{n:7,h:105,len:16}], hibiscus);
+addFamily('Balloons', 'Balloon', '⭐⭐⭐⭐⭐', [
+  {G:6,hc:3,h:0,sky:0},{G:6,hc:3,h:60,sky:1},{G:4,hc:2,h:120,sky:2},{G:8,hc:3,h:180,sky:3},{G:5,hc:3,h:240,sky:4},{G:6,hc:2,h:300,sky:5},
+  {G:7,hc:3,h:30,sky:6},{G:4,hc:3,h:90,sky:7},{G:8,hc:2,h:150,sky:1},{G:5,hc:2,h:210,sky:2},{G:6,hc:3,h:270,sky:3}], balloon);
+addFamily('Northern Lights', 'Aurora', '⭐⭐⭐⭐⭐', [
+  {peak:30,h:0},{peak:18,h:60},{peak:36,h:100},{peak:24,h:180},{peak:14,h:220},{peak:32,h:260,freq:.12},
+  {peak:20,h:300,freq:.22},{peak:28,h:340,peakH:10},{peak:12,h:40},{peak:38,h:80,freq:.2},{peak:22,h:140,freq:.14,peakH:6}], aurora);
+addFamily('Butterflies', 'Butterfly', '⭐⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}], butterfly);
+addFamily('Sunsets', 'Sunset', '⭐⭐⭐⭐⭐', [
+  {h:0},{sunx:14,sunr:5,phase:1,h:40},{sunx:34,sunr:7,phase:2,h:100},{sunx:20,sunr:4,phase:3,h:160},{sunx:28,sunr:8,phase:4,h:200},{sunx:16,sunr:6,phase:5,h:240},
+  {sunx:32,sunr:5,phase:6,h:280},{sunx:24,sunr:7,phase:.5,h:320},{sunx:12,sunr:6,phase:1.5,h:20},{sunx:36,sunr:5,phase:2.5,h:70},{sunx:22,sunr:8,phase:3.5,h:130}], sunset);
+addFamily('Owls', 'Owl', '⭐⭐⭐⭐', [{h:0},{h:40},{h:100},{h:150},{h:200},{h:240},{h:280},{h:320},{h:60},{h:170},{h:350}], owl);
+addFamily('Mandalas', 'Mandala', '⭐⭐⭐⭐', [
+  {N:16,rw:2.3,h:0},{N:12,h:40},{N:20,h:80},{N:24,h:120},{N:16,rw:2.0,h:160},{N:12,rw:2.6,h:200},{N:20,rw:2.1,h:240},{N:24,rw:2.4,h:280},{N:18,h:320},{N:14,h:20},{N:22,h:60}], mandala);
+[['Heart','⭐',[0,200,100]],['Rocket','⭐⭐',[0,120,280]],['Cat','⭐⭐',[0,150,260]],['Rainbow','⭐⭐',[0,90,200]]].forEach(([nm, lv, hs]) => {
+  const e = EASY[nm];
+  hs.forEach((hd, i) => PIC_LIST.push({ name: i === 0 ? nm : (hname(hd) + ' ' + nm), family: 'Easy (big squares)', level: lv, gen: () => ({ rows: e.rows, pal: hd ? shiftPal(e.pal, hd) : e.pal, bg: hd ? hueShift(e.bg, hd) : e.bg }) }));
+});
+
+  const PICS = PIC_LIST;
+  const CHARS = CH, FULL = 3;   // every picture is drawn with 3x3 tiny squares where the old ones had 1 big square
+  function ensure(p) {
+    if (p.cells) return p;
+    const r = genAt(p, FULL); p.bg = r.bg || '#fff';
+    p.w = r.rows[0].length; p.h = r.rows.length;
+    const flat = r.rows.join(''), raw = new Array(flat.length);
+    for (let i = 0; i < flat.length; i++) { const ch = flat[i]; raw[i] = ch === '.' ? 0 : CHARS.indexOf(ch) + 1; }
+    // drop colors nobody uses, then renumber so the numbers go 1, 2, 3... with no gaps
+    const used = [...new Set(raw.filter(n => n > 0))].sort((x, y) => x - y), map = {}, pal = {};
+    used.forEach((o, i) => { map[o] = i + 1; pal[i + 1] = r.pal[o]; });
+    p.pal = pal; p.cells = raw.map(n => n ? map[n] : 0);
+    p.counts = {}; p.cells.forEach(n => { if (n) p.counts[n] = (p.counts[n] || 0) + 1; });
+    p.total = p.cells.filter(n => n > 0).length;
+    p.tints = {}; Object.keys(pal).forEach(k => { p.tints[k] = mixc(pal[k], '#ffffff', .8); });
+    return p;
+  }
+
+  // ================= state =================
+  let pi = 0, pic = ensure(PICS[0]), filled = [], left = {}, doneCount = 0, sel = 0, showNums = true, paused = false, muted = false, hover = true, zoom = 1;
+  let wrong = null, hint = null, won = false, dirty = true, autoQ = null;
+  const doneSet = {};
+  try { JSON.parse(localStorage.getItem('pbn-done') || '[]').forEach(n => doneSet[n] = 1); } catch(e) {}
+
+  const $ = id => document.getElementById(id);
+  const board = $('board'), bctx = board.getContext('2d'), msg = $('msg'), stage = $('stage');
+  let msgT = 0;
+  function say(t, ms) { msg.textContent = t; clearTimeout(msgT); if (ms) msgT = setTimeout(() => { msg.textContent = defaultMsg(); }, ms); }
+  const defaultMsg = () => !sel ? 'Pick a color below, then paint the squares with the same number!'
+    : 'Paint the squares that say ' + sel + '! ' + (hover ? 'Just move your mouse over the glowing squares — no clicking needed. 🖌️' : 'Click or drag. 🖌️');
+
+  let saveT = 0, pending = false;
+  function flush() { if (!pending) return; pending = false; clearTimeout(saveT); try { localStorage.setItem('pbn-' + pic.name, filled.join('')); } catch(e) {} }
+  function save() { pending = true; clearTimeout(saveT); saveT = setTimeout(flush, 500); }
+  addEventListener('beforeunload', flush);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+
+  function loadPic(i) {
+    flush();
+    autoQ = null; pi = i; pic = ensure(PICS[i]); filled = new Uint8Array(pic.cells.length); won = false; hint = null; wrong = null; zoom = 1;
+    try {
+      const sv = localStorage.getItem('pbn-' + pic.name);
+      if (sv && sv.length === filled.length) for (let k = 0; k < sv.length; k++) filled[k] = sv.charCodeAt(k) - 48;
+    } catch(e) {}
+    left = Object.assign({}, pic.counts); doneCount = 0;
+    for (let k = 0; k < filled.length; k++) if (filled[k] && pic.cells[k]) { left[pic.cells[k]]--; doneCount++; }
+    sel = 0; renderPics(); renderPalette(); updateBar(); say(defaultMsg());
+    $('win').classList.remove('show');
+    layout(); stage.scrollTo(0, 0);
+  }
+  function saveDone() { try { localStorage.setItem('pbn-done', JSON.stringify(Object.keys(doneSet))); } catch(e) {} }
+  const remaining = n => left[n] || 0;
+
+  // ================= picture picker + palette =================
+  function thumb(p) {
+    const c = document.createElement('canvas'); c.width = c.height = 72;
+    const g = c.getContext('2d'), r = p._t || (p._t = genAt(p, 1)), rows = r.rows, w = rows[0].length, h = rows.length;
+    const sc = Math.min(72 / w, 72 / h), ox = (72 - w*sc)/2, oy = (72 - h*sc)/2;
+    g.fillStyle = r.bg || '#fff'; g.fillRect(0, 0, 72, 72);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const ch = rows[y][x]; if (ch !== '.') { g.fillStyle = r.pal[CHARS.indexOf(ch) + 1]; g.fillRect(ox + x*sc, oy + y*sc, sc + .5, sc + .5); } }
+    return c;
+  }
+  function renderPics() {
+    const done = PICS.filter(p => doneSet[p.name]).length;
+    $('picName').textContent = (pi + 1) + '/' + PICS.length + ' · ' + pic.name + (doneSet[pic.name] ? ' ⭐' : '');
+    $('galBtn').textContent = '🖼️ Pictures  ⭐ ' + done + '/' + PICS.length;
+    if ($('gal').classList.contains('show')) buildGallery();
+  }
+  function buildGallery() {
+    const box = $('galBox'), keep = box.scrollTop; box.innerHTML = '';
+    let fam = null, grid = null;
+    PICS.forEach((p, i) => {
+      if (p.family !== fam) {
+        fam = p.family;
+        const h = document.createElement('h3'); const n = PICS.filter(q => q.family === fam);
+        h.textContent = fam + '  (' + n.filter(q => doneSet[q.name]).length + '/' + n.length + ' ⭐)'; box.appendChild(h);
+        grid = document.createElement('div'); grid.className = 'galgrid'; box.appendChild(grid);
+      }
+      const b = document.createElement('button'); b.className = 'pic' + (i === pi ? ' on' : ''); b.title = p.name + ' ' + p.level;
+      b.appendChild(thumb(p));
+      const lab = document.createElement('span'); lab.className = 'nm'; lab.textContent = p.name; b.appendChild(lab);
+      if (doneSet[p.name]) { const st = document.createElement('span'); st.className = 'star'; st.textContent = '⭐'; b.appendChild(st); }
+      b.onclick = () => { $('gal').classList.remove('show'); if (i !== pi) loadPic(i); };
+      grid.appendChild(b);
+    });
+    box.scrollTop = keep;
+  }
+  $('galBtn').onclick = () => { $('gal').classList.add('show'); buildGallery(); };
+  $('galClose').onclick = () => $('gal').classList.remove('show');
+  $('prevBtn').onclick = () => loadPic((pi + PICS.length - 1) % PICS.length);
+  $('nextPicBtn').onclick = () => loadPic((pi + 1) % PICS.length);
+  const swEls = {};
+  function renderPalette() {
+    const el = $('palette'); el.innerHTML = ''; el.className = Object.keys(pic.pal).length > 12 ? 'many' : '';
+    Object.keys(swEls).forEach(k => delete swEls[k]);
+    Object.keys(pic.pal).forEach(k => {
+      const n = +k, b = document.createElement('button'), chip = document.createElement('span'), cnt = document.createElement('span');
+      chip.style.background = pic.pal[n]; chip.style.color = textOn(pic.pal[n]); cnt.className = 'cnt';
+      b.appendChild(chip); b.appendChild(cnt); b.onclick = () => choose(n); el.appendChild(b);
+      swEls[n] = {b, chip, cnt}; refreshSw(n);
+    });
+    dirty = true;
+  }
+  function refreshSw(n) {
+    const e = swEls[n]; if (!e) return; const l = left[n] || 0;
+    e.b.className = 'sw' + (n === sel ? ' sel' : '') + (l === 0 ? ' done' : '');
+    e.chip.className = 'chip' + (n > 9 && l ? ' two' : ''); e.chip.textContent = l === 0 ? '✓' : n; e.cnt.textContent = l === 0 ? 'done!' : l + ' left';
+  }
+  function textOn(hex) { const v = parseInt(hex.slice(1), 16), r = v >> 16, g = (v >> 8) & 255, b = v & 255; return (r*.299 + g*.587 + b*.114) > 150 ? '#222' : '#fff'; }
+  function choose(n) {
+    if (!(left[n] > 0)) { say('All the ' + n + 's are done! Pick another color. 😄', 2000); return; }
+    const old = sel; sel = n; hint = null; if (old) refreshSw(old); refreshSw(n); dirty = true;
+    say(defaultMsg()); tone(300 + n*20, .08, 'triangle', .1);
+  }
+  function updateBar() {
+    const pct = Math.floor(doneCount / pic.total * 100);
+    $('fill').style.width = pct + '%'; $('pct').textContent = pct + '%';
+    return doneCount === pic.total;
+  }
+
+  // ================= sound =================
+  let ac = null;
+  function tone(freq, dur, type, vol, when) {
+    if (muted) return;
+    try {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + (when || 0), o = ac.createOscillator(), g = ac.createGain();
+      o.type = type || 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(vol || .15, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+    } catch(e) {}
+  }
+
+  // ================= layout + drawing =================
+  let cs = 20, dpr = 1, offX = 0, offY = 0, vw = 0, vh = 0;
+  function layout() {
+    dpr = window.devicePixelRatio || 1;
+    const fit = Math.floor(Math.min((stage.clientWidth - 4) / pic.w, (stage.clientHeight - 4) / pic.h));
+    cs = Math.max(4, Math.min(64, Math.round(Math.max(fit, 14) * zoom)));
+    const W = cs * pic.w, H = cs * pic.h;
+    $('spacer').style.width = W + 'px'; $('spacer').style.height = H + 'px';
+    vw = stage.clientWidth; vh = stage.clientHeight;   // read again: scroll bars may have appeared
+    board.style.width = vw + 'px'; board.style.height = vh + 'px';
+    board.width = Math.max(1, Math.floor(vw * dpr)); board.height = Math.max(1, Math.floor(vh * dpr));
+    board.style.touchAction = (W > vw + 2 || H > vh + 2) ? 'pan-x pan-y' : 'none';
+    dirty = true;
+  }
+  addEventListener('resize', () => { layout(); fitFx(); });
+  stage.addEventListener('scroll', () => { dirty = true; }, { passive: true });
+  function setZoom(z) { zoom = Math.max(.4, Math.min(3, z)); layout(); }
+  $('zoomIn').onclick = () => setZoom(zoom * 1.25);
+  $('zoomOut').onclick = () => setZoom(zoom / 1.25);
+
+  // only the squares you can actually see get drawn, so huge pictures stay fast
+  function draw() {
+    const g = bctx; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, vw, vh);
+    const W = cs * pic.w, H = cs * pic.h, sl = stage.scrollLeft, st = stage.scrollTop;
+    offX = Math.max(0, Math.floor((vw - W) / 2)); offY = Math.max(0, Math.floor((vh - H) / 2));
+    const x0 = Math.max(0, Math.floor((sl - offX) / cs)), x1 = Math.min(pic.w - 1, Math.floor((sl + vw - offX) / cs));
+    const y0 = Math.max(0, Math.floor((st - offY) / cs)), y1 = Math.min(pic.h - 1, Math.floor((st + vh - offY) / cs));
+    const numbers = showNums && cs >= 11, fs = Math.max(7, Math.floor(cs * .5));
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const i = y * pic.w + x, n = pic.cells[i], px = offX + x * cs - sl, py = offY + y * cs - st;
+      let dx = 0;
+      if (wrong && wrong.i === i) dx = Math.sin(wrong.t * .9) * 3 * (wrong.t / 20);
+      const done = n === 0 || filled[i];
+      g.fillStyle = n === 0 ? pic.bg : filled[i] ? pic.pal[n] : n === sel ? '#ffe7a0' : numbers ? '#f3f0ff' : pic.tints[n];
+      g.fillRect(px + dx, py, done ? cs + .6 : cs, done ? cs + .6 : cs);
+      if (!done && cs >= 8) { g.strokeStyle = 'rgba(0,0,0,.16)'; g.lineWidth = 1; g.strokeRect(px + dx + .5, py + .5, cs - 1, cs - 1); }
+      if (!done && numbers) {
+        g.fillStyle = n === sel ? '#2b1d6b' : '#9a93bd';
+        g.font = (n === sel ? '900 ' : '700 ') + (n > 9 ? fs - 1 : fs) + 'px system-ui';
+        g.fillText(n, px + dx + cs / 2, py + cs / 2 + 1);
+      }
+    }
+    if (hint) {
+      const px = offX + (hint.i % pic.w) * cs - sl, py = offY + Math.floor(hint.i / pic.w) * cs - st, k = 3 + Math.abs(Math.sin(hint.t * .12)) * 5;
+      g.strokeStyle = '#ff3d71'; g.lineWidth = 3; g.strokeRect(px - k, py - k, cs + k*2, cs + k*2);
+    }
+  }
+
+  // ================= painting =================
+  function cellAtXY(cx, cy) {
+    const r = board.getBoundingClientRect();
+    const x = Math.floor((cx - r.left + stage.scrollLeft - offX) / cs), y = Math.floor((cy - r.top + stage.scrollTop - offY) / cs);
+    return (x < 0 || y < 0 || x >= pic.w || y >= pic.h) ? -1 : y * pic.w + x;
+  }
+  function handleCell(i, drag) {
+    if (paused || won || autoQ || i < 0) return;
+    const n = pic.cells[i]; if (n === 0 || filled[i]) return;
+    if (!sel) { if (!drag) say('Pick a color first! 👇', 2000); return; }
+    if (n === sel) fillCell(i);
+    else if (!drag) { wrong = {i, t:20}; dirty = true; tone(140, .15, 'square', .08); say('That square is a ' + n + '! Pick color ' + n + ' to paint it. 😉', 2500); }
+  }
+  let lastTone = 0, lastBurst = 0;
+  function fillCell(i) {
+    filled[i] = 1; hint = null; save(); dirty = true;
+    const n = pic.cells[i]; left[n]--; doneCount++;
+    const now = performance.now();
+    if (now - lastBurst > 45) {
+      lastBurst = now; const r = board.getBoundingClientRect(), x = i % pic.w, y = (i / pic.w) | 0;
+      burst(r.left + offX + x * cs - stage.scrollLeft + cs / 2, r.top + offY + y * cs - stage.scrollTop + cs / 2, pic.pal[n], 3);
+    }
+    if (now - lastTone > 70) { lastTone = now; tone(440 + (n % 8) * 70, .07, 'sine', .1); }
+    refreshSw(n);
+    if (left[n] === 0) {
+      tone(880, .12, 'triangle', .12, .05); tone(1100, .15, 'triangle', .12, .15);
+      say('All the ' + n + 's are done! 🎉', 2500);
+      sel = Object.keys(pic.pal).map(Number).find(k => left[k] > 0) || 0;
+      if (sel) refreshSw(sel);
+    }
+    if (updateBar()) win();
+  }
+  let painting = false, lastP = null;
+  function paintMove(e) {
+    const pts = [];
+    if (lastP && lastP.id === e.pointerId) {
+      const dx = e.clientX - lastP.x, dy = e.clientY - lastP.y, steps = Math.min(80, Math.ceil(Math.hypot(dx, dy) / Math.max(2, cs * .4)));
+      for (let k = 1; k <= steps; k++) pts.push([lastP.x + dx * k / steps, lastP.y + dy * k / steps]);
+    } else pts.push([e.clientX, e.clientY]);
+    lastP = {x: e.clientX, y: e.clientY, id: e.pointerId};
+    for (const [x, y] of pts) handleCell(cellAtXY(x, y), true);   // also paints the squares you skipped over when moving fast
+  }
+  board.addEventListener('pointerdown', e => {
+    painting = true; lastP = {x: e.clientX, y: e.clientY, id: e.pointerId};
+    try { if (e.pointerType === 'mouse') board.setPointerCapture(e.pointerId); } catch(err) {}
+    handleCell(cellAtXY(e.clientX, e.clientY), false);
+  });
+  board.addEventListener('pointermove', e => { if (painting || (hover && e.pointerType === 'mouse')) paintMove(e); else lastP = null; });
+  board.addEventListener('pointerleave', () => { lastP = null; });
+  addEventListener('pointerup', () => { painting = false; });
+  addEventListener('pointercancel', () => { painting = false; });
+
+  $('hintBtn').onclick = giveHint;
+  function giveHint() {
+    if (paused || won) return;
+    let pool = [];
+    for (let i = 0; i < pic.cells.length; i++) if (pic.cells[i] > 0 && !filled[i] && (!sel || pic.cells[i] === sel)) pool.push(i);
+    if (!pool.length) { for (let i = 0; i < pic.cells.length; i++) if (pic.cells[i] > 0 && !filled[i]) pool.push(i); }
+    if (!pool.length) return;
+    const i = pool[Math.random() * pool.length | 0], n = pic.cells[i];
+    if (sel !== n) { const old = sel; sel = n; if (old) refreshSw(old); refreshSw(n); }
+    hint = {i, t:0}; say('Look for the pulsing red box — it\'s a ' + n + '! 👀', 3000);
+    const x = offX + (i % pic.w) * cs, y = offY + Math.floor(i / pic.w) * cs;
+    stage.scrollTo({left: x - stage.clientWidth/2, top: y - stage.clientHeight/2, behavior:'smooth'});
+  }
+  $('allBtn').onclick = () => {
+    if (paused || won || autoQ) return;
+    const q = []; for (let i = 0; i < pic.cells.length; i++) if (pic.cells[i] > 0 && !filled[i]) q.push(i);
+    if (!q.length) return;
+    if (!confirm('Color the whole ' + pic.name + ' for you? (You can use 🔄 to start over.)')) return;
+    q.reverse(); autoQ = q; hint = null; say('✨ Coloring everything...'); tone(523, .15, 'triangle', .12); tone(784, .2, 'triangle', .12, .1);
+  };
+  $('hoverBtn').onclick = e => { hover = !hover; e.currentTarget.classList.toggle('on', hover); say(defaultMsg()); };
+  $('numBtn').onclick = e => { showNums = !showNums; e.currentTarget.classList.toggle('on', showNums); dirty = true; };
+  $('muteBtn').onclick = e => { muted = !muted; e.currentTarget.textContent = muted ? '🔇' : '🔊'; };
+  $('resetBtn').onclick = () => {
+    if (!confirm('Start ' + pic.name + ' over from the beginning?')) return;
+    pending = false; try { localStorage.removeItem('pbn-' + pic.name); } catch(e) {}
+    delete doneSet[pic.name]; saveDone(); loadPic(pi);
+  };
+  $('nextBtn').onclick = () => loadPic((pi + 1) % PICS.length);
+  $('closeBtn').onclick = () => $('win').classList.remove('show');
+
+  function win() {
+    won = true; doneSet[pic.name] = 1; saveDone(); renderPics();
+    $('winTxt').textContent = 'You finished the ' + pic.name + '! ⭐';
+    setTimeout(() => $('win').classList.add('show'), 700);
+    for (let k = 0; k < 8; k++) setTimeout(() => confetti(), k * 160);
+    [523,659,784,1047].forEach((f,k) => tone(f, .25, 'triangle', .16, k * .12));
+  }
+
+  // ================= pause + keys =================
+  function setPause(p) { paused = p; $('pauseOv').classList.toggle('show', p); $('pauseBtn').textContent = p ? '▶ Resume' : '⏸ Pause'; }
+  $('pauseBtn').onclick = () => setPause(!paused);
+  $('resumeBtn').onclick = () => setPause(false);
+  addEventListener('keydown', e => {
+    if (e.repeat) return;
+    const k = e.key.toLowerCase();
+    if (k === 'p' || k === 'escape') { setPause(!paused); return; }
+    if (paused) return;
+    if (k >= '1' && k <= '9' && pic.pal[+k]) choose(+k);
+    else if (k === 'h') giveHint();
+    else if (k === '+' || k === '=') setZoom(zoom * 1.25);
+    else if (k === '-') setZoom(zoom / 1.25);
+  });
+  document.addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.blur(); });
+
+  // ================= confetti (fixed 60 updates/sec) =================
+  const fx = $('fx'), f2 = fx.getContext('2d'), bits = [];
+  function fitFx() { fx.width = innerWidth; fx.height = innerHeight; }
+  fitFx();
+  function burst(x, y, col, n) { for (let i = 0; i < n; i++) bits.push({x, y, vx:(Math.random()-.5)*5, vy:-1-Math.random()*4, life:34, col, s:4+Math.random()*4, g:.25}); }
+  function confetti() {
+    const cols = ['#ff6b6b','#ffd23f','#69db7c','#4dabf7','#da77f2','#ff8fa3'];
+    for (let i = 0; i < 40; i++) bits.push({x:Math.random()*innerWidth, y:-10, vx:(Math.random()-.5)*3, vy:2+Math.random()*3, life:140, col:cols[Math.random()*cols.length|0], s:6+Math.random()*6, g:.03});
+  }
+  const STEP = 1000/60;
+  function update() {
+    if (autoQ) {
+      const n = Math.max(12, Math.ceil(pic.cells.length / 90));
+      for (let k = 0; k < n && autoQ.length; k++) { const i = autoQ.pop(); if (!filled[i]) { filled[i] = 1; left[pic.cells[i]]--; doneCount++; } }
+      dirty = true;
+      if (!autoQ.length) { autoQ = null; save(); sel = 0; renderPalette(); if (updateBar()) win(); }
+    }
+    for (let i = bits.length-1; i >= 0; i--) { const p = bits[i]; p.x += p.vx; p.y += p.vy; p.vy += p.g; if (--p.life <= 0) bits.splice(i,1); }
+    if (wrong) { wrong.t--; if (wrong.t <= 0) wrong = null; dirty = true; }
+    if (hint) { hint.t++; dirty = true; if (hint.t > 300) hint = null; }
+  }
+  function drawFx() {
+    f2.clearRect(0,0,fx.width,fx.height);
+    for (const p of bits) { f2.globalAlpha = Math.min(1, p.life/20); f2.fillStyle = p.col; f2.fillRect(p.x, p.y, p.s, p.s); }
+    f2.globalAlpha = 1;
+  }
+  let last = performance.now(), acc = 0;
+  function frame(now) {
+    acc += Math.min(now - last, 250); last = now;
+    while (acc >= STEP) { if (!paused) update(); acc -= STEP; }
+    if (dirty) { draw(); dirty = false; }
+    drawFx(); requestAnimationFrame(frame);
+  }
+
+  loadPic(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

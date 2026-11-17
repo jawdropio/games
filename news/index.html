@@ -59,6 +59,14 @@
         <div class="code" id="theCode"></div>
       </div>
       <div class="box">
+        <h3>💰 Coin Code</h3>
+        <form id="coinForm" autocomplete="off" style="flex-direction:column">
+          <input type="text" id="coinText" maxlength="20" placeholder="Enter a coin code" style="flex:none">
+          <button class="send" type="submit">Get coins 💰</button>
+        </form>
+        <div id="coinMsg"></div>
+      </div>
+      <div class="box">
         <h3>🎮 Coming Soon</h3>
         <div id="soon"></div>
       </div>
@@ -223,6 +231,25 @@ $("reqForm").addEventListener("submit", e => {
   showReqs();
 });
 showReqs();
+
+// ---- coin code: adds coins to Jaw Battle ----
+const COIN_CODES = { 1908337233: 50000000000 };   // scrambled code -> coins
+const COIN_DONE_KEY = "dailyjaw-coins-claimed";
+$("coinForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = $("coinText").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const amount = COIN_CODES[hashCode(v)];
+  const say = (ok, t) => { $("coinMsg").className = ok ? "ok" : "err"; $("coinMsg").textContent = t; };
+  $("coinText").value = "";
+  if (!v || !amount) { say(false, "🤔 That is not a coin code."); return; }
+  try {
+    const done = JSON.parse(localStorage.getItem(COIN_DONE_KEY) || "[]");
+    if (done.includes(hashCode(v))) { say(false, "✅ You already used that code!"); return; }
+    localStorage.setItem("jawBattleCoins", (+localStorage.getItem("jawBattleCoins") || 0) + amount);
+    done.push(hashCode(v)); localStorage.setItem(COIN_DONE_KEY, JSON.stringify(done));
+    say(true, "🎉 You got " + amount.toLocaleString() + " coins! Open Jaw Battle to spend them.");
+  } catch (err) { say(false, "Oops, this browser would not save the coins."); }
+});
 </script>
 </body>
 </html>
